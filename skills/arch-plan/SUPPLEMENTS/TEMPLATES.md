@@ -1,10 +1,10 @@
 # Arch Plan Template
 
 ```markdown
-# [PLAN-XXX-ARCH] <Title>
+# [PLAN-XXXXX-ARCH] <Title>
 
 **Source Issue**: #<N> — <title>
-**Plan Number**: PLAN-XXX
+**Plan Number**: PLAN-XXXXX
 **Author**: Claude (Architect)
 **Status**: Draft
 **Date**: <today>

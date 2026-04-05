@@ -8,7 +8,7 @@ model: sonnet
 
 Break an approved implementation plan into phases sized by logical atomicity and estimated complexity. Each phase should be a coherent unit representing one branch, one PR, and one verifiable behavior change.
 
-**Before starting**: Read `../SHARED/CONFIG.md` for project configuration and board management commands.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands.
 
 ## Arguments
 
@@ -22,7 +22,7 @@ Break an approved implementation plan into phases sized by logical atomicity and
 gh issue view $0 --repo <repo> --json number,title,body,comments
 ```
 
-Extract the PLAN-XXX number. Fetch the arch plan and source issue if referenced.
+Extract the PLAN-XXXXX number. Fetch the arch plan and source issue if referenced.
 
 ### 2. Propose phase boundaries
 
@@ -49,7 +49,7 @@ For each approved phase:
 
 ```bash
 gh issue create --repo <repo> \
-  --title "[PLAN-XXX-N] <Phase Title>" \
+  --title "[PLAN-XXXXX-N] <Phase Title>" \
   --body "<phase content>" \
   --label "plan:phase,status:upcoming,<domain-labels>"
 ```
@@ -62,12 +62,12 @@ Capture each issue number as you go.
 
 ```bash
 gh issue comment $0 --repo <repo> \
-  --body "Phases created:\n- #<N1> [PLAN-XXX-1]\n- #<N2> [PLAN-XXX-2]\n..."
+  --body "Phases created:\n- #<N1> [PLAN-XXXXX-1]\n- #<N2> [PLAN-XXXXX-2]\n..."
 ```
 
 ### 5. Add all phases to board as Ready
 
-For each phase issue, use the board management commands in `../SHARED/CONFIG.md`. Set status to **Ready**.
+For each phase issue, use the board management commands in `.claude/plan-workflow-config.md`. Set status to **Ready**.
 
 ### 6. Confirm
 

@@ -8,7 +8,7 @@ model: sonnet
 
 Close out a completed implementation: confirm all phases are merged, open a PR from the implementation branch to main, and move the impl plan issue to In Review.
 
-**Before starting**: Read `../SHARED/CONFIG.md` for project configuration and board management commands.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands.
 
 ## Arguments
 
@@ -22,7 +22,7 @@ Close out a completed implementation: confirm all phases are merged, open a PR f
 gh issue view $0 --repo <repo> --json number,title,body,comments
 ```
 
-Extract PLAN-XXX and the phase list from the "Phases created:" comment.
+Extract PLAN-XXXXX and the phase list from the "Phases created:" comment.
 
 ### 2. Verify branch state
 
@@ -30,12 +30,12 @@ Extract PLAN-XXX and the phase list from the "Phases created:" comment.
 git branch --show-current
 ```
 
-Must be on `feature/plan-XXX`. If not, warn and stop — instruct the user to check out the implementation branch first.
+Must be on `feature/plan-XXXXX`. If not, warn and stop — instruct the user to check out the implementation branch first.
 
 Pull the latest from the remote — phase PRs were merged on GitHub and the local branch may be behind:
 
 ```bash
-git pull origin feature/plan-XXX
+git pull origin feature/plan-XXXXX
 ```
 
 ```bash
@@ -53,18 +53,18 @@ git log main..HEAD --oneline
 Present the summary:
 
 ```
-Implementation branch: feature/plan-XXX
+Implementation branch: feature/plan-XXXXX
 Target: main
 
 Commits since main:
   <list from git log>
 
 Phases:
-  [PLAN-XXX-1] <title>
-  [PLAN-XXX-2] <title>
+  [PLAN-XXXXX-1] <title>
+  [PLAN-XXXXX-2] <title>
   ...
 
-This will open a PR: feature/plan-XXX → main. Proceed?
+This will open a PR: feature/plan-XXXXX → main. Proceed?
 ```
 
 Ask for confirmation before creating the PR.
@@ -75,14 +75,14 @@ Read `../finish-phase/SUPPLEMENTS/TEMPLATES.md` for the PR body structure. The P
 
 ```bash
 gh pr create --repo <repo> \
-  --title "[PLAN-XXX] <Impl Plan Title>" \
+  --title "[PLAN-XXXXX] <Impl Plan Title>" \
   --base main \
   --body "<PR body>"
 ```
 
 ### 5. Move impl plan to In Review
 
-Use the board management commands in `../SHARED/CONFIG.md`. Set status to **In Review**.
+Use the board management commands in `.claude/plan-workflow-config.md`. Set status to **In Review**.
 
 ### 6. Confirm
 

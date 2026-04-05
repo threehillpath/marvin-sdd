@@ -8,7 +8,7 @@ model: haiku
 
 Move a GitHub issue to the specified status column on the kanban board.
 
-**Before starting**: Read `../SHARED/CONFIG.md` for project configuration values (repo, project number, project ID, owner, field ID, and status option IDs).
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration values (repo, project number, project ID, owner, field ID, and status option IDs).
 
 ## Arguments
 
@@ -22,7 +22,7 @@ Move a GitHub issue to the specified status column on the kanban board.
 
 ## Steps
 
-1. **Read `../SHARED/CONFIG.md`** to get the project number, owner, project ID, status field ID, and status option IDs.
+1. **Read `.claude/plan-workflow-config.md`** to get the project number, owner, project ID, status field ID, and status option IDs.
 
 2. **Resolve the status name** in `$1` to the correct option ID. Match case-insensitively. If unrecognized, list valid options and stop.
 

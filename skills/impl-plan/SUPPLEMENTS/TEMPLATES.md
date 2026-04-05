@@ -1,7 +1,7 @@
 # Implementation Plan Template
 
 ```markdown
-# [PLAN-XXX] <Title>
+# [PLAN-XXXXX] <Title>
 
 **Objective**: <one sentence>
 **Architecture Plan**: #<arch-issue-number>

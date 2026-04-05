@@ -1,0 +1,13 @@
+{
+  "name": "plan-workflow-marketplace",
+  "owner": {
+    "name": "Bryan Walker"
+  },
+  "plugins": [
+    {
+      "name": "plan-workflow",
+      "source": ".",
+      "description": "Structured architecture-to-implementation workflow using GitHub issues and project boards. Covers arch planning, impl planning, phase splitting, TDD implementation loops, and board management."
+    }
+  ]
+}

@@ -7,7 +7,7 @@
 
 ## Phase
 
-Closes #<phase-issue-number> — [PLAN-XXX-N] <Phase Title>
+Closes #<phase-issue-number> — [PLAN-XXXXX-N] <Phase Title>
 
 **Implementation plan**: #<impl-plan-issue>
 

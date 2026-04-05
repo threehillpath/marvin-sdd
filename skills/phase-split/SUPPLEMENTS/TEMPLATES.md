@@ -1,10 +1,10 @@
 # Phase Issue Template
 
 ```markdown
-# [PLAN-XXX-N] <Phase Title>
+# [PLAN-XXXXX-N] <Phase Title>
 
 **Implementation Plan**: #<impl-plan-issue>
-**Plan Number**: PLAN-XXX, Phase N
+**Plan Number**: PLAN-XXXXX, Phase N
 **Status**: Upcoming
 
 ---

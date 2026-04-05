@@ -9,14 +9,14 @@ model: sonnet
 Close out a completed phase: commit staged work, push, open a PR to the correct base branch, and move the issue to In Review.
 
 The PR target is determined automatically from the current branch name:
-- `feature/plan-XXX-N` → PR targets `feature/plan-XXX` (implementation branch)
-- `feature/plan-XXX` → PR targets `main` (use `/finish-impl` instead for this case)
+- `feature/plan-XXXXX-N` → PR targets `feature/plan-XXXXX` (implementation branch)
+- `feature/plan-XXXXX` → PR targets `main` (use `/finish-impl` instead for this case)
 
-**Before starting**: Read `../SHARED/CONFIG.md` for project configuration and board management commands.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands.
 
 ## Arguments
 
-- `$0` — Phase issue number (the `[PLAN-XXX-N]` issue)
+- `$0` — Phase issue number (the `[PLAN-XXXXX-N]` issue)
 
 ## Steps
 
@@ -26,7 +26,7 @@ The PR target is determined automatically from the current branch name:
 gh issue view $0 --repo <repo> --json number,title,body
 ```
 
-Extract the PLAN-XXX-N identifier and phase title to use in the commit message and PR.
+Extract the PLAN-XXXXX-N identifier and phase title to use in the commit message and PR.
 
 ### 2. Review current state
 
@@ -46,8 +46,8 @@ git branch --show-current
 If on `main` or `master`, stop and warn.
 
 Determine the PR target from the branch name:
-- If branch matches `feature/plan-XXX-N` (phase branch) → PR target is `feature/plan-XXX`
-- If branch matches `feature/plan-XXX` (impl branch) → PR target is `main`
+- If branch matches `feature/plan-XXXXX-N` (phase branch) → PR target is `feature/plan-XXXXX`
+- If branch matches `feature/plan-XXXXX` (impl branch) → PR target is `main`
 - If branch does not match either pattern, ask the user which branch to target before proceeding.
 
 ### 4. Confirm before committing
@@ -56,14 +56,14 @@ Present a summary of what will be committed and the proposed commit message. Do 
 
 Proposed commit message format:
 ```
-[PLAN-XXX-N] <phase title>
+[PLAN-XXXXX-N] <phase title>
 ```
 
 ### 5. Stage and commit
 
 ```bash
 git add <confirmed files>
-git commit -m "[PLAN-XXX-N] <phase title>"
+git commit -m "[PLAN-XXXXX-N] <phase title>"
 ```
 
 ### 6. Push
@@ -78,7 +78,7 @@ Read `SUPPLEMENTS/TEMPLATES.md` for the PR body structure.
 
 ```bash
 gh pr create --repo <repo> \
-  --title "[PLAN-XXX-N] <Phase Title>" \
+  --title "[PLAN-XXXXX-N] <Phase Title>" \
   --base <pr-target> \
   --body "<PR body>"
 ```
@@ -87,7 +87,7 @@ The PR body must include `Closes #$0` to auto-close the phase issue on merge.
 
 ### 8. Move issue to In Review
 
-Use the board management commands in `../SHARED/CONFIG.md`. Set status to **In Review**.
+Use the board management commands in `.claude/plan-workflow-config.md`. Set status to **In Review**.
 
 ### 9. Confirm
 

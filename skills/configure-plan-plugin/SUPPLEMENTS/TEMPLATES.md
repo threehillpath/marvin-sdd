@@ -1,18 +1,23 @@
+# Config File Template
+
+Use this structure when writing `.claude/plan-workflow-config.md`. Replace all placeholder values with the discovered configuration.
+
+```markdown
 # Skill Set Configuration
 
-This file is a template. The active config for each project lives at `.claude/plan-workflow-config.md` in the project directory. Run `/configure-plan-plugin` to generate it.
+Run `/configure-plan-plugin` to populate this file automatically for a new project.
 
 | Setting | Value |
 |---|---|
-| GitHub repo | `` |
-| Project number | `` |
-| Project ID | `` |
-| Status field ID | `` |
-| "Backlog" option ID | `` |
-| "Ready" option ID | `` |
-| "In Progress" option ID | `` |
-| "In Review" option ID | `` |
-| "Done" option ID | `` |
+| GitHub repo | `<owner/repo>` |
+| Project number | `<N>` |
+| Project ID | `<PVT_...>` |
+| Status field ID | `<PVTSSF_...>` |
+| "Backlog" option ID | `<option-id>` |
+| "Ready" option ID | `<option-id>` |
+| "In Progress" option ID | `<option-id>` |
+| "In Review" option ID | `<option-id>` |
+| "Done" option ID | `<option-id>` |
 
 ## Test Commands
 
@@ -20,8 +25,8 @@ Run from the **repository root**. Use the framework's native invocation pattern 
 
 | Scope | Command (run from repo root) |
 |---|---|
-| Backend | *(configure for your project)* |
-| Frontend | *(configure for your project)* |
+| Backend | `<command>` |
+| Frontend | `<command or none>` |
 
 ## Board Management Commands
 
@@ -58,4 +63,5 @@ ITEM_ID=$(gh project item-list <project-number> --owner <owner> \
   --format json --limit 100 \
   --jq '.items[] | select(.content.number == <issue-number>) | .id')
 # If ITEM_ID is empty, the issue is not on the board — add it first, then set status
+```
 ```

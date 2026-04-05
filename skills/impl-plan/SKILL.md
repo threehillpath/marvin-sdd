@@ -8,11 +8,11 @@ model: opus
 
 Create a technical implementation plan from an approved architecture plan. The impl plan is a specification — what to build and why, not how to code it.
 
-**Before starting**: Read `../SHARED/CONFIG.md` for project configuration and board management commands.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands.
 
 ## Arguments
 
-- `$0` — Arch plan issue number (the `[PLAN-XXX-ARCH]` issue)
+- `$0` — Arch plan issue number (the `[PLAN-XXXXX-ARCH]` issue)
 
 ## Steps
 
@@ -22,7 +22,7 @@ Create a technical implementation plan from an approved architecture plan. The i
 gh issue view $0 --repo <repo> --json number,title,body,comments
 ```
 
-Extract the PLAN-XXX number and source issue reference from the arch plan. Fetch the source issue too. Read relevant code files identified in the arch plan (handlers, workers, repos, schema).
+Extract the PLAN-XXXXX number and source issue reference from the arch plan. Fetch the source issue too. Read relevant code files identified in the arch plan (handlers, workers, repos, schema).
 
 ### 2. Ask clarifying questions if needed
 
@@ -44,7 +44,7 @@ See `../SHARED/RENDERING.md` for rendering guidance. Ask for approval on both co
 
 ```bash
 gh issue create --repo <repo> \
-  --title "[PLAN-XXX] <Title>" \
+  --title "[PLAN-XXXXX] <Title>" \
   --body "<approved content>" \
   --label "plan:impl,status:upcoming,<domain-labels>"
 ```
@@ -55,12 +55,12 @@ If a label does not exist, create it first — see `../SHARED/LABELS.md` for the
 
 ```bash
 gh issue comment $0 --repo <repo> \
-  --body "Implementation plan created: #<new-issue> ([PLAN-XXX])"
+  --body "Implementation plan created: #<new-issue> ([PLAN-XXXXX])"
 ```
 
 ### 7. Add to board as Ready
 
-Use the board management commands in `../SHARED/CONFIG.md`. Set status to **Ready**.
+Use the board management commands in `.claude/plan-workflow-config.md`. Set status to **Ready**.
 
 ### 8. Confirm
 

@@ -8,7 +8,7 @@
 | Implementation plan | `plan:impl` |
 | Phase | `plan:phase` |
 
-These labels are created by the `configure` skill during setup. If a label is missing, create it before applying:
+These labels are created by the `configure-plan-plugin` skill during setup. If a label is missing, create it before applying:
 ```bash
 gh label create "plan:arch" --repo <repo> --description "Architecture plan" --color "0075ca"
 gh label create "plan:impl" --repo <repo> --description "Implementation plan" --color "0075ca"

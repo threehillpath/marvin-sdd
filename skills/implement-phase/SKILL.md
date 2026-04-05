@@ -8,7 +8,7 @@ model: sonnet
 
 Implement a phase autonomously using a TDD loop in an isolated git worktree. The sub-agent writes tests, implements features, and opens a PR to the implementation branch when all success criteria pass.
 
-**Before starting**: Read `../SHARED/CONFIG.md` for project configuration, board management commands, and test commands.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration, board management commands, and test commands.
 
 ## Arguments
 
@@ -22,7 +22,7 @@ Implement a phase autonomously using a TDD loop in an isolated git worktree. The
 gh issue view $0 --repo <repo> --json number,title,body
 ```
 
-Extract PLAN-XXX-N, the phase title, the success criteria checklist, and the impl plan issue number from the body.
+Extract PLAN-XXXXX-N, the phase title, the success criteria checklist, and the impl plan issue number from the body.
 
 ```bash
 gh issue view <impl-plan-issue> --repo <repo> --json number,title,body
@@ -32,21 +32,21 @@ Read relevant source files identified in the impl plan — handlers, workers, re
 
 ### 2. Derive branches
 
-From PLAN-XXX-N:
-- Phase branch: `feature/plan-XXX-N`
-- Impl branch: `feature/plan-XXX`
+From PLAN-XXXXX-N:
+- Phase branch: `feature/plan-XXXXX-N`
+- Impl branch: `feature/plan-XXXXX`
 
 Verify the impl branch exists on the remote:
 
 ```bash
-git ls-remote --heads origin feature/plan-XXX
+git ls-remote --heads origin feature/plan-XXXXX
 ```
 
-If not found, stop: "Implementation branch `feature/plan-XXX` not found. Run `/start-impl <impl-plan-issue>` first."
+If not found, stop: "Implementation branch `feature/plan-XXXXX` not found. Run `/start-impl <impl-plan-issue>` first."
 
 ### 3. Move phase to In Progress
 
-Use the board management commands in `../SHARED/CONFIG.md`. Set status to **In Progress**.
+Use the board management commands in `.claude/plan-workflow-config.md`. Set status to **In Progress**.
 
 ### 4. Spawn implementation sub-agent
 
@@ -57,9 +57,9 @@ Spawn a **general-purpose** agent with `isolation: "worktree"` and model **sonne
 1. Phase issue content (title, objective, scope, TDD entry point, success criteria)
 2. Impl plan content (full component specs, design notes)
 3. Current source file contents (read in step 1)
-4. Branch names: phase branch `feature/plan-XXX-N`, impl branch `feature/plan-XXX`
+4. Branch names: phase branch `feature/plan-XXXXX-N`, impl branch `feature/plan-XXXXX`
 5. Repo: `<repo>`
-6. Test commands from `../SHARED/CONFIG.md`
+6. Test commands from `.claude/plan-workflow-config.md`
 7. Full instructions from `SUPPLEMENTS/LOOP.md`
 
 The sub-agent must not pause for user confirmation except on unresolvable failure or ambiguity.

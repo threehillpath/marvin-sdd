@@ -8,7 +8,7 @@ model: opus
 
 Create an architectural plan for a GitHub issue. Arch plans focus on domain/system concerns — what to build and why, not how to implement it.
 
-**Before starting**: Read `../SHARED/CONFIG.md` for project configuration values and board management commands. Read `../SHARED/NAMING.md` for naming conventions and how to find the next plan number.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration values and board management commands. Read `../SHARED/NAMING.md` for naming conventions and how to find the next plan number.
 
 ## Arguments
 
@@ -26,7 +26,7 @@ Also read any architecture decision records, domain model files, and guidance do
 
 ### 2. Determine PLAN number
 
-The plan number is the source issue number (`$0`), zero-padded to 3 digits. See `../SHARED/NAMING.md`.
+The plan number is the source issue number (`$0`), zero-padded to 5 digits. See `../SHARED/NAMING.md`.
 
 ### 3. Ask clarifying questions if needed
 
@@ -48,7 +48,7 @@ See `../SHARED/RENDERING.md` for rendering guidance. Ask for approval on both co
 
 ```bash
 gh issue create --repo <repo> \
-  --title "[PLAN-XXX-ARCH] <Title>" \
+  --title "[PLAN-XXXXX-ARCH] <Title>" \
   --body "<approved content>" \
   --label "plan:arch,status:upcoming,<domain-labels>,<source-issue-type-if-applicable>"
 ```
@@ -59,12 +59,12 @@ If a label does not exist, create it first — see `../SHARED/LABELS.md` for the
 
 ```bash
 gh issue comment $0 --repo <repo> \
-  --body "Architecture plan created: #<new-issue> ([PLAN-XXX-ARCH])"
+  --body "Architecture plan created: #<new-issue> ([PLAN-XXXXX-ARCH])"
 ```
 
 ### 8. Add to board as Ready
 
-Use the board management commands in `../SHARED/CONFIG.md`. Set status to **Ready**.
+Use the board management commands in `.claude/plan-workflow-config.md`. Set status to **Ready**.
 
 ### 9. Confirm
 

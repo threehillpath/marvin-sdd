@@ -20,7 +20,7 @@ Board management is available at any point via `/move-issue`.
 
 | Skill | Description |
 |---|---|
-| `/configure` | Set up `SHARED/CONFIG.md` for a new project (run first) |
+| `/configure-plan-plugin` | Set up `.claude/plan-workflow-config.md` for a new project (run first) |
 | `/arch-plan <issue>` | Create an architectural plan from a GitHub issue |
 | `/impl-plan <arch-issue>` | Create a technical implementation plan from an arch plan |
 | `/phase-split <impl-issue>` | Break an impl plan into phase issues on the board |
@@ -43,12 +43,12 @@ Or add to your project's `.claude/settings.json` once published to a marketplace
 
 ### 2. Configure for your project
 
-Run `/configure` in your project. It will:
+Run `/configure-plan-plugin` in your project. It will:
 - Detect your GitHub repo from the git remote
 - List your GitHub Projects and let you pick one
 - Discover the project's status field and column IDs
 - Ask for your test commands
-- Write everything to `SHARED/CONFIG.md`
+- Write everything to `.claude/plan-workflow-config.md`
 
 ### 3. Create GitHub labels
 
@@ -65,10 +65,10 @@ gh label create "status:upcoming" --repo <owner/repo> --description "Upcoming wo
 
 Each plan traces back to a source GitHub issue. The source issue number becomes the PLAN number:
 
-- Source issue #42 → `PLAN-042`
-- Arch plan: `[PLAN-042-ARCH] Title`
-- Impl plan: `[PLAN-042] Title`
-- Phases: `[PLAN-042-1] Title`, `[PLAN-042-2] Title`, ...
+- Source issue #42 → `PLAN-00042`
+- Arch plan: `[PLAN-00042-ARCH] Title`
+- Impl plan: `[PLAN-00042] Title`
+- Phases: `[PLAN-00042-1] Title`, `[PLAN-00042-2] Title`, ...
 
 ## Requirements
 

@@ -108,7 +108,10 @@ If the sub-agent stopped on failure, present the diagnostic and ask how to proce
 
 The worktree at `.claude/worktrees/phase-XXXXX-N` is **left in place** until `/wrap-phase` runs after merge — reviewers may want to test the branch locally, and the user may push correction commits from it.
 
+**After the PR is opened**:
+- Run `/review-phase <phase-issue-number>` for an opus-driven code review of the PR. Address blocking findings before merging.
+
 **After the PR is merged**:
 - Run `/wrap-phase <phase-issue-number> <impl-plan-issue-number>` to capture decisions, close the phase issue, move it to Done, and clean up the worktree.
 - If more phases remain: `/implement-phase <next-phase-issue-number>`
-- If this was the last phase: `/finish-impl <impl-plan-issue-number>`
+- If this was the last phase: `/review-impl <impl-plan-issue-number>` for a comprehensive cross-phase review, then `/finish-impl <impl-plan-issue-number>`.

@@ -10,6 +10,8 @@ Close out a completed implementation: confirm all phases are merged, open a PR f
 
 **Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands. Read `../SHARED/GLOSSARY.md` for branch and status conventions.
 
+If `/review-impl <impl-plan-issue>` has not been run yet, suggest running it first. The cross-phase review catches integration issues no individual phase review could see, and addressing them before opening the impl PR keeps the PR clean.
+
 ## Arguments
 
 - `$0` — Impl plan issue number

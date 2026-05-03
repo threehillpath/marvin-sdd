@@ -105,4 +105,4 @@ Report:
 - Worktree removed
 
 If more phases remain: "Next: `/implement-phase <next-phase-issue-number>`"
-If this was the last phase: "Next: `/finish-impl <impl-plan-issue-number>`"
+If this was the last phase: "Next: `/review-impl <impl-plan-issue-number>` (comprehensive cross-phase review), then `/finish-impl <impl-plan-issue-number>`."

@@ -15,6 +15,8 @@ skills/
     LABELS.md                  ← Label rules
     PR_TEMPLATE.md             ← PR body templates
     RENDERING.md               ← Markdown output guidance
+    REVIEW_RUBRIC.md           ← Code-review rubric for review-phase / review-impl
+    REVIEW_FINDING_FORMAT.md   ← Findings JSON schema (review output contract)
   <skill-name>/
     SKILL.md                   ← Authoritative skill prompt
     SUPPLEMENTS/               ← Templates and deeper guidance
@@ -24,11 +26,13 @@ skills/
 
 ```
 arch-plan → impl-plan → phase-split → start-impl →
-    [ implement-phase → review/merge → wrap-phase ]  per phase
-    → finish-impl
+    [ implement-phase → review-phase → merge → wrap-phase ]  per phase
+    → review-impl → finish-impl
 ```
 
 `move-issue` and `finish-phase` are auxiliaries usable at any point. See each skill's `SKILL.md` for behavior.
+
+`review-phase` and `review-impl` spawn an opus sub-agent (fresh context, extended thinking) to apply `skills/SHARED/REVIEW_RUBRIC.md` and return findings as `skills/SHARED/REVIEW_FINDING_FORMAT.md`. The findings JSON is the stable contract a future auto-fix loop will consume — review skills produce it, future skills will act on it.
 
 ## Per-project config
 

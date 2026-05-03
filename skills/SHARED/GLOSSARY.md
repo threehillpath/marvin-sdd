@@ -67,4 +67,6 @@ These terms are defined in the skill that owns them; this list points to the sou
 | Notes section / corrections record | `implement-phase/SUPPLEMENTS/LOOP.md` §6 and `SHARED/PR_TEMPLATE.md` |
 | Phase wrap-up classification | `wrap-phase/SUPPLEMENTS/CLASSIFY.md` |
 | Phasing principles | `phase-split/SUPPLEMENTS/PHASING.md` |
+| Code-review rubric | `SHARED/REVIEW_RUBRIC.md` |
+| Review findings format | `SHARED/REVIEW_FINDING_FORMAT.md` |
 | Board command patterns | `SHARED/CONFIG.md` (template) and `.claude/plan-workflow-config.md` (per project) |

@@ -8,7 +8,7 @@ model: opus
 
 Create an architectural plan for a GitHub issue. Arch plans focus on domain/system concerns — what to build and why, not how to implement it.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration values and board management commands. Read `../SHARED/NAMING.md` for naming conventions and how to find the next plan number.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration values and board management commands. Read `../SHARED/GLOSSARY.md` for naming conventions and the status state machine.
 
 ## Arguments
 
@@ -26,7 +26,7 @@ Also read any architecture decision records, domain model files, and guidance do
 
 ### 2. Determine PLAN number
 
-The plan number is the source issue number (`$0`), zero-padded to 5 digits. See `../SHARED/NAMING.md`.
+The plan number is `$0` zero-padded to 5 digits. See `../SHARED/GLOSSARY.md`.
 
 ### 3. Ask clarifying questions if needed
 

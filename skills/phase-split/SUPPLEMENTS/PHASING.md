@@ -19,9 +19,9 @@ Split at these points:
 
 ## TDD and phases
 
-Each phase (except UI-only phases) should begin with writing the entry point test from the impl plan before any implementation. The phase issue carries the TDD entry point forward from the impl plan.
+Each phase should begin with writing the entry point test from the impl plan before any implementation. The phase issue carries the TDD entry point forward from the impl plan.
 
-UI rendering phases are exempt from TDD requirements — components and DOM-dependent code are not practical to unit test. However, a phase that includes frontend logic without DOM dependency (reducers, utility functions, validation helpers, data transformations) is **not** exempt and requires a TDD entry point for those components.
+The TDD exemption is narrow: it applies **only** to rendered controls — JSX/template markup, styling, and rendering side-effects. A phase whose only deliverable is markup may omit a TDD entry point for that work. But any phase that touches event handlers, derived state, validation, formatters, parsers, or conditional-render predicates **must** include a TDD entry point — even when that logic currently lives inside a component file. Plan to extract such logic to a tested helper as part of the phase. See `../../impl-plan/SUPPLEMENTS/TDD.md` for the full rule.
 
 ## Anti-patterns to avoid
 

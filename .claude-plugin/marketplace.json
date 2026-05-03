@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "plan-workflow",
-      "source": ".",
+      "source": "./",
       "description": "Structured architecture-to-implementation workflow using GitHub issues and project boards. Covers arch planning, impl planning, phase splitting, TDD implementation loops, and board management."
     }
   ]

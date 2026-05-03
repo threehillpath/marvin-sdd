@@ -8,7 +8,7 @@ model: sonnet
 
 Break an approved implementation plan into phases sized by logical atomicity and estimated complexity. Each phase should be a coherent unit representing one branch, one PR, and one verifiable behavior change.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
 
 ## Arguments
 
@@ -60,9 +60,16 @@ Capture each issue number as you go.
 
 ### 4. Link phases to impl plan
 
+`gh issue comment --body` does not interpret backslash escapes, so use a HEREDOC to get real newlines:
+
 ```bash
-gh issue comment $0 --repo <repo> \
-  --body "Phases created:\n- #<N1> [PLAN-XXXXX-1]\n- #<N2> [PLAN-XXXXX-2]\n..."
+gh issue comment $0 --repo <repo> --body "$(cat <<'EOF'
+Phases created:
+- #<N1> [PLAN-XXXXX-1]
+- #<N2> [PLAN-XXXXX-2]
+- ...
+EOF
+)"
 ```
 
 ### 5. Add all phases to board as Ready

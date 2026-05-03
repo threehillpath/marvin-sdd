@@ -8,7 +8,7 @@ model: sonnet
 
 Close out a completed implementation: confirm all phases are merged, open a PR from the implementation branch to main, and move the impl plan issue to In Review.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands. Read `../SHARED/GLOSSARY.md` for branch and status conventions.
 
 ## Arguments
 
@@ -71,7 +71,7 @@ Ask for confirmation before creating the PR.
 
 ### 4. Create PR
 
-Read `../finish-phase/SUPPLEMENTS/TEMPLATES.md` for the PR body structure. The PR body should summarize what the full implementation delivers across all phases. Include `Closes #$0` to auto-close the impl plan issue on merge.
+Read `../SHARED/PR_TEMPLATE.md` and use the **Implementation PR** template. Include `Closes #$0` to auto-close the impl plan issue on merge.
 
 ```bash
 gh pr create --repo <repo> \

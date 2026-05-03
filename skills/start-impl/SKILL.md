@@ -8,7 +8,7 @@ model: sonnet
 
 Summarize what is about to be built, confirm phase readiness, and create the implementation branch.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands. Read `../SHARED/GLOSSARY.md` for branch/issue naming and the status state machine.
 
 ## Arguments
 
@@ -30,9 +30,7 @@ gh issue view <phase-issue> --repo <repo> --json number,title,state
 
 ### 2. Derive branch names
 
-From the PLAN-XXXXXXX number (zero-padded to 5 digits):
-- Implementation branch: `feature/plan-XXXXX`
-- Phase branches: `feature/plan-XXXXX-1`, `feature/plan-XXXXX-2`, etc.
+Per `../SHARED/GLOSSARY.md`: implementation branch is `feature/plan-XXXXX`; phase branches are `feature/plan-XXXXX-N`.
 
 ### 3. Present summary for confirmation
 

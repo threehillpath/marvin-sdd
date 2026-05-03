@@ -12,7 +12,7 @@ The PR target is determined automatically from the current branch name:
 - `feature/plan-XXXXX-N` → PR targets `feature/plan-XXXXX` (implementation branch)
 - `feature/plan-XXXXX` → PR targets `main` (use `/finish-impl` instead for this case)
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands. Read `../SHARED/GLOSSARY.md` for branch and status conventions.
 
 ## Arguments
 
@@ -74,7 +74,7 @@ git push -u origin <branch>
 
 ### 7. Create PR
 
-Read `SUPPLEMENTS/TEMPLATES.md` for the PR body structure.
+Read `../SHARED/PR_TEMPLATE.md` and use the **Phase PR** template.
 
 ```bash
 gh pr create --repo <repo> \

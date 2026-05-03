@@ -4,9 +4,20 @@ Each component section in an impl plan must include a TDD entry point — the fi
 
 ## Scope
 
-TDD applies to backend logic (domain, repos, workers, handlers) **and** to any testable frontend logic — reducers, utility functions, data transformation, validation helpers, and other non-rendering code that runs in the browser.
+TDD applies to backend logic (domain, repos, workers, handlers) **and** to all testable frontend logic — reducers, utility functions, data transformation, validation helpers, formatters, parsers, and other non-rendering code that runs in the browser.
 
-**The exemption is narrow**: only rendered UI components and other code whose primary output is rendered UI elements are exempt. Running in the browser does not make code UI. If it has inputs, outputs, and no DOM dependency, it should have a TDD entry point.
+### The exemption applies only to rendered controls
+
+The exemption covers **only** the JSX/template markup, styling, layout, and rendering side-effects produced by a component. Anything else inside a component file must be extracted to a non-component module and tested. This includes:
+
+- **Event handlers** (save, submit, click, change) that transform, filter, derive, or validate values before calling an API, dispatch, or store mutation.
+- **Derived state** — values computed from props, hook outputs, or store reads before being rendered.
+- **Validation, formatting, parsing, sorting, mapping** done inline.
+- **Conditional rendering driven by non-trivial expressions** — extract the predicate to a tested helper, then render based on its result.
+
+The litmus test: **if the code can be tested with the DOM removed, it is logic — extract and test it.** Only what genuinely cannot run without a DOM (the rendering itself) is exempt.
+
+This rule is strict because UI components are where untested logic accumulates fastest — handlers grow over time, derivations get tangled, and bugs hide behind the markup.
 
 ## Principles
 

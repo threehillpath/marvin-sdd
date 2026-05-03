@@ -2,13 +2,13 @@
 name: impl-plan
 description: Create a technical implementation plan from an architecture plan issue
 argument-hint: <arch-plan-issue-number>
-allowed-tools: Bash, Read, Glob, Grep
+allowed-tools: Bash, Read, Glob, Grep, Agent
 model: opus
 ---
 
 Create a technical implementation plan from an approved architecture plan. The impl plan is a specification — what to build and why, not how to code it.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
 
 ## Arguments
 
@@ -22,7 +22,33 @@ Create a technical implementation plan from an approved architecture plan. The i
 gh issue view $0 --repo <repo> --json number,title,body,comments
 ```
 
-Extract the PLAN-XXXXX number and source issue reference from the arch plan. Fetch the source issue too. Read relevant code files identified in the arch plan (handlers, workers, repos, schema).
+Extract the PLAN-XXXXX number and source issue reference from the arch plan. Fetch the source issue too.
+
+From the arch plan and source issue, identify the **paths** of source files that are likely relevant — handlers, workers, repos, schema files, components, configs. List them; do not read them yourself. Reading every relevant file inline would balloon this conversation's context before the drafting step where it matters most.
+
+### 1b. Delegate code digest to a sub-agent
+
+Spawn an **Explore** subagent to read those files and return a structured digest. Use this prompt template:
+
+> Goal: produce a digest that a planner will use to write a technical implementation plan. Do not draft the plan — just describe what currently exists.
+>
+> For each of the following files, return:
+>
+> - **Path**
+> - **Purpose** (1 sentence)
+> - **Key types / function signatures / exports** (signatures only, not bodies)
+> - **Notable behavior** the planner needs to know — invariants, side effects, hidden coupling, error-handling patterns, tests that exist
+> - **Likely change surface** for the work described below — which functions or types would need to be touched, added, or replaced
+>
+> Files:
+> <bullet list of paths>
+>
+> Work to plan (from arch plan #<N>):
+> <paste the arch plan body, or the relevant excerpt>
+>
+> Keep the total response under ~3000 words. Skip files that turn out to be trivial (constants, re-exports). If you find a file that should also be read but wasn't on the list, mention it by path with a one-sentence reason — don't read it.
+
+Capture the digest. This becomes your reference material for drafting; you do not need to read the underlying files yourself unless the digest flags something that needs deeper inspection.
 
 ### 2. Ask clarifying questions if needed
 
@@ -32,7 +58,7 @@ Evaluate: component sequencing, schema changes, layer boundaries, edge cases, ve
 
 Read `SUPPLEMENTS/CONVENTIONS.md` for what to include and exclude. Read `SUPPLEMENTS/TEMPLATES.md` for the plan structure.
 
-**TDD**: Each component section must include a TDD Entry Point. **Rendered UI components are exempt** — components and DOM-dependent code are not practical to unit test. Frontend logic without DOM dependency (reducers, utilities, validation helpers) is NOT exempt. See `SUPPLEMENTS/TDD.md` for full scope.
+**TDD**: Each component section must include a TDD Entry Point. The only exemption is for **rendered controls** — the JSX/template markup, styling, and rendering itself. All logic that lives inside a component (event handlers, derived state, validation, formatting, conditional-render predicates) must be extracted to a non-component module and given a TDD entry point. The litmus test: if it can be tested with the DOM removed, it is logic. See `SUPPLEMENTS/TDD.md` for full scope.
 
 ### 4. Present for review
 

@@ -69,4 +69,8 @@ These terms are defined in the skill that owns them; this list points to the sou
 | Phasing principles | `phase-split/SUPPLEMENTS/PHASING.md` |
 | Code-review rubric | `SHARED/REVIEW_RUBRIC.md` |
 | Review findings format | `SHARED/REVIEW_FINDING_FORMAT.md` |
+| Plan red-team rubric | `SHARED/PLAN_RED_TEAM_RUBRIC.md` |
+| Plan red-team findings format | `SHARED/PLAN_RED_TEAM_FORMAT.md` |
+| Plan drift rubric | `SHARED/PLAN_DRIFT_RUBRIC.md` |
+| Plan drift findings format | `SHARED/PLAN_DRIFT_FORMAT.md` |
 | Board command patterns | `SHARED/CONFIG.md` (template) and `.claude/plan-workflow-config.md` (per project) |

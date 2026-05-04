@@ -17,6 +17,10 @@ skills/
     RENDERING.md               ← Markdown output guidance
     REVIEW_RUBRIC.md           ← Code-review rubric for review-phase / review-impl
     REVIEW_FINDING_FORMAT.md   ← Findings JSON schema (review output contract)
+    PLAN_RED_TEAM_RUBRIC.md    ← Plan-critique rubric for red-team-plan
+    PLAN_RED_TEAM_FORMAT.md    ← Findings JSON schema (plan-critique output contract)
+    PLAN_DRIFT_RUBRIC.md       ← Coverage + containment rubric for plan-drift
+    PLAN_DRIFT_FORMAT.md       ← Findings JSON schema (drift-audit output contract)
   <skill-name>/
     SKILL.md                   ← Authoritative skill prompt
     SUPPLEMENTS/               ← Templates and deeper guidance
@@ -25,14 +29,22 @@ skills/
 ## Skills (in workflow order)
 
 ```
-arch-plan → impl-plan → phase-split → start-impl →
-    [ implement-phase → review-phase → merge → wrap-phase ]  per phase
+arch-plan → impl-plan → red-team-plan → phase-split → start-impl →
+    [ implement-phase → (plan-drift) → review-phase → merge → wrap-phase ]  per phase
     → review-impl → finish-impl
 ```
 
-`move-issue` and `finish-phase` are auxiliaries usable at any point. See each skill's `SKILL.md` for behavior.
+`move-issue`, `finish-phase`, and `plan-drift` are auxiliaries usable at any point — `plan-drift` is most valuable mid-phase or before opening a PR, but can run any time. See each skill's `SKILL.md` for behavior.
 
-`review-phase` and `review-impl` spawn an opus sub-agent (fresh context, extended thinking) to apply `skills/SHARED/REVIEW_RUBRIC.md` and return findings as `skills/SHARED/REVIEW_FINDING_FORMAT.md`. The findings JSON is the stable contract a future auto-fix loop will consume — review skills produce it, future skills will act on it.
+### Spec-checking subagents
+
+Three skills spawn fresh-context sub-agents that apply a shared rubric and return structured findings JSON:
+
+- **`red-team-plan`** — opus sub-agent critiques the impl plan against `skills/SHARED/PLAN_RED_TEAM_RUBRIC.md`, returns findings as `skills/SHARED/PLAN_RED_TEAM_FORMAT.md`. Catches hidden assumptions, missing dependencies, weak TDD entry points, and unfalsifiable success criteria *before* phase-split, where errors compound.
+- **`plan-drift`** — sonnet sub-agent audits a phase branch against its spec using `skills/SHARED/PLAN_DRIFT_RUBRIC.md`, returns findings as `skills/SHARED/PLAN_DRIFT_FORMAT.md`. Tracks two things: per-criterion coverage and out-of-scope/interface-divergence containment. Complements but does not replace `review-phase`.
+- **`review-phase` / `review-impl`** — opus sub-agent (extended thinking) applies `skills/SHARED/REVIEW_RUBRIC.md` and returns findings as `skills/SHARED/REVIEW_FINDING_FORMAT.md`.
+
+Each findings JSON is the stable contract a future auto-fix loop will consume — these skills produce it, future skills will act on it.
 
 ## Per-project config
 

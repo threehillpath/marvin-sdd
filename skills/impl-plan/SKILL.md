@@ -92,4 +92,4 @@ Use the board management commands in `.claude/plan-workflow-config.md`. Set stat
 
 Report: arch plan issue, new impl plan issue number and title, board status.
 
-**Next step**: `/phase-split <new-issue-number>`
+**Next step**: `/red-team-plan <new-issue-number>` to critique the plan with a fresh-context opus sub-agent before splitting it. Address blocking findings (or accept the risk), then `/phase-split <new-issue-number>`.

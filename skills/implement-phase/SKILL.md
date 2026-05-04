@@ -108,8 +108,11 @@ If the sub-agent stopped on failure, present the diagnostic and ask how to proce
 
 The worktree at `.claude/worktrees/phase-XXXXX-N` is **left in place** until `/wrap-phase` runs after merge — reviewers may want to test the branch locally, and the user may push correction commits from it.
 
+**During implementation or before opening the PR** (optional):
+- Run `/plan-drift <phase-issue-number>` to audit the worktree's diff against the phase spec — checks per-criterion coverage and flags out-of-scope or interface-divergent changes early.
+
 **After the PR is opened**:
-- Run `/review-phase <phase-issue-number>` for an opus-driven code review of the PR. Address blocking findings before merging.
+- Run `/plan-drift <phase-issue-number>` again if the PR has additional commits beyond the worktree audit, then `/review-phase <phase-issue-number>` for an opus-driven code review. Address blocking findings before merging.
 
 **After the PR is merged**:
 - Run `/wrap-phase <phase-issue-number> <impl-plan-issue-number>` to capture decisions, close the phase issue, move it to Done, and clean up the worktree.

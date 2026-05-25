@@ -1,0 +1,94 @@
+# Internal schema for bot-created implementation plan issues.
+# XXXXX derivation and -A/-B multi-impl edge case: see skills/SHARED/GLOSSARY.md
+# Label rules: see skills/SHARED/LABELS.md
+
+type: impl
+
+# Title prefix pattern. XXXXX = zero-padded GitHub source issue number (see GLOSSARY.md).
+# Multi-impl suffix: [PLAN-XXXXX-A] / [PLAN-XXXXX-B] — see GLOSSARY.md edge case.
+title_prefix: "[PLAN-XXXXX] <Title>"
+
+# Labels applied at issue creation. See SHARED/LABELS.md for definitions and create commands.
+default_labels:
+  - plan:impl
+  - status:upcoming
+
+# Ordered header fields rendered as bold key-value pairs below the issue title.
+metadata:
+  - Objective
+  - Architecture Plan
+  - Source Issue
+  - Author
+  - Status
+  - Last Updated
+
+# Ordered list of sections. Fields:
+#   id         — stable identifier referenced by validation.required_sections
+#   heading    — exact heading text rendered in the issue body
+#   required   — whether the section must appear in a valid plan
+#   repeatable — whether the section may appear more than once
+#   numbered   — when true on a repeatable section, each instance is prefixed ## 1., ## 2., …
+#                Verification Steps continues the running ordinal from the last Component section.
+#   guidance   — how-to-fill prose co-located with the section definition
+sections:
+  - id: scope
+    heading: Scope
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      Two sub-sections: **Includes** (bullet list of what is in scope) and
+      **Does NOT include** (bullet list of what is explicitly excluded, with
+      references to where that work lives or why it is deferred).
+
+  - id: component
+    heading: <Component or Layer Name>
+    required: true
+    repeatable: true
+    numbered: true
+    guidance: >
+      One section per component or layer. Each must contain three sub-sections:
+      **Specifications** (files to create/modify, key type names, function
+      signatures), **Behavior** (what it must do, edge cases, error handling
+      requirements), and **TDD Entry Point** (first test to write: what
+      observable behavior does it assert and where does the test live?).
+
+  - id: verification_steps
+    heading: Verification Steps
+    required: true
+    repeatable: true
+    numbered: true
+    guidance: >
+      One sub-section per scenario. Each contains a concrete command to run
+      and an expected outcome comment. Continues the running ordinal from
+      Component sections (e.g., if the last Component is ## 3., the first
+      Verification Step is ## 4.).
+
+  - id: design_notes
+    heading: Design Notes
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      Rationale for non-obvious decisions. Reference the arch plan for
+      higher-level decisions already made there.
+
+  - id: success_criteria
+    heading: Success Criteria
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      Checkbox list of measurable requirements. Each item must be independently
+      verifiable. Format: - [ ] <measurable requirement>
+
+validation:
+  required_sections:
+    - scope
+    - component
+    - verification_steps
+    - design_notes
+    - success_criteria
+  rules:
+    - "Success Criteria items must match `- [ ] ` checkbox format"
+    - "Component sections must contain Specifications, Behavior, and TDD Entry Point sub-sections"

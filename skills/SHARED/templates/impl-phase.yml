@@ -1,0 +1,103 @@
+# Internal schema for bot-created phase issues.
+# XXXXX derivation and -A/-B multi-impl edge case: see skills/SHARED/GLOSSARY.md
+# Label rules: see skills/SHARED/LABELS.md
+
+type: impl-phase
+
+# Title prefix pattern. XXXXX = zero-padded GitHub source issue number, N = phase ordinal.
+# See GLOSSARY.md for XXXXX derivation and multi-impl -A/-B edge case.
+title_prefix: "[PLAN-XXXXX-N] <Phase Title>"
+
+# Labels applied at issue creation. See SHARED/LABELS.md for definitions and create commands.
+default_labels:
+  - plan:phase
+  - status:upcoming
+
+# Ordered header fields rendered as bold key-value pairs below the issue title.
+metadata:
+  - Implementation Plan
+  - Plan Number
+  - Status
+
+# Ordered list of sections. Fields:
+#   id         — stable identifier referenced by validation.required_sections
+#   heading    — exact heading text rendered in the issue body
+#   required   — whether the section must appear in a valid plan
+#   repeatable — whether the section may appear more than once
+#   numbered   — when true on a repeatable section, each instance is prefixed ## 1., ## 2., …
+#   guidance   — how-to-fill prose co-located with the section definition
+sections:
+  - id: objective
+    heading: Objective
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      One sentence: what this phase delivers and why it is a natural unit of
+      independently-mergeable work.
+
+  - id: scope
+    heading: Scope
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      **Includes** bullet list of what is in this phase's scope.
+      **Depends on** line: Phase <N-1> / none.
+      **Next phase** line: Phase <N+1> builds on this by <brief description> /
+      none (final phase).
+
+  - id: tdd_entry_point
+    heading: TDD Entry Point
+    required: false
+    repeatable: false
+    numbered: false
+    guidance: >
+      First test to write before any implementation. Omit this section for
+      UI-only (rendered-controls) phases — see impl-plan/SUPPLEMENTS/TDD.md
+      for the exemption litmus test.
+      Format:
+        What: <one sentence on the observable behavior being asserted>
+        Where: <test file path pattern>
+        Passes when: <observable outcome>
+
+  - id: components
+    heading: Components
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      Brief spec for each component in this phase. Reference the impl plan
+      issue for full Specifications / Behavior / TDD Entry Point detail.
+
+  - id: verification
+    heading: Verification
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      Concrete command(s) or steps to confirm this phase is complete and
+      ready to merge.
+
+  - id: success_criteria
+    heading: Success Criteria
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      Checkbox list of measurable requirements for this phase. Standard items:
+        - [ ] TDD entry point test written and failing (backend phases only)
+        - [ ] Implementation complete and test passing
+        - [ ] PR reviewed and merged
+      Add phase-specific items as needed. Format: - [ ] <measurable requirement>
+
+validation:
+  required_sections:
+    - objective
+    - scope
+    - components
+    - verification
+    - success_criteria
+  rules:
+    - "Success Criteria items must match `- [ ] ` checkbox format"
+    - "tdd_entry_point is optional; omit only for UI-only phases (see impl-plan/SUPPLEMENTS/TDD.md)"

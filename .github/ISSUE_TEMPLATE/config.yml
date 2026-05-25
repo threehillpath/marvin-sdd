@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Workflow Documentation
+    url: https://github.com/threehillpath/claude-plan-workflow/blob/main/README.md
+    about: Read the plan-workflow documentation before filing an issue.

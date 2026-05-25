@@ -14,6 +14,15 @@ This file is a template. The active config for each project lives at `.claude/pl
 | "In Review" option ID | `` |
 | "Done" option ID | `` |
 
+## Plan Template Resolution
+
+Skills that render plan issue bodies resolve the template for each plan type using this order:
+
+1. **Project override** (wins if present): `.claude/plan-workflow-templates/{type}.yml` in the consuming project — sibling to `.claude/plan-workflow-config.md`.
+2. **Plugin default** (always present): `skills/SHARED/templates/{type}.yml` in the plugin.
+
+Where `{type}` is `arch-plan`, `impl-plan`, or `impl-phase`. A skill checks for the project override first; if the file is absent, it reads the plugin default. The plugin default is always present, so rendering never fails for lack of a template.
+
 ## Test Commands
 
 Run from the **repository root**. Use the framework's native invocation pattern so commands start with the test runner binary and match any permission allowlists.

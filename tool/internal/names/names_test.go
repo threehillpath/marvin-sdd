@@ -61,17 +61,19 @@ func TestPhaseBranch(t *testing.T) {
 
 func TestWorktreePath(t *testing.T) {
 	tests := []struct {
+		base   string
 		issue  int
 		suffix string
 		phase  int
 		want   string
 	}{
-		{42, "", 3, ".claude/worktrees/phase-00042-3"},
-		{42, "a", 2, ".claude/worktrees/phase-00042-a-2"},
+		{".worktrees", 42, "", 3, ".worktrees/phase-00042-3"},
+		{".worktrees", 42, "a", 2, ".worktrees/phase-00042-a-2"},
+		{"custom/path", 42, "", 3, "custom/path/phase-00042-3"},
 	}
 	for _, tc := range tests {
-		if got := names.WorktreePath(tc.issue, tc.suffix, tc.phase); got != tc.want {
-			t.Errorf("WorktreePath(%d, %q, %d) = %q, want %q", tc.issue, tc.suffix, tc.phase, got, tc.want)
+		if got := names.WorktreePath(tc.base, tc.issue, tc.suffix, tc.phase); got != tc.want {
+			t.Errorf("WorktreePath(%q, %d, %q, %d) = %q, want %q", tc.base, tc.issue, tc.suffix, tc.phase, got, tc.want)
 		}
 	}
 }
@@ -109,7 +111,7 @@ func TestDeriveNoSuffix(t *testing.T) {
 	if got, want := names.PhaseBranch(issue, "", phase), "feature/plan-00042-3"; got != want {
 		t.Errorf("PhaseBranch: got %q want %q", got, want)
 	}
-	if got, want := names.WorktreePath(issue, "", phase), ".claude/worktrees/phase-00042-3"; got != want {
+	if got, want := names.WorktreePath(".worktrees", issue, "", phase), ".worktrees/phase-00042-3"; got != want {
 		t.Errorf("WorktreePath: got %q want %q", got, want)
 	}
 	if got, want := names.TitlePrefix(names.Phase, issue, "", phase), "[PLAN-00042-3]"; got != want {

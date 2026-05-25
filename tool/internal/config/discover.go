@@ -20,6 +20,7 @@ type yamlConfig struct {
 	StatusFieldID string            `yaml:"status_field_id"`
 	Statuses      map[string]string `yaml:"statuses"`
 	TestCommands  map[string]string `yaml:"test_commands"`
+	WorktreeBase  string            `yaml:"worktree_base"`
 }
 
 // Load walks up from startDir, looking for:
@@ -65,6 +66,10 @@ func loadYAML(path string) (*Config, error) {
 	if raw.Repo == "" {
 		return nil, configBadError(path, fmt.Errorf("missing required field: repo"))
 	}
+	base := raw.WorktreeBase
+	if base == "" {
+		base = DefaultWorktreeBase
+	}
 	return &Config{
 		Repo:          raw.Repo,
 		ProjectNumber: raw.ProjectNumber,
@@ -72,6 +77,7 @@ func loadYAML(path string) (*Config, error) {
 		StatusFieldID: raw.StatusFieldID,
 		Statuses:      raw.Statuses,
 		TestCommands:  raw.TestCommands,
+		WorktreeBase:  base,
 	}, nil
 }
 
@@ -125,5 +131,6 @@ func loadMarkdown(path string) (*Config, error) {
 		ProjectID:     kvs["Project ID"],
 		StatusFieldID: kvs["Status field ID"],
 		Statuses:      statuses,
+		WorktreeBase:  DefaultWorktreeBase,
 	}, nil
 }

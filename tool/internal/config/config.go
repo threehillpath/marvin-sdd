@@ -11,6 +11,10 @@ import (
 	"github.com/threehillpath/claude-plan-workflow/tool/internal/clierr"
 )
 
+// DefaultWorktreeBase is the relative path used for phase worktrees when no
+// worktree_base is set in the config file and no --worktree-base flag is given.
+const DefaultWorktreeBase = ".worktrees"
+
 // Config holds the parsed plan-workflow configuration.
 type Config struct {
 	Repo          string
@@ -20,6 +24,9 @@ type Config struct {
 	// Statuses maps human status name (e.g. "in_progress") to option ID or "n/a".
 	Statuses     map[string]string
 	TestCommands map[string]string
+	// WorktreeBase is the repo-relative directory under which phase worktrees are created.
+	// Defaults to DefaultWorktreeBase when not set in the config file.
+	WorktreeBase string
 }
 
 // StatusOptionID resolves a human status name to its board option ID.

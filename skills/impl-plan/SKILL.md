@@ -56,7 +56,13 @@ Evaluate: component sequencing, schema changes, layer boundaries, edge cases, ve
 
 ### 3. Draft the plan
 
-Read `SUPPLEMENTS/CONVENTIONS.md` for what to include and exclude. Read `SUPPLEMENTS/TEMPLATES.md` for the plan structure.
+Read `SUPPLEMENTS/CONVENTIONS.md` for what to include and exclude.
+
+Resolve the impl plan template using the convention in `../SHARED/CONFIG.md` (Plan Template Resolution section):
+1. Check for a project override at `.claude/plan-workflow-templates/impl-plan.yml` in the consuming project.
+2. If absent, use the plugin default at `skills/SHARED/templates/impl-plan.yml`.
+3. Read the resolved YAML file.
+4. Render the issue body from the `sections` array in order: use each section's `heading` as the markdown heading (`## <heading>`), honouring `required`, `repeatable`, and `numbered` flags per the guidance in each section entry.
 
 **TDD**: Each component section must include a TDD Entry Point. The only exemption is for **rendered controls** — the JSX/template markup, styling, and rendering itself. All logic that lives inside a component (event handlers, derived state, validation, formatting, conditional-render predicates) must be extracted to a non-component module and given a TDD entry point. The litmus test: if it can be tested with the DOM removed, it is logic. See `SUPPLEMENTS/TDD.md` for full scope.
 

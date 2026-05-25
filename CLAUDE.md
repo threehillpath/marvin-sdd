@@ -8,6 +8,11 @@ A Claude Code plugin defining a structured architecture-to-implementation workfl
 
 ```
 .claude-plugin/plugin.json     ← Plugin metadata
+.github/
+  ISSUE_TEMPLATE/              ← Native GitHub issue forms for human-filed source issues
+    feature.yml                ← Feature request form (applies `enhancement` label)
+    bug.yml                    ← Bug report form (applies `bug` label)
+    config.yml                 ← Issue chooser config (blank_issues_enabled, contact links)
 skills/
   SHARED/                      ← Files referenced by multiple skills
     CONFIG.md                  ← Template for per-project config
@@ -21,6 +26,10 @@ skills/
     PLAN_RED_TEAM_FORMAT.md    ← Findings JSON schema (plan-critique output contract)
     PLAN_DRIFT_RUBRIC.md       ← Coverage + containment rubric for plan-drift
     PLAN_DRIFT_FORMAT.md       ← Findings JSON schema (drift-audit output contract)
+    templates/                 ← Internal YAML schemas per bot-created plan type
+      arch-plan.yml            ← Schema for arch plan issues (sections, validation)
+      impl-plan.yml            ← Schema for implementation plan issues
+      impl-phase.yml           ← Schema for phase issues
   <skill-name>/
     SKILL.md                   ← Authoritative skill prompt
     SUPPLEMENTS/               ← Templates and deeper guidance

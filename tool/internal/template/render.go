@@ -88,11 +88,11 @@ func Render(schemaPath string, meta []KV, sections map[string][]string) (string,
 		for _, block := range blocks {
 			if sec.Numbered {
 				ordinal++
-				// For impl-plan, the heading template is "<Component or Layer Name>" —
-				// the caller supplies the actual heading inside the block as the first line,
-				// OR we just emit the numbered heading and the block content.
-				// Per spec: "## 1." prefix on a repeatable numbered section.
-				fmt.Fprintf(&sb, "\n## %d. %s\n\n%s\n", ordinal, sec.Heading, block)
+				// First line of each block is the per-instance heading text;
+				// the schema heading is a placeholder and is not used here.
+				heading, body, _ := strings.Cut(block, "\n")
+				body = strings.TrimLeft(body, "\n")
+				fmt.Fprintf(&sb, "\n## %d. %s\n\n%s\n", ordinal, heading, body)
 			} else {
 				fmt.Fprintf(&sb, "\n## %s\n\n%s\n", sec.Heading, block)
 			}

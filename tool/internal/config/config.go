@@ -21,7 +21,7 @@ type Config struct {
 	Statuses     map[string]string
 	TestCommands map[string]string
 	// WorktreeBase is the repo-relative directory under which phase worktrees are created.
-	// Defaults to DefaultWorktreeBase when not set in the config file.
+	// Required; Load returns CLIError{Code:2} when worktree_base / Worktree base is absent.
 	WorktreeBase string
 }
 

@@ -1,0 +1,51 @@
+name: Feature Request
+description: Propose a new feature or enhancement
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form to file a feature request. All fields marked required must be completed before the issue is created. The `/arch-plan` skill reads this form's structured sections.
+
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: Problem Statement
+      description: What need is being addressed and why it matters now? One paragraph is ideal.
+      placeholder: "As a [user/role], I need [capability] because [reason]..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: goals
+    attributes:
+      label: Goals
+      description: What specific outcomes define success for this feature?
+      placeholder: |
+        - Goal 1
+        - Goal 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is explicitly in scope? What is out of scope or deferred?
+      placeholder: |
+        **Includes:**
+        - ...
+
+        **Excludes:**
+        - ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Background, prior art, related issues, constraints, or any other context that shapes this work.
+      placeholder: "Related to #... / This was previously discussed in..."
+    validations:
+      required: false

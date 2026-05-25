@@ -60,7 +60,7 @@ Read `SUPPLEMENTS/CONVENTIONS.md` for what to include and exclude.
 
 Resolve the impl plan template using the convention in `../SHARED/CONFIG.md` (Plan Template Resolution section):
 1. Check for a project override at `.claude/plan-workflow-templates/impl-plan.yml` in the consuming project.
-2. If absent, use the plugin default at `skills/SHARED/templates/impl-plan.yml`.
+2. If absent, use the plugin default at `../SHARED/templates/impl-plan.yml`.
 3. Read the resolved YAML file.
 4. Render the issue body from the `sections` array in order: use each section's `heading` as the markdown heading (`## <heading>`), honouring `required`, `repeatable`, and `numbered` flags per the guidance in each section entry.
 

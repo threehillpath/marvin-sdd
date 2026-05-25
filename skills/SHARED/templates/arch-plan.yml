@@ -2,7 +2,7 @@
 # XXXXX derivation and -A/-B multi-impl edge case: see skills/SHARED/GLOSSARY.md
 # Label rules: see skills/SHARED/LABELS.md
 
-type: arch
+type: arch-plan
 
 # Title prefix pattern. XXXXX = zero-padded GitHub source issue number (see GLOSSARY.md).
 title_prefix: "[PLAN-XXXXX-ARCH] <Title>"

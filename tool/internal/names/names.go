@@ -47,14 +47,15 @@ func PhaseBranch(issue int, suffix string, phase int) string {
 }
 
 // WorktreePath returns the relative worktree path from the repo root.
+// base is the configured worktree directory (e.g. from Config.WorktreeBase).
 // Suffix is lowercased.
-// Example: 42, "", 3  → ".claude/worktrees/phase-00042-3"
-// Example: 42, "a", 2 → ".claude/worktrees/phase-00042-a-2"
-func WorktreePath(issue int, suffix string, phase int) string {
+// Example: ".worktrees", 42, "", 3  → ".worktrees/phase-00042-3"
+// Example: ".worktrees", 42, "a", 2 → ".worktrees/phase-00042-a-2"
+func WorktreePath(base string, issue int, suffix string, phase int) string {
 	if suffix == "" {
-		return fmt.Sprintf(".claude/worktrees/phase-%05d-%d", issue, phase)
+		return fmt.Sprintf("%s/phase-%05d-%d", base, issue, phase)
 	}
-	return fmt.Sprintf(".claude/worktrees/phase-%05d-%s-%d", issue, strings.ToLower(suffix), phase)
+	return fmt.Sprintf("%s/phase-%05d-%s-%d", base, issue, strings.ToLower(suffix), phase)
 }
 
 // TitlePrefix returns the bracket prefix for a plan issue title.

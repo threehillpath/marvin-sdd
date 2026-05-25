@@ -143,6 +143,57 @@ func TestOwner(t *testing.T) {
 	}
 }
 
+func TestWorktreeBaseDefault(t *testing.T) {
+	// YAML without worktree_base → defaults to DefaultWorktreeBase.
+	dir := t.TempDir()
+	writeFixture(t, filepath.Join(dir, ".claude"), "plan-workflow-config.yml", yamlFixture)
+
+	cfg, err := config.Load(dir)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.WorktreeBase != config.DefaultWorktreeBase {
+		t.Errorf("WorktreeBase = %q, want %q", cfg.WorktreeBase, config.DefaultWorktreeBase)
+	}
+}
+
+func TestWorktreeBaseCustom(t *testing.T) {
+	// YAML with worktree_base set → uses that value.
+	custom := `
+repo: threehillpath/claude-plan-workflow
+project_number: 4
+project_id: PVT_test
+status_field_id: PVTSSF_test
+worktree_base: custom/worktrees
+statuses:
+  in_progress: abc123
+`
+	dir := t.TempDir()
+	writeFixture(t, filepath.Join(dir, ".claude"), "plan-workflow-config.yml", custom)
+
+	cfg, err := config.Load(dir)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.WorktreeBase != "custom/worktrees" {
+		t.Errorf("WorktreeBase = %q, want custom/worktrees", cfg.WorktreeBase)
+	}
+}
+
+func TestWorktreeBaseLegacyDefault(t *testing.T) {
+	// Legacy markdown (no worktree_base field) → defaults to DefaultWorktreeBase.
+	dir := t.TempDir()
+	writeFixture(t, filepath.Join(dir, ".claude"), "plan-workflow-config.md", legacyMarkdownFixture)
+
+	cfg, err := config.Load(dir)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.WorktreeBase != config.DefaultWorktreeBase {
+		t.Errorf("WorktreeBase = %q, want %q", cfg.WorktreeBase, config.DefaultWorktreeBase)
+	}
+}
+
 func TestCWDWalk(t *testing.T) {
 	// Config is in a parent dir; Load is called from a child dir.
 	parent := t.TempDir()

@@ -13,6 +13,7 @@ repo: threehillpath/claude-plan-workflow
 project_number: 4
 project_id: PVT_test
 status_field_id: PVTSSF_test
+worktree_base: .worktrees
 statuses:
   backlog: opt-backlog
   ready: "n/a"
@@ -33,6 +34,7 @@ const legacyMarkdownFixture = `# Skill Set Configuration
 | Project number | ` + "`4`" + ` |
 | Project ID | ` + "`PVT_test`" + ` |
 | Status field ID | ` + "`PVTSSF_test`" + ` |
+| Worktree base | ` + "`.worktrees`" + ` |
 | "Backlog" option ID | ` + "`opt-backlog`" + ` |
 | "Ready" option ID | ` + "`n/a`" + ` |
 | "In Progress" option ID | ` + "`opt-in-progress`" + ` |
@@ -143,17 +145,22 @@ func TestOwner(t *testing.T) {
 	}
 }
 
-func TestWorktreeBaseDefault(t *testing.T) {
-	// YAML without worktree_base → defaults to DefaultWorktreeBase.
+func TestWorktreeBaseMissingErrors(t *testing.T) {
+	// YAML without worktree_base → error, not a silent default.
+	noWorktreeBase := `
+repo: threehillpath/claude-plan-workflow
+project_number: 4
+project_id: PVT_test
+status_field_id: PVTSSF_test
+statuses:
+  in_progress: abc123
+`
 	dir := t.TempDir()
-	writeFixture(t, filepath.Join(dir, ".claude"), "plan-workflow-config.yml", yamlFixture)
+	writeFixture(t, filepath.Join(dir, ".claude"), "plan-workflow-config.yml", noWorktreeBase)
 
-	cfg, err := config.Load(dir)
-	if err != nil {
-		t.Fatalf("Load returned error: %v", err)
-	}
-	if cfg.WorktreeBase != config.DefaultWorktreeBase {
-		t.Errorf("WorktreeBase = %q, want %q", cfg.WorktreeBase, config.DefaultWorktreeBase)
+	_, err := config.Load(dir)
+	if err == nil {
+		t.Fatal("expected error for missing worktree_base, got nil")
 	}
 }
 
@@ -180,17 +187,23 @@ statuses:
 	}
 }
 
-func TestWorktreeBaseLegacyDefault(t *testing.T) {
-	// Legacy markdown (no worktree_base field) → defaults to DefaultWorktreeBase.
-	dir := t.TempDir()
-	writeFixture(t, filepath.Join(dir, ".claude"), "plan-workflow-config.md", legacyMarkdownFixture)
+func TestWorktreeBaseLegacyMissingErrors(t *testing.T) {
+	// Legacy markdown without Worktree base row → error, not a silent default.
+	noWorktreeBase := `# Skill Set Configuration
 
-	cfg, err := config.Load(dir)
-	if err != nil {
-		t.Fatalf("Load returned error: %v", err)
-	}
-	if cfg.WorktreeBase != config.DefaultWorktreeBase {
-		t.Errorf("WorktreeBase = %q, want %q", cfg.WorktreeBase, config.DefaultWorktreeBase)
+| Setting | Value |
+|---|---|
+| GitHub repo | ` + "`threehillpath/claude-plan-workflow`" + ` |
+| Project number | ` + "`4`" + ` |
+| Project ID | ` + "`PVT_test`" + ` |
+| Status field ID | ` + "`PVTSSF_test`" + ` |
+`
+	dir := t.TempDir()
+	writeFixture(t, filepath.Join(dir, ".claude"), "plan-workflow-config.md", noWorktreeBase)
+
+	_, err := config.Load(dir)
+	if err == nil {
+		t.Fatal("expected error for missing Worktree base, got nil")
 	}
 }
 

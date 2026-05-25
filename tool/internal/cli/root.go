@@ -7,8 +7,6 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/config"
 )
 
 // NewRootCmd constructs the root Cobra command with all subcommand groups registered.
@@ -115,7 +113,7 @@ func newNamesCmd(stdout, stderr io.Writer) *cobra.Command {
 	}
 	deriveCmd.Flags().StringVar(&suffix, "suffix", "", "Multi-impl suffix (e.g. a, b)")
 	deriveCmd.Flags().IntVar(&phase, "phase", 0, "Phase number (0 = no phase)")
-	deriveCmd.Flags().StringVar(&worktreeBase, "worktree-base", "", "Worktree base directory (overrides config; defaults to "+config.DefaultWorktreeBase+")")
+	deriveCmd.Flags().StringVar(&worktreeBase, "worktree-base", "", "Worktree base directory (overrides config value; required when --phase is set and no config is present)")
 
 	names.AddCommand(deriveCmd)
 	return names

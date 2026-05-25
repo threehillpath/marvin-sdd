@@ -21,9 +21,7 @@ Skills that render plan issue bodies resolve the template for each plan type usi
 1. **Project override** (wins if present): `.claude/plan-workflow-templates/{type}.yml` in the consuming project — sibling to `.claude/plan-workflow-config.md`.
 2. **Plugin default** (always present): `skills/SHARED/templates/{type}.yml` in the plugin.
 
-Where `{type}` is `arch`, `impl`, or `phase`. A skill checks for the project override first; if the file is absent, it reads the plugin default. The plugin default is always present, so rendering never fails for lack of a template.
-
-This phase ships no override files — only the documented contract and the three plugin defaults.
+Where `{type}` is `arch-plan`, `impl-plan`, or `impl-phase`. A skill checks for the project override first; if the file is absent, it reads the plugin default. The plugin default is always present, so rendering never fails for lack of a template.
 
 ## Test Commands
 

@@ -40,7 +40,7 @@ skills/
 ```
 arch-plan → impl-plan → red-team-plan → phase-split → start-impl →
     [ implement-phase → (plan-drift) → review-phase → merge → wrap-phase ]  per phase
-    → review-impl → finish-impl
+    → finish-impl → review-impl → merge
 ```
 
 `move-issue`, `finish-phase`, and `plan-drift` are auxiliaries usable at any point — `plan-drift` is most valuable mid-phase or before opening a PR, but can run any time. See each skill's `SKILL.md` for behavior.

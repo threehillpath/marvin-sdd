@@ -92,7 +92,11 @@ func Render(schemaPath string, meta []KV, sections map[string][]string) (string,
 				// the schema heading is a placeholder and is not used here.
 				heading, body, _ := strings.Cut(block, "\n")
 				body = strings.TrimLeft(body, "\n")
-				fmt.Fprintf(&sb, "\n## %d. %s\n\n%s\n", ordinal, heading, body)
+				if body == "" {
+					fmt.Fprintf(&sb, "\n## %d. %s\n", ordinal, heading)
+				} else {
+					fmt.Fprintf(&sb, "\n## %d. %s\n\n%s\n", ordinal, heading, body)
+				}
 			} else {
 				fmt.Fprintf(&sb, "\n## %s\n\n%s\n", sec.Heading, block)
 			}

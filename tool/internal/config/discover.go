@@ -66,9 +66,8 @@ func loadYAML(path string) (*Config, error) {
 	if raw.Repo == "" {
 		return nil, configBadError(path, fmt.Errorf("missing required field: repo"))
 	}
-	base := raw.WorktreeBase
-	if base == "" {
-		base = DefaultWorktreeBase
+	if raw.WorktreeBase == "" {
+		return nil, configBadError(path, fmt.Errorf("missing required field: worktree_base"))
 	}
 	return &Config{
 		Repo:          raw.Repo,
@@ -77,7 +76,7 @@ func loadYAML(path string) (*Config, error) {
 		StatusFieldID: raw.StatusFieldID,
 		Statuses:      raw.Statuses,
 		TestCommands:  raw.TestCommands,
-		WorktreeBase:  base,
+		WorktreeBase:  raw.WorktreeBase,
 	}, nil
 }
 
@@ -114,6 +113,11 @@ func loadMarkdown(path string) (*Config, error) {
 		return nil, configBadError(path, fmt.Errorf("missing 'GitHub repo' row"))
 	}
 
+	worktreeBase := kvs["Worktree base"]
+	if worktreeBase == "" {
+		return nil, configBadError(path, fmt.Errorf("missing required field: Worktree base"))
+	}
+
 	projNumStr := kvs["Project number"]
 	projNum, _ := strconv.Atoi(projNumStr)
 
@@ -131,6 +135,6 @@ func loadMarkdown(path string) (*Config, error) {
 		ProjectID:     kvs["Project ID"],
 		StatusFieldID: kvs["Status field ID"],
 		Statuses:      statuses,
-		WorktreeBase:  DefaultWorktreeBase,
+		WorktreeBase:  worktreeBase,
 	}, nil
 }

@@ -67,21 +67,21 @@ type titlePrefix struct {
 	Phase string `json:"phase,omitempty"`
 }
 
-// resolveWorktreeBase returns the worktree base to use, applying the priority:
-// explicit flag value > config file value > DefaultWorktreeBase.
-// Config load failures for missing config are silently ignored (names derive
-// is a pure-derivation command; config is optional for this use).
-func resolveWorktreeBase(flagVal string) string {
+// resolveWorktreeBase returns the worktree base to use.
+// The flag value takes precedence; otherwise the config file is required.
+func resolveWorktreeBase(flagVal string) (string, error) {
 	if flagVal != "" {
-		return flagVal
+		return flagVal, nil
 	}
 	cwd, err := os.Getwd()
-	if err == nil {
-		if cfg, err := config.Load(cwd); err == nil {
-			return cfg.WorktreeBase
-		}
+	if err != nil {
+		return "", &CLIError{Code: 1, Msg: fmt.Sprintf("cannot determine working directory: %v", err)}
 	}
-	return config.DefaultWorktreeBase
+	cfg, err := config.Load(cwd)
+	if err != nil {
+		return "", err // already a CLIError{Code:2}
+	}
+	return cfg.WorktreeBase, nil
 }
 
 // runNamesDerive derives all canonical names for an issue number.
@@ -91,7 +91,14 @@ func runNamesDerive(stdout, stderr io.Writer, issueStr, suffix, worktreeBaseFlag
 		return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", issueStr, err)}
 	}
 
-	base := resolveWorktreeBase(worktreeBaseFlag)
+	var base string
+	if phase > 0 {
+		var berr error
+		base, berr = resolveWorktreeBase(worktreeBaseFlag)
+		if berr != nil {
+			return berr
+		}
+	}
 
 	out := namesOutput{
 		PlanNumber: names.PlanNumber(issue),

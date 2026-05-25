@@ -50,8 +50,8 @@ func TestImplPlanNumberedSections(t *testing.T) {
 	}
 	sections := map[string][]string{
 		"scope":              {"**Includes:** stuff\n\n**Does NOT include:** nothing"},
-		"component":         {"First component content", "Second component content"},
-		"verification_steps": {"Verify step 1"},
+		"component":         {"First Component\n\nFirst component content", "Second Component\n\nSecond component content"},
+		"verification_steps": {"Verify Step\n\nVerify step body"},
 		"design_notes":      {"Some design notes"},
 		"success_criteria":  {"- [ ] Passes"},
 	}
@@ -69,16 +69,16 @@ func TestImplPlanNumberedSections(t *testing.T) {
 		t.Error("missing Objective value")
 	}
 
-	// Numbered component headings
-	if !strings.Contains(out, "## 1.") {
-		t.Error("missing ## 1. heading")
+	// Numbered component headings — assert full heading text, not just prefix.
+	if !strings.Contains(out, "## 1. First Component") {
+		t.Error("missing ## 1. First Component heading")
 	}
-	if !strings.Contains(out, "## 2.") {
-		t.Error("missing ## 2. heading")
+	if !strings.Contains(out, "## 2. Second Component") {
+		t.Error("missing ## 2. Second Component heading")
 	}
 	// Verification steps continues the ordinal from components (2 components → ## 3.)
-	if !strings.Contains(out, "## 3.") {
-		t.Error("missing ## 3. heading for verification_steps")
+	if !strings.Contains(out, "## 3. Verify Step") {
+		t.Error("missing ## 3. Verify Step heading for verification_steps")
 	}
 
 	// Non-numbered sections use plain ## headings

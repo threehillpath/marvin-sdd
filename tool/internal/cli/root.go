@@ -47,20 +47,6 @@ func Execute() {
 	}
 }
 
-// wrapCobraError converts a cobra execution error into the appropriate CLIError
-// or passes it through as a generic exit-1.
-func wrapCobraError(err error) error {
-	if err == nil {
-		return nil
-	}
-	// CLIErrors propagate as-is.
-	if _, ok := err.(*CLIError); ok {
-		return err
-	}
-	// Unknown cobra error → exit 1.
-	return &CLIError{Code: 1, Msg: err.Error()}
-}
-
 // newVersionCmd returns the version subcommand.
 func newVersionCmd(stdout io.Writer) *cobra.Command {
 	return &cobra.Command{

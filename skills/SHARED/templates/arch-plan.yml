@@ -1,0 +1,133 @@
+# Internal schema for bot-created architecture plan issues.
+# XXXXX derivation and -A/-B multi-impl edge case: see skills/SHARED/GLOSSARY.md
+# Label rules: see skills/SHARED/LABELS.md
+
+type: arch-plan
+
+# Title prefix pattern. XXXXX = zero-padded GitHub source issue number (see GLOSSARY.md).
+title_prefix: "[PLAN-XXXXX-ARCH] <Title>"
+
+# Labels applied at issue creation. See SHARED/LABELS.md for definitions and create commands.
+default_labels:
+  - plan:arch
+  - status:upcoming
+
+# Ordered header fields rendered as bold key-value pairs below the issue title.
+metadata:
+  - Source Issue
+  - Plan Number
+  - Author
+  - Status
+  - Date
+
+# Ordered list of sections. Fields:
+#   id         — stable identifier referenced by validation.required_sections
+#   heading    — exact heading text rendered in the issue body
+#   required   — whether the section must appear in a valid plan
+#   repeatable — whether the section may appear more than once
+#   numbered   — when true on a repeatable section, each instance is prefixed ## 1., ## 2., …
+#   guidance   — how-to-fill prose co-located with the section definition
+sections:
+  - id: problem_statement
+    heading: Problem Statement
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      One paragraph: what need is being addressed and why it matters now.
+
+  - id: scope
+    heading: Scope
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      Two sub-sections: **Includes** (bullet list of what is in scope) and
+      **Excludes** (bullet list of what is explicitly out of scope, with
+      references to where that work lives or why it is deferred).
+
+  - id: domain_model_impacts
+    heading: Domain Model Impacts
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      Which entities are created, modified, or related. What lifecycle or
+      relationship rules apply.
+
+  - id: integration_points
+    heading: Integration Points
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      Which layers are touched: handlers, workers, repos, domain types, schema.
+      What connects — not how.
+
+  - id: cross_cutting_concerns
+    heading: Cross-Cutting Concerns
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      Auth/authz requirements, validation boundaries, sync vs async, error
+      handling strategy, ordering or concurrency concerns.
+
+  - id: architectural_decisions
+    heading: Architectural Decisions
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      A table with columns: Decision | Chosen Approach | Rationale.
+      One row per meaningful decision made during planning.
+
+  - id: adr_candidates
+    heading: ADR Candidates
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      Decisions broad enough to become reusable architectural records.
+      Flag here with a checkbox item; create ADR files separately.
+      Format: - [ ] <Decision> — <why it's reusable across features>
+
+  - id: constraints_and_tradeoffs
+    heading: Constraints and Trade-offs
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      What shapes the solution. What trade-offs are accepted and why.
+
+  - id: tdd_strategy
+    heading: TDD Strategy
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      The outermost observable behavior to assert first. What integration or
+      acceptance test anchors this work?
+
+  - id: open_questions
+    heading: Open Questions
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      Anything unresolved that the implementation plan must address.
+
+validation:
+  required_sections:
+    - problem_statement
+    - scope
+    - domain_model_impacts
+    - integration_points
+    - cross_cutting_concerns
+    - architectural_decisions
+    - adr_candidates
+    - constraints_and_tradeoffs
+    - tdd_strategy
+    - open_questions
+  rules:
+    - "ADR Candidates items must match `- [ ] ` checkbox format"

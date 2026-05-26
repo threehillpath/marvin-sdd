@@ -8,7 +8,7 @@ model: sonnet
 
 Run after a phase PR has been merged. Reads the merged PR's history, classifies it into decisions / scope changes / deferred items / corrections, posts a structured wrap-up comment on the impl plan issue, closes the phase issue, moves it to Done on the board, and removes the phase worktree.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands. Read `../SHARED/GLOSSARY.md` for naming, worktree, and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for naming, worktree, and status conventions.
 
 ## Arguments
 
@@ -82,15 +82,29 @@ If the phase issue was open in step 2:
 gh issue close $0 --repo <repo> --reason completed
 ```
 
-Use the board management commands in `.claude/plan-workflow-config.md` to move issue #$0 to **Done**.
+Move the issue to Done on the board (this also handles the open/closed sync):
+
+```bash
+marvin board move $0 done
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 ### 8. Remove the phase worktree
 
-The phase worktree was created by `/implement-phase` at `.claude/worktrees/phase-XXXXX-N` and left in place for review. Remove it now:
+The phase worktree was created by `/implement-phase` and left in place for review. Determine the worktree path:
 
 ```bash
-git worktree remove --force .claude/worktrees/phase-XXXXX-N
-git worktree prune
+marvin names derive $0 --phase <N>
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+
+Read the `worktree_path` from the JSON output, then remove the worktree:
+
+```bash
+marvin worktree remove <worktree_path>
+marvin worktree prune
 ```
 
 If the path does not exist (manually removed earlier), skip silently.

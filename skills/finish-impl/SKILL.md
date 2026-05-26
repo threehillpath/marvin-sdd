@@ -8,7 +8,7 @@ model: sonnet
 
 Close out a completed implementation: confirm all phases are merged, open a PR from the implementation branch to main, and move the impl plan issue to In Review.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands. Read `../SHARED/GLOSSARY.md` for branch and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for branch and status conventions.
 
 ## Arguments
 
@@ -82,7 +82,11 @@ gh pr create --repo <repo> \
 
 ### 5. Move impl plan to In Review
 
-Use the board management commands in `.claude/plan-workflow-config.md`. Set status to **In Review**.
+```bash
+marvin board move $0 in-review
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 ### 6. Confirm
 

@@ -73,15 +73,19 @@ func newBoardAddCmd(stdout, stderr io.Writer) *cobra.Command {
 
 func newBoardSetStatusCmd(stdout, stderr io.Writer) *cobra.Command {
 	return &cobra.Command{
-		Use:   "set-status <item-id> <status>",
-		Short: "Set a board item's status field",
+		Use:   "set-status <issue-number> <status>",
+		Short: "Add an issue to the board and set its status field",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
 			if err != nil {
 				return err
 			}
-			if err := board.SetStatus(context.Background(), newRunner(), cfg, args[0], args[1]); err != nil {
+			n, err := strconv.Atoi(args[0])
+			if err != nil {
+				return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", args[0], err)}
+			}
+			if err := board.SetStatus(context.Background(), newRunner(), cfg, n, args[1]); err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
 			return nil

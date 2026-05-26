@@ -13,6 +13,41 @@ import (
 	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
 )
 
+// State filters PR search by lifecycle state.
+type State int
+
+const (
+	StateAny    State = iota // search open, closed, and merged PRs
+	StateOpen                // open PRs only
+	StateMerged              // merged PRs only
+)
+
+// ghArg returns the --state value for gh pr list.
+func (s State) ghArg() string {
+	switch s {
+	case StateOpen:
+		return "open"
+	case StateMerged:
+		return "merged"
+	default:
+		return "all"
+	}
+}
+
+// ParseState maps the CLI flag value ("open", "merged", "any") to a State.
+func ParseState(s string) (State, error) {
+	switch s {
+	case "any", "":
+		return StateAny, nil
+	case "open":
+		return StateOpen, nil
+	case "merged":
+		return StateMerged, nil
+	default:
+		return StateAny, fmt.Errorf("invalid state %q: must be open, merged, or any", s)
+	}
+}
+
 // FindResult is the output of Find.
 type FindResult struct {
 	// Found is true when a PR with the matching ident was located.
@@ -35,14 +70,14 @@ type ghPR struct {
 	State       string `json:"state"`
 }
 
-// Find searches for an open PR whose title contains ident (e.g. "[PLAN-00002-3]").
-// A missing match is not an error — the result will have Found=false.
-func Find(ctx context.Context, runner exec.Runner, cfg *config.Config, ident string) (FindResult, error) {
+// Find searches for a PR whose title contains ident (e.g. "[PLAN-00002-3]"),
+// filtered by state. A missing match is not an error — the result will have Found=false.
+func Find(ctx context.Context, runner exec.Runner, cfg *config.Config, ident string, state State) (FindResult, error) {
 	args := []string{
 		"pr", "list",
 		"--repo", cfg.Repo,
 		"--json", "number,title,url,headRefName,baseRefName,state",
-		"--state", "all",
+		"--state", state.ghArg(),
 		"--limit", "200",
 	}
 	stdout, stderr, code, err := runner.Run(ctx, "gh", args...)

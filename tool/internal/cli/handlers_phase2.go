@@ -208,7 +208,9 @@ type prFindOutput struct {
 }
 
 func newPRFindCmd(stdout, stderr io.Writer) *cobra.Command {
-	return &cobra.Command{
+	var stateStr string
+
+	cmd := &cobra.Command{
 		Use:   "find <ident>",
 		Short: "Find a PR whose title contains ident (e.g. [PLAN-00002-3])",
 		Args:  cobra.ExactArgs(1),
@@ -217,7 +219,11 @@ func newPRFindCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := pr.Find(context.Background(), newRunner(), cfg, args[0])
+			state, err := pr.ParseState(stateStr)
+			if err != nil {
+				return &CLIError{Code: 1, Msg: err.Error()}
+			}
+			result, err := pr.Find(context.Background(), newRunner(), cfg, args[0], state)
 			if err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
@@ -235,6 +241,8 @@ func newPRFindCmd(stdout, stderr io.Writer) *cobra.Command {
 			return enc.Encode(out)
 		},
 	}
+	cmd.Flags().StringVar(&stateStr, "state", "any", "Filter by PR state: open, merged, or any")
+	return cmd
 }
 
 // prBaseOutput is the JSON shape for pr base.

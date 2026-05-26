@@ -27,7 +27,7 @@ func TestFindFound(t *testing.T) {
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(prListFoundResponse)})
 
 	cfg := buildConfig()
-	result, err := pr.Find(context.Background(), fake, cfg, "[PLAN-00002-3]")
+	result, err := pr.Find(context.Background(), fake, cfg, "[PLAN-00002-3]", pr.StateAny)
 	if err != nil {
 		t.Fatalf("Find returned error: %v", err)
 	}
@@ -48,13 +48,55 @@ func TestFindNotFound(t *testing.T) {
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`[]`)})
 
 	cfg := buildConfig()
-	result, err := pr.Find(context.Background(), fake, cfg, "[PLAN-00002-99]")
+	result, err := pr.Find(context.Background(), fake, cfg, "[PLAN-00002-99]", pr.StateAny)
 	if err != nil {
 		t.Fatalf("Find returned error for not-found: %v", err)
 	}
 	if result.Found {
 		t.Error("expected Found=false")
 	}
+}
+
+// TestFindStateOpenPassesOpenArg verifies that StateOpen sends --state open to gh.
+func TestFindStateOpenPassesOpenArg(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`[]`)})
+
+	cfg := buildConfig()
+	if _, err := pr.Find(context.Background(), fake, cfg, "[PLAN-00002-3]", pr.StateOpen); err != nil {
+		t.Fatalf("Find returned error: %v", err)
+	}
+	args := fake.Calls[0].Args
+	for i, a := range args {
+		if a == "--state" && i+1 < len(args) {
+			if args[i+1] != "open" {
+				t.Errorf("--state arg = %q, want open", args[i+1])
+			}
+			return
+		}
+	}
+	t.Error("--state flag not found in gh args")
+}
+
+// TestFindStateMergedPassesMergedArg verifies that StateMerged sends --state merged to gh.
+func TestFindStateMergedPassesMergedArg(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`[]`)})
+
+	cfg := buildConfig()
+	if _, err := pr.Find(context.Background(), fake, cfg, "[PLAN-00002-3]", pr.StateMerged); err != nil {
+		t.Fatalf("Find returned error: %v", err)
+	}
+	args := fake.Calls[0].Args
+	for i, a := range args {
+		if a == "--state" && i+1 < len(args) {
+			if args[i+1] != "merged" {
+				t.Errorf("--state arg = %q, want merged", args[i+1])
+			}
+			return
+		}
+	}
+	t.Error("--state flag not found in gh args")
 }
 
 // TestBasePhaseBranch verifies that feature/plan-XXXXX-N maps to feature/plan-XXXXX.

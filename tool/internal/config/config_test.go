@@ -207,6 +207,29 @@ func TestWorktreeBaseLegacyMissingErrors(t *testing.T) {
 	}
 }
 
+func TestStatusOptionIDHyphenNormalization(t *testing.T) {
+	dir := t.TempDir()
+	writeFixture(t, filepath.Join(dir, ".claude"), "plan-workflow-config.yml", yamlFixture)
+
+	cfg, err := config.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, name := range []string{"in-progress", "in progress", "in_progress"} {
+		id, present, err := cfg.StatusOptionID(name)
+		if err != nil {
+			t.Fatalf("StatusOptionID(%q) error: %v", name, err)
+		}
+		if !present {
+			t.Errorf("StatusOptionID(%q): expected present=true", name)
+		}
+		if id != "opt-in-progress" {
+			t.Errorf("StatusOptionID(%q) = %q, want opt-in-progress", name, id)
+		}
+	}
+}
+
 func TestCWDWalk(t *testing.T) {
 	// Config is in a parent dir; Load is called from a child dir.
 	parent := t.TempDir()

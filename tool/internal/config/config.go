@@ -28,8 +28,11 @@ type Config struct {
 // StatusOptionID resolves a human status name to its board option ID.
 // Returns present=false when the configured value is "n/a" (column absent).
 // Returns an error for unknown status names.
+// Normalizes hyphens and spaces to underscores so user-facing forms like
+// "in-progress" and "in progress" resolve to the config key "in_progress".
 func (c *Config) StatusOptionID(name string) (id string, present bool, err error) {
-	val, ok := c.Statuses[name]
+	normalized := strings.NewReplacer("-", "_", " ", "_").Replace(strings.ToLower(name))
+	val, ok := c.Statuses[normalized]
 	if !ok {
 		return "", false, fmt.Errorf("unknown status %q", name)
 	}

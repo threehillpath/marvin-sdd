@@ -8,7 +8,7 @@ model: opus
 
 Create a technical implementation plan from an approved architecture plan. The impl plan is a specification — what to build and why, not how to code it.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for naming and status conventions.
 
 ## Arguments
 
@@ -58,11 +58,15 @@ Evaluate: component sequencing, schema changes, layer boundaries, edge cases, ve
 
 Read `SUPPLEMENTS/CONVENTIONS.md` for what to include and exclude.
 
-Resolve the impl plan template using the convention in `../SHARED/CONFIG.md` (Plan Template Resolution section):
-1. Check for a project override at `.claude/plan-workflow-templates/impl-plan.yml` in the consuming project.
-2. If absent, use the plugin default at `../SHARED/templates/impl-plan.yml`.
-3. Read the resolved YAML file.
-4. Render the issue body from the `sections` array in order: use each section's `heading` as the markdown heading (`## <heading>`), honouring `required`, `repeatable`, and `numbered` flags per the guidance in each section entry.
+Render the impl plan template:
+
+```bash
+marvin template render impl-plan
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+
+Use the rendered skeleton as the structural frame for the draft, filling in each section with substantive content from the arch plan analysis.
 
 **TDD**: Each component section must include a TDD Entry Point. The only exemption is for **rendered controls** — the JSX/template markup, styling, and rendering itself. All logic that lives inside a component (event handlers, derived state, validation, formatting, conditional-render predicates) must be extracted to a non-component module and given a TDD entry point. The litmus test: if it can be tested with the DOM removed, it is logic. See `SUPPLEMENTS/TDD.md` for full scope.
 
@@ -74,14 +78,28 @@ See `../SHARED/RENDERING.md` for rendering guidance. Ask for approval on both co
 
 ### 5. Create the GitHub issue
 
+Ensure all required labels exist before creating the issue:
+
+```bash
+marvin label ensure --builtins
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+
+For any domain labels not covered by `--builtins`, ensure each one individually:
+
+```bash
+marvin label ensure "<name>" --description "<desc>" --color "<hex>"
+```
+
+Then create the issue:
+
 ```bash
 gh issue create --repo <repo> \
   --title "[PLAN-XXXXX] <Title>" \
   --body "<approved content>" \
   --label "plan:impl,status:upcoming,<domain-labels>"
 ```
-
-If a label does not exist, create it first — see `../SHARED/LABELS.md` for the create commands.
 
 ### 6. Link to arch plan
 
@@ -92,7 +110,11 @@ gh issue comment $0 --repo <repo> \
 
 ### 7. Add to board as Ready
 
-Use the board management commands in `.claude/plan-workflow-config.md`. Set status to **Ready**.
+```bash
+marvin board move <new-issue-number> ready
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 ### 8. Confirm
 

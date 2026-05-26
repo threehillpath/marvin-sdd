@@ -35,7 +35,7 @@ func TestSetStatusNA(t *testing.T) {
 	cfg := buildConfig()
 	cfg.Statuses["in_review"] = "n/a"
 
-	if err := board.SetStatus(context.Background(), fake, cfg, "ITEM_001", "in_review"); err != nil {
+	if err := board.SetStatus(context.Background(), fake, cfg, 42, "in_review"); err != nil {
 		t.Fatalf("SetStatus n/a returned error: %v", err)
 	}
 	if len(fake.Calls) != 0 {
@@ -43,19 +43,26 @@ func TestSetStatusNA(t *testing.T) {
 	}
 }
 
-// TestSetStatusResolvesOptionID verifies that SetStatus passes the right option ID.
+// TestSetStatusResolvesOptionID verifies that SetStatus adds the issue to the
+// board and then passes the correct option ID to item-edit.
 func TestSetStatusResolvesOptionID(t *testing.T) {
 	fake := &exectest.FakeRunner{}
+	// 1) item-add returns an item ID
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"id":"ITEM_XYZ"}`)})
+	// 2) item-edit succeeds
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{}`)})
 
 	cfg := buildConfig()
-	if err := board.SetStatus(context.Background(), fake, cfg, "ITEM_001", "done"); err != nil {
+	if err := board.SetStatus(context.Background(), fake, cfg, 42, "done"); err != nil {
 		t.Fatalf("SetStatus error: %v", err)
 	}
-	if len(fake.Calls) != 1 {
-		t.Fatalf("expected 1 call, got %d", len(fake.Calls))
+	if len(fake.Calls) != 2 {
+		t.Fatalf("expected 2 calls (item-add + item-edit), got %d", len(fake.Calls))
 	}
-	if !contains(fake.Calls[0].Args, "done-option-id") {
-		t.Errorf("SetStatus did not pass done-option-id: %v", fake.Calls[0].Args)
+	if !contains(fake.Calls[0].Args, "item-add") {
+		t.Errorf("call[0] should be item-add, got %v", fake.Calls[0].Args)
+	}
+	if !contains(fake.Calls[1].Args, "done-option-id") {
+		t.Errorf("SetStatus did not pass done-option-id: %v", fake.Calls[1].Args)
 	}
 }

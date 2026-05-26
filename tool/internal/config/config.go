@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/clierr"
+	"threehillpath.com/claude-plan-workflow/tool/internal/clierr"
 )
 
 // Config holds the parsed plan-workflow configuration.

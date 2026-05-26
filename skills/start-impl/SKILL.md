@@ -8,7 +8,7 @@ model: sonnet
 
 Summarize what is about to be built, confirm phase readiness, and create the implementation branch.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands. Read `../SHARED/GLOSSARY.md` for branch/issue naming and the status state machine.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for branch/issue naming and the status state machine.
 
 ## Arguments
 
@@ -30,7 +30,13 @@ gh issue view <phase-issue> --repo <repo> --json number,title,state
 
 ### 2. Derive branch names
 
-Per `../SHARED/GLOSSARY.md`: implementation branch is `feature/plan-XXXXX`; phase branches are `feature/plan-XXXXX-N`.
+```bash
+marvin names derive $0
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+
+Read the JSON output to obtain `impl_branch` and the title prefix values. Phase branches follow the pattern `feature/plan-XXXXX-N` as documented in `../SHARED/GLOSSARY.md`.
 
 ### 3. Present summary for confirmation
 
@@ -60,7 +66,7 @@ Use the Read tool to check both settings files:
 - `.claude/settings.local.json`
 - `~/.claude/settings.json`
 
-If the test runner, `git commit`, `git push`, `gh pr`, and `gh project` are not present in either file's allow list, note: "For autonomous phase execution, pre-approve test and git commands in your settings. You can proceed now and configure permissions before running `/implement-phase`."
+If the test runner, `git commit`, `git push`, `gh pr`, and `marvin` are not present in either file's allow list, note: "For autonomous phase execution, pre-approve test, git, and marvin commands in your settings. You can proceed now and configure permissions before running `/implement-phase`."
 
 ### 5. Create implementation branch
 
@@ -73,7 +79,11 @@ git push -u origin feature/plan-XXXXX
 
 ### 6. Move impl plan to In Progress
 
-Use the board management commands in `.claude/plan-workflow-config.md`. Set status to **In Progress**.
+```bash
+marvin board move $0 in-progress
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 ### 7. Confirm
 

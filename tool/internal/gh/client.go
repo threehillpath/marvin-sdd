@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/exec"
+	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
 )
 
 // Client wraps an exec.Runner and provides typed gh CLI operations.

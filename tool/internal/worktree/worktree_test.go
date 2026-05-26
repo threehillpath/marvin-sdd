@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/clierr"
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/exectest"
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/worktree"
+	"threehillpath.com/claude-plan-workflow/tool/internal/clierr"
+	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
+	"threehillpath.com/claude-plan-workflow/tool/internal/worktree"
 )
 
 // TestAddLocalBranchExistsReturnsError verifies that Add exits with CLIError{Code:1}

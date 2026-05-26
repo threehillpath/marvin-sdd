@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/clierr"
+	"threehillpath.com/claude-plan-workflow/tool/internal/clierr"
 )
 
 // CLIError is re-exported from clierr so callers can import just this package.

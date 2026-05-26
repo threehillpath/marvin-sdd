@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/config"
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/exectest"
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/label"
+	"threehillpath.com/claude-plan-workflow/tool/internal/config"
+	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
+	"threehillpath.com/claude-plan-workflow/tool/internal/label"
 )
 
 func buildConfig() *config.Config {

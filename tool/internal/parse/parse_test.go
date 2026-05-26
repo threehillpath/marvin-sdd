@@ -3,7 +3,7 @@ package parse_test
 import (
 	"testing"
 
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/parse"
+	"threehillpath.com/claude-plan-workflow/tool/internal/parse"
 )
 
 func TestPlanIdentNoSuffix(t *testing.T) {

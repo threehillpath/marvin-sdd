@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/clierr"
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/exec"
+	"threehillpath.com/claude-plan-workflow/tool/internal/clierr"
+	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
 )
 
 // localBranchExists returns true if <branch> is already checked out as a local branch.

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/findings"
+	"threehillpath.com/claude-plan-workflow/tool/internal/findings"
 )
 
 // TestCachePath verifies the path formula.

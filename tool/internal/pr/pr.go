@@ -8,9 +8,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/clierr"
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/config"
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/exec"
+	"threehillpath.com/claude-plan-workflow/tool/internal/clierr"
+	"threehillpath.com/claude-plan-workflow/tool/internal/config"
+	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
 )
 
 // FindResult is the output of Find.

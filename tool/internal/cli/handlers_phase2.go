@@ -49,15 +49,19 @@ func newBoardCmd(stdout, stderr io.Writer) *cobra.Command {
 
 func newBoardAddCmd(stdout, stderr io.Writer) *cobra.Command {
 	return &cobra.Command{
-		Use:   "add <issue-url>",
-		Short: "Add an issue URL to the board and print the item ID",
+		Use:   "add <issue-number>",
+		Short: "Add an issue to the board and print the item ID",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
 			if err != nil {
 				return err
 			}
-			id, err := board.AddItem(context.Background(), newRunner(), cfg, args[0])
+			n, err := strconv.Atoi(args[0])
+			if err != nil {
+				return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", args[0], err)}
+			}
+			id, err := board.AddItem(context.Background(), newRunner(), cfg, n)
 			if err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
@@ -87,19 +91,19 @@ func newBoardSetStatusCmd(stdout, stderr io.Writer) *cobra.Command {
 
 func newBoardMoveCmd(stdout, stderr io.Writer) *cobra.Command {
 	return &cobra.Command{
-		Use:   "move <issue-url> <issue-number> <status>",
+		Use:   "move <issue-number> <status>",
 		Short: "Add issue to board, set status, and sync open/closed state",
-		Args:  cobra.ExactArgs(3),
+		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
 			if err != nil {
 				return err
 			}
-			issueNumber, err := strconv.Atoi(args[1])
+			issueNumber, err := strconv.Atoi(args[0])
 			if err != nil {
-				return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", args[1], err)}
+				return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", args[0], err)}
 			}
-			if err := board.Move(context.Background(), newRunner(), cfg, args[0], issueNumber, args[2]); err != nil {
+			if err := board.Move(context.Background(), newRunner(), cfg, issueNumber, args[1]); err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
 			return nil

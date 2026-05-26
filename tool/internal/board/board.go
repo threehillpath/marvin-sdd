@@ -12,11 +12,15 @@ import (
 	"threehillpath.com/claude-plan-workflow/tool/internal/gh"
 )
 
-// AddItem adds an issue URL to a GitHub Projects v2 board and returns the item ID.
-// It uses ProjectItemAdd from the gh client.
-func AddItem(ctx context.Context, runner exec.Runner, cfg *config.Config, issueURL string) (string, error) {
+// issueURL builds the canonical GitHub issue URL from the config repo and issue number.
+func issueURL(cfg *config.Config, issueNumber int) string {
+	return fmt.Sprintf("https://github.com/%s/issues/%d", cfg.Repo, issueNumber)
+}
+
+// AddItem adds an issue to a GitHub Projects v2 board and returns the item ID.
+func AddItem(ctx context.Context, runner exec.Runner, cfg *config.Config, issueNumber int) (string, error) {
 	client := gh.New(runner)
-	return client.ProjectItemAdd(ctx, cfg.ProjectNumber, cfg.Owner(), issueURL)
+	return client.ProjectItemAdd(ctx, cfg.ProjectNumber, cfg.Owner(), issueURL(cfg, issueNumber))
 }
 
 // SetStatus sets the board status field for an item to a named status.
@@ -41,7 +45,7 @@ func SetStatus(ctx context.Context, runner exec.Runner, cfg *config.Config, item
 //   - any other status → reopen the issue
 //
 // If the status maps to "n/a", the entire operation is a no-op.
-func Move(ctx context.Context, runner exec.Runner, cfg *config.Config, issueURL string, issueNumber int, status string) error {
+func Move(ctx context.Context, runner exec.Runner, cfg *config.Config, issueNumber int, status string) error {
 	// Check if n/a before doing any work.
 	_, present, err := cfg.StatusOptionID(status)
 	if err != nil {
@@ -53,7 +57,7 @@ func Move(ctx context.Context, runner exec.Runner, cfg *config.Config, issueURL 
 	}
 
 	// 1. Add to project (idempotent by gh CLI).
-	itemID, err := AddItem(ctx, runner, cfg, issueURL)
+	itemID, err := AddItem(ctx, runner, cfg, issueNumber)
 	if err != nil {
 		return fmt.Errorf("board move: add item: %w", err)
 	}

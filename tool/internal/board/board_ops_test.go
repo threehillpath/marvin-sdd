@@ -14,7 +14,7 @@ func TestAddItem(t *testing.T) {
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"id":"ITEM_XYZ"}`)})
 
 	cfg := buildConfig()
-	id, err := board.AddItem(context.Background(), fake, cfg, "https://github.com/owner/repo/issues/1")
+	id, err := board.AddItem(context.Background(), fake, cfg, 1)
 	if err != nil {
 		t.Fatalf("AddItem error: %v", err)
 	}

@@ -3,7 +3,6 @@ package findings_test
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"threehillpath.com/claude-plan-workflow/tool/internal/findings"
@@ -129,5 +128,4 @@ func TestClearDoesNotAffectSiblings(t *testing.T) {
 		t.Error("PLAN-00001 dir should be removed")
 	}
 
-	_ = strings.Contains // avoid import complaint
 }

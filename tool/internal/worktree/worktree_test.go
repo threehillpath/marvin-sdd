@@ -11,11 +11,15 @@ import (
 )
 
 // TestAddLocalBranchExistsReturnsError verifies that Add exits with CLIError{Code:1}
-// (no git worktree add issued) when the local branch already exists.
+// (no git worktree add issued) when the local branch exists for a different path.
 func TestAddLocalBranchExistsReturnsError(t *testing.T) {
 	fake := &exectest.FakeRunner{}
 	// git branch --list <branch> returns the branch name → local branch exists.
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("  feature/plan-00002-3\n")})
+	// git worktree list --porcelain → branch checked out at a DIFFERENT path.
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(
+		"worktree /tmp/wt/other-path\nHEAD abc123\nbranch refs/heads/feature/plan-00002-3\n\n",
+	)})
 
 	err := worktree.Add(context.Background(), fake, "/tmp/wt/phase-3", "feature/plan-00002-3", "feature/plan-00002")
 	if err == nil {
@@ -39,6 +43,29 @@ func TestAddLocalBranchExistsReturnsError(t *testing.T) {
 					t.Errorf("git worktree add should not have been called; got: %v", c.Args)
 				}
 			}
+		}
+	}
+}
+
+// TestAddIdempotentNoop verifies that Add is a no-op when path is already a
+// worktree for branch (same path + same branch → idempotent success).
+func TestAddIdempotentNoop(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	// git branch --list → branch exists locally.
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("  feature/plan-00002-3\n")})
+	// git worktree list --porcelain → same path already checked out to same branch.
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(
+		"worktree /tmp/wt/phase-3\nHEAD abc123\nbranch refs/heads/feature/plan-00002-3\n\n",
+	)})
+
+	err := worktree.Add(context.Background(), fake, "/tmp/wt/phase-3", "feature/plan-00002-3", "feature/plan-00002")
+	if err != nil {
+		t.Fatalf("Add should be a no-op for idempotent re-add, got: %v", err)
+	}
+	// No git worktree add should have been issued.
+	for _, c := range fake.Calls {
+		if c.Name == "git" && len(c.Args) >= 2 && c.Args[0] == "worktree" && c.Args[1] == "add" {
+			t.Errorf("git worktree add should not be called for idempotent re-add; got: %v", c.Args)
 		}
 	}
 }

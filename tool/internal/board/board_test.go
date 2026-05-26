@@ -42,9 +42,8 @@ func TestMoveDone(t *testing.T) {
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(``)})
 
 	cfg := buildConfig()
-	issueURL := "https://github.com/owner/repo/issues/42"
 
-	if err := board.Move(context.Background(), fake, cfg, issueURL, 42, "done"); err != nil {
+	if err := board.Move(context.Background(), fake, cfg, 42, "done"); err != nil {
 		t.Fatalf("Move returned error: %v", err)
 	}
 
@@ -93,9 +92,8 @@ func TestMoveInProgress(t *testing.T) {
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(``)})
 
 	cfg := buildConfig()
-	issueURL := "https://github.com/owner/repo/issues/42"
 
-	if err := board.Move(context.Background(), fake, cfg, issueURL, 42, "in_progress"); err != nil {
+	if err := board.Move(context.Background(), fake, cfg, 42, "in_progress"); err != nil {
 		t.Fatalf("Move returned error: %v", err)
 	}
 
@@ -123,8 +121,7 @@ func TestMoveNA(t *testing.T) {
 		WorktreeBase: ".worktrees",
 	}
 
-	issueURL := "https://github.com/owner/repo/issues/42"
-	if err := board.Move(context.Background(), fake, cfg, issueURL, 42, "in_review"); err != nil {
+	if err := board.Move(context.Background(), fake, cfg, 42, "in_review"); err != nil {
 		t.Fatalf("Move returned error for n/a: %v", err)
 	}
 	if len(fake.Calls) != 0 {

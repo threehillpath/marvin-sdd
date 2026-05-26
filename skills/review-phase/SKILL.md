@@ -166,24 +166,12 @@ gh pr review <pr-number> --repo <repo> --$EVENT --body "$REVIEW_BODY"
 
 If any inline comment POST fails (e.g. line is outside the diff), fall back to including that finding in the top-level review body under a "Findings without anchorable line" section. Do not stop the rest of the run for one bad anchor.
 
-### 7. Save the findings JSON
-
-Write the validated findings JSON to a stable path so a future auto-fix loop can read it without re-running the review:
-
-```bash
-mkdir -p .claude/reviews
-echo "<findings JSON>" > .claude/reviews/phase-XXXXX-N.json
-```
-
-The path is gitignored by convention (`.claude/` is local working state). The user can re-run `/review-phase` to regenerate.
-
-### 8. Confirm
+### 7. Confirm
 
 Report:
 - Review URL (link to the GitHub review)
 - Verdict
 - Blocking count, nit count
-- Findings JSON path
 
 If verdict is `request-changes`: "Address findings, push corrections, then re-run `/review-phase $0` for a fresh pass — or proceed to merge if you disagree with a finding."
 If verdict is `approve` or `comment`: "Ready to merge when you are. After merge: `/wrap-phase $0 <impl-plan-issue>`."

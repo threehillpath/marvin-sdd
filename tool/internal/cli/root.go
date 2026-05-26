@@ -31,6 +31,11 @@ management, name derivation, config access, and plan-template rendering.`,
 	root.AddCommand(newNamesCmd(stdout, stderr))
 	root.AddCommand(newParseCmd(stdout, stderr))
 	root.AddCommand(newTemplateCmd(stdout, stderr))
+	root.AddCommand(newBoardCmd(stdout, stderr))
+	root.AddCommand(newLabelCmd(stdout, stderr))
+	root.AddCommand(newPRCmd(stdout, stderr))
+	root.AddCommand(newFindingsCmd(stdout, stderr))
+	root.AddCommand(newWorktreeCmd(stdout, stderr))
 
 	return root
 }

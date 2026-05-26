@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/config"
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/names"
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/parse"
-	tmplpkg "github.com/threehillpath/claude-plan-workflow/tool/internal/template"
+	"threehillpath.com/claude-plan-workflow/tool/internal/config"
+	"threehillpath.com/claude-plan-workflow/tool/internal/names"
+	"threehillpath.com/claude-plan-workflow/tool/internal/parse"
+	tmplpkg "threehillpath.com/claude-plan-workflow/tool/internal/template"
 )
 
 // runConfigGet prints a single config value to stdout.

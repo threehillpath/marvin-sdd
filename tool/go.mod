@@ -1,4 +1,4 @@
-module github.com/threehillpath/claude-plan-workflow/tool
+module threehillpath.com/claude-plan-workflow/tool
 
 go 1.22
 

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	tmpl "github.com/threehillpath/claude-plan-workflow/tool/internal/template"
+	tmpl "threehillpath.com/claude-plan-workflow/tool/internal/template"
 )
 
 // findSchemaDir walks up from the test file's location to find the skills/SHARED/templates dir.

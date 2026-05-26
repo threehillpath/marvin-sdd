@@ -8,7 +8,7 @@ model: sonnet
 
 Implement a phase autonomously using a TDD loop in a git worktree. The sub-agent writes tests, implements features, and opens a PR to the implementation branch when all success criteria pass.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration, board management commands, and test commands. Read `../SHARED/GLOSSARY.md` for branch, worktree, and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration (repo, owner) and test commands. Read `../SHARED/GLOSSARY.md` for branch, worktree, and status conventions.
 
 ## Arguments
 
@@ -32,13 +32,19 @@ From the impl plan, identify the **paths** of source files relevant to this phas
 
 ### 2. Derive branches
 
-Per `../SHARED/GLOSSARY.md`: phase branch is `feature/plan-XXXXX-N`, impl branch is `feature/plan-XXXXX`. Verify the impl branch exists on the remote:
-
 ```bash
-git ls-remote --heads origin feature/plan-XXXXX
+marvin names derive $0 --phase <N>
 ```
 
-If not found, stop: "Implementation branch `feature/plan-XXXXX` not found. Run `/start-impl <impl-plan-issue>` first."
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+
+Read the JSON output to obtain `impl_branch`, `phase_branch`, and `worktree_path`. Verify the impl branch exists on the remote:
+
+```bash
+git ls-remote --heads origin <impl_branch>
+```
+
+If not found, stop: "Implementation branch `<impl_branch>` not found. Run `/start-impl <impl-plan-issue>` first."
 
 ### 2b. Pre-create the phase branch and worktree
 
@@ -47,37 +53,50 @@ Create the phase branch from the impl branch and add a worktree for it. This giv
 Check whether the phase branch already exists locally and/or remotely:
 
 ```bash
-git rev-parse --verify --quiet refs/heads/feature/plan-XXXXX-N      # local
-git ls-remote --heads origin feature/plan-XXXXX-N                   # remote
+git rev-parse --verify --quiet refs/heads/<phase_branch>      # local
+git ls-remote --heads origin <phase_branch>                   # remote
 ```
 
 Decide which case applies:
 
 - **Neither exists**: create from the impl branch and push.
   ```bash
-  git fetch origin feature/plan-XXXXX
-  git branch feature/plan-XXXXX-N origin/feature/plan-XXXXX
-  git push -u origin feature/plan-XXXXX-N
+  git fetch origin <impl_branch>
+  git branch <phase_branch> origin/<impl_branch>
+  git push -u origin <phase_branch>
   ```
 - **Remote exists, local does not**: fetch the remote ref; the worktree-add step below will create the local branch tracking it.
   ```bash
-  git fetch origin feature/plan-XXXXX-N
+  git fetch origin <phase_branch>
   ```
-- **Local exists** (with or without remote): a previous run left it behind. Stop and ask the user how to proceed — options are (a) reuse the existing branch, (b) delete it (`git branch -D feature/plan-XXXXX-N`) and recreate from the impl branch. Do not silently overwrite.
+- **Local exists** (with or without remote): a previous run left it behind. Stop and ask the user how to proceed — options are (a) reuse the existing branch, (b) delete it (`git branch -D <phase_branch>`) and recreate from the impl branch. Do not silently overwrite.
 
-Once the branch state is resolved, create the worktree:
+Once the branch state is resolved, create the worktree at the `worktree_path` from step 2:
 
 ```bash
-git worktree add .claude/worktrees/phase-XXXXX-N feature/plan-XXXXX-N
+marvin worktree add <worktree_path> <phase_branch> <impl_branch>
 ```
 
-If `.claude/worktrees/phase-XXXXX-N` already exists from a prior failed run, remove it first (`git worktree remove --force .claude/worktrees/phase-XXXXX-N && git worktree prune`) before re-adding, after confirming with the user.
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Note the absolute worktree path — pass it to the sub-agent in step 4.
+If the worktree path already exists from a prior failed run, remove it first:
+
+```bash
+marvin worktree remove <worktree_path>
+marvin worktree prune
+```
+
+After confirming with the user, then re-add the worktree.
+
+Pass the absolute `worktree_path` to the sub-agent in step 4.
 
 ### 3. Move phase to In Progress
 
-Use the board management commands in `.claude/plan-workflow-config.md`. Set status to **In Progress**.
+```bash
+marvin board move $0 in-progress
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 ### 4. Spawn implementation sub-agent
 

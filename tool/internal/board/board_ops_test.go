@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/board"
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/exectest"
+	"threehillpath.com/claude-plan-workflow/tool/internal/board"
+	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
 )
 
 // TestAddItem verifies that AddItem calls gh project item-add and returns the item ID.

@@ -7,9 +7,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/config"
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/exec"
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/gh"
+	"threehillpath.com/claude-plan-workflow/tool/internal/config"
+	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
+	"threehillpath.com/claude-plan-workflow/tool/internal/gh"
 )
 
 // AddItem adds an issue URL to a GitHub Projects v2 board and returns the item ID.

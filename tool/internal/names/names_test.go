@@ -3,7 +3,7 @@ package names_test
 import (
 	"testing"
 
-	"github.com/threehillpath/claude-plan-workflow/tool/internal/names"
+	"threehillpath.com/claude-plan-workflow/tool/internal/names"
 )
 
 func TestPlanNumber(t *testing.T) {

@@ -36,9 +36,35 @@ func remoteBranchExists(ctx context.Context, runner exec.Runner, branch string) 
 	return strings.TrimSpace(string(stdout)) != "", nil
 }
 
+// worktreeAlreadyAdded returns true when path is already registered as a worktree
+// for branch by parsing git worktree list --porcelain output.
+func worktreeAlreadyAdded(ctx context.Context, runner exec.Runner, path, branch string) (bool, error) {
+	stdout, stderr, code, err := runner.Run(ctx, "git", "worktree", "list", "--porcelain")
+	if err != nil {
+		return false, fmt.Errorf("worktree: list: %w", err)
+	}
+	if code != 0 {
+		return false, fmt.Errorf("worktree: git worktree list exited %d: %s", code, stderr)
+	}
+	targetRef := "refs/heads/" + branch
+	var inTarget bool
+	for _, line := range strings.Split(string(stdout), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "worktree ") {
+			inTarget = strings.TrimPrefix(line, "worktree ") == path
+		} else if inTarget && strings.HasPrefix(line, "branch ") {
+			if strings.TrimPrefix(line, "branch ") == targetRef {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
 // Add creates a git worktree at path for branch, handling three cases:
 //
-//   - Local branch already exists: returns CLIError{Code:1}. Does not overwrite.
+//   - path is already a worktree for branch: no-op success (idempotent).
+//   - Local branch already exists for a different worktree: returns CLIError{Code:1}.
 //   - Remote exists, local does not: fetches the remote branch, then adds the worktree.
 //   - Neither local nor remote: creates the branch from baseBranch, pushes to origin,
 //     then adds the worktree.
@@ -49,6 +75,14 @@ func Add(ctx context.Context, runner exec.Runner, path, branch, baseBranch strin
 		return err
 	}
 	if local {
+		// Idempotent: same path already checked out to same branch → no-op.
+		already, err := worktreeAlreadyAdded(ctx, runner, path, branch)
+		if err != nil {
+			return err
+		}
+		if already {
+			return nil
+		}
 		return clierr.Operational(fmt.Sprintf("worktree add: local branch %q already exists; will not overwrite", branch))
 	}
 

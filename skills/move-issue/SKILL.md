@@ -32,4 +32,4 @@ Read `../SHARED/GLOSSARY.md` for the canonical status state machine.
 
    If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-3. **Confirm**: report the issue number, new board status, and issue state (open/closed).
+3. **Confirm**: report the issue number and new board status.

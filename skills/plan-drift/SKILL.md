@@ -32,7 +32,7 @@ Extract the plan identifier and phase number from the issue title:
 marvin parse title "<issue title>"
 ```
 
-Read the `plan` field (e.g. `PLAN-00042`) and `phase` field (e.g. `3`) from the JSON output. Use these values wherever `<plan>` and `<N>` appear in subsequent steps. The phase identifier for cache naming is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`).
+Read the `plan` field (an integer, e.g. `42`) and `phase` field (e.g. `3`) from the JSON output. Format the plan number as `plan-XXXXX` — lowercase, 5-digit zero-padded (e.g. `plan-00042`) — and use that string wherever `<plan>` appears in subsequent steps. The phase identifier for cache naming is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`).
 
 ### 2. Determine the source of truth for the diff
 
@@ -44,7 +44,7 @@ marvin pr find "[PLAN-XXXXX-N]" --state open
 
 Branch off the result (`found` field in the JSON):
 
-- **`found: true`** — record the `number` from the JSON. The head branch is `feature/plan-XXXXX-N` and the base branch is derived with `marvin pr base feature/plan-XXXXX-N` (both follow from the ident parsed in step 1 — no extra network call needed). The sub-agent will use `gh pr diff <pr-number>`.
+- **`found: true`** — record the `number` from the JSON. The head branch is `feature/plan-XXXXX-N` (from step 1's parse output) and the base branch is the `base` field already included in the `marvin pr find` result — no extra call needed. The sub-agent will use `gh pr diff <pr-number>`.
 - **`found: false`** — the phase work lives in the local worktree at `.claude/worktrees/phase-XXXXX-N`. Verify the worktree exists:
   ```bash
   test -d .claude/worktrees/phase-XXXXX-N && echo present || echo missing

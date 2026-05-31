@@ -57,7 +57,7 @@ marvin worktree add <worktree_path> <phase_branch> <impl_branch>
 `marvin worktree add` handles all three branch-state cases automatically:
 - **Neither local nor remote exists**: creates the branch from `<impl_branch>` and pushes it.
 - **Remote exists, local does not**: fetches and tracks the remote branch.
-- **Local branch already exists**: exits 1 with a clear message — a previous run left it behind. Stop and ask the user how to proceed — options are (a) reuse the existing branch by running `marvin worktree add` again after removing the old worktree, or (b) delete the branch (`git branch -D <phase_branch>`) and then re-run `marvin worktree add`.
+- **Local branch already exists**: exits 1 with a clear message — a previous run left it behind. Stop and ask the user how to proceed — options are (a) reuse the existing branch by running `git worktree add <worktree_path> <phase_branch>` directly (`marvin worktree add` refuses when a local branch exists without a matching worktree mapping), or (b) delete the branch (`git branch -D <phase_branch>`) and then re-run `marvin worktree add`.
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 

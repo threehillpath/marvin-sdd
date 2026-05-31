@@ -27,7 +27,7 @@ First fetch the issue title to extract the `[PLAN-XXXXX-N]` ident, then call `ma
 
 If `found` is `false`, stop: "No open PR found for phase #$0 — has `/implement-phase` opened the PR yet?". If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Capture the PR number from the `marvin pr find` output. The head branch is `feature/plan-XXXXX-N` (derived from the `[PLAN-XXXXX-N]` ident in the issue title). Derive the base branch with `marvin pr base feature/plan-XXXXX-N`.
+Capture the PR number from the `marvin pr find` output. The head branch is `feature/plan-XXXXX-N` (derived from the `[PLAN-XXXXX-N]` ident in the issue title). Read the base branch from the `base` field already included in the `marvin pr find` result — no extra call needed.
 
 ### 2. Fetch the phase spec for the reviewer
 
@@ -45,7 +45,7 @@ Extract the plan identifier and phase number from the issue title:
 marvin parse title "<issue title>"
 ```
 
-Read the `plan` field (e.g. `PLAN-00042`) and `phase` field (e.g. `3`) from the JSON output. The phase identifier for cache naming is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`). Use these values in step 7.
+Read the `plan` field (an integer, e.g. `42`) and `phase` field (e.g. `3`) from the JSON output. Format the plan number as `plan-XXXXX` — lowercase, 5-digit zero-padded (e.g. `plan-00042`) — and use that string wherever `<plan>` appears. The phase identifier for cache naming is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`). Use these values in step 7.
 
 ### 3. Spawn the review sub-agent
 

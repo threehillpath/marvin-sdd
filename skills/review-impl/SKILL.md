@@ -28,13 +28,13 @@ Extract PLAN-XXXXX from the title using:
 marvin parse title "<issue title>"
 ```
 
-Read the `plan` field from the JSON output. Extract the phase issue list from the "Phases created:" comment in the issue's comments:
+Read the `plan` field (an integer) from the JSON output. Format it as `plan-XXXXX` — lowercase, 5-digit zero-padded (e.g. `plan-00042` for `plan=42`) — and use that string as `<plan>` in subsequent steps. Extract the phase issue list from the "Phases created:" comment in the issue's comments:
 
 ```bash
 echo "<phases-created-comment-body>" | marvin parse phase-list
 ```
 
-This emits a JSON array of GitHub issue numbers. For each phase issue number:
+This emits a JSON object `{"found": bool, "issues": [int, ...]}` — read the `issues` field for the phase issue numbers. For each phase issue number:
 
 ```bash
 gh issue view <phase-issue> --repo <repo> --json state,title
@@ -48,7 +48,7 @@ Locate the open impl PR:
 marvin pr find "[PLAN-XXXXX]" --state open
 ```
 
-The JSON output includes `found`, `number`, `url`, and `state`. If `found` is `false`, stop: "No open impl PR found — run `/finish-impl $0` first." If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first." Capture the PR number. The head branch is `feature/plan-XXXXX` (derived from the plan number parsed above); the base is `main` (confirmed via `marvin pr base feature/plan-XXXXX` if needed).
+The JSON output includes `found`, `number`, `url`, and `state`. If `found` is `false`, stop: "No open impl PR found — run `/finish-impl $0` first." If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first." Capture the PR number. The head branch is `feature/plan-XXXXX` (derived from the plan number parsed above); the base is `main` (also available as the `base` field in the `marvin pr find` result).
 
 Confirm the local impl branch is current:
 

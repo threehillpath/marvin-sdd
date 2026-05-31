@@ -30,7 +30,7 @@ marvin parse title "<issue title>"
 marvin pr find "[PLAN-XXXXX-N]" --state merged
 ```
 
-Read the `plan` field from `marvin parse` output (e.g. `PLAN-00042`) — use this value as `<plan>` in subsequent steps. The JSON from `marvin pr find` includes `found`, `number`, `url`, and `state`. If `found` is `false`, stop: "No merged PR found for phase #$0 — has it been merged yet?". If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+Read the `plan` field (an integer) from `marvin parse` output. Format it as `plan-XXXXX` — lowercase, 5-digit zero-padded (e.g. `plan-00042` for `plan=42`) — and use that string as `<plan>` in subsequent steps. The JSON from `marvin pr find` includes `found`, `number`, `url`, and `state`. If `found` is `false`, stop: "No merged PR found for phase #$0 — has it been merged yet?". If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 Capture the PR number for the next steps.
 

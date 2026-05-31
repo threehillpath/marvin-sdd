@@ -44,7 +44,7 @@ marvin pr find "[PLAN-XXXXX-N]" --state open
 
 Branch off the result (`found` field in the JSON):
 
-- **`found: true`** — record the `number` from the JSON, then fetch head and base refs with `gh pr view <number> --repo <repo> --json headRefName,baseRefName`. The sub-agent will use `gh pr diff <pr-number>`.
+- **`found: true`** — record the `number` from the JSON. The head branch is `feature/plan-XXXXX-N` and the base branch is derived with `marvin pr base feature/plan-XXXXX-N` (both follow from the ident parsed in step 1 — no extra network call needed). The sub-agent will use `gh pr diff <pr-number>`.
 - **`found: false`** — the phase work lives in the local worktree at `.claude/worktrees/phase-XXXXX-N`. Verify the worktree exists:
   ```bash
   test -d .claude/worktrees/phase-XXXXX-N && echo present || echo missing

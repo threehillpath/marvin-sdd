@@ -48,7 +48,7 @@ Locate the open impl PR:
 marvin pr find "[PLAN-XXXXX]" --state open
 ```
 
-The JSON output includes `found`, `number`, `url`, and `state`. If `found` is `false`, stop: "No open impl PR found — run `/finish-impl $0` first." If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first." Capture the PR number and fetch the head ref with `gh pr view <number> --repo <repo> --json headRefName`.
+The JSON output includes `found`, `number`, `url`, and `state`. If `found` is `false`, stop: "No open impl PR found — run `/finish-impl $0` first." If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first." Capture the PR number. The head branch is `feature/plan-XXXXX` (derived from the plan number parsed above); the base is `main` (confirmed via `marvin pr base feature/plan-XXXXX` if needed).
 
 Confirm the local impl branch is current:
 

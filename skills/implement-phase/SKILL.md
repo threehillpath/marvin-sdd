@@ -50,32 +50,14 @@ If not found, stop: "Implementation branch `<impl_branch>` not found. Run `/star
 
 Create the phase branch from the impl branch and add a worktree for it. This gives the sub-agent a correctly-based working directory without relying on the Agent tool to set up the branch.
 
-Check whether the phase branch already exists locally and/or remotely:
-
-```bash
-git rev-parse --verify --quiet refs/heads/<phase_branch>      # local
-git ls-remote --heads origin <phase_branch>                   # remote
-```
-
-Decide which case applies:
-
-- **Neither exists**: create from the impl branch and push.
-  ```bash
-  git fetch origin <impl_branch>
-  git branch <phase_branch> origin/<impl_branch>
-  git push -u origin <phase_branch>
-  ```
-- **Remote exists, local does not**: fetch the remote ref; the worktree-add step below will create the local branch tracking it.
-  ```bash
-  git fetch origin <phase_branch>
-  ```
-- **Local exists** (with or without remote): a previous run left it behind. Stop and ask the user how to proceed — options are (a) reuse the existing branch, (b) delete it (`git branch -D <phase_branch>`) and recreate from the impl branch. Do not silently overwrite.
-
-Once the branch state is resolved, create the worktree at the `worktree_path` from step 2:
-
 ```bash
 marvin worktree add <worktree_path> <phase_branch> <impl_branch>
 ```
+
+`marvin worktree add` handles all three branch-state cases automatically:
+- **Neither local nor remote exists**: creates the branch from `<impl_branch>` and pushes it.
+- **Remote exists, local does not**: fetches and tracks the remote branch.
+- **Local branch already exists**: exits 1 with a clear message — a previous run left it behind. Stop and ask the user how to proceed — options are (a) reuse the existing branch by running `marvin worktree add` again after removing the old worktree, or (b) delete the branch (`git branch -D <phase_branch>`) and then re-run `marvin worktree add`.
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 

@@ -20,11 +20,17 @@ Run after a phase PR has been merged. Reads the merged PR's history, classifies 
 ### 1. Locate the merged PR for this phase
 
 ```bash
-gh pr list --repo <repo> --state merged --search "in:title PLAN-XXXXX-N" \
-  --json number,title,url,mergedAt --limit 5
+gh issue view $0 --repo <repo> --json number,title
 ```
 
-Confirm exactly one merged PR matches the phase. If zero, stop: "No merged PR found for phase #$0 — has it been merged yet?". If multiple, ask the user which to use.
+Extract the `[PLAN-XXXXX-N]` ident from the title, then locate the merged PR:
+
+```bash
+marvin parse title "<issue title>"
+marvin pr find "[PLAN-XXXXX-N]" --state merged
+```
+
+Read the `plan` field from `marvin parse` output (e.g. `PLAN-00042`) — use this value as `<plan>` in subsequent steps. The JSON from `marvin pr find` includes `found`, `number`, `url`, and `state`. If `found` is `false`, stop: "No merged PR found for phase #$0 — has it been merged yet?". If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 Capture the PR number for the next steps.
 
@@ -90,7 +96,7 @@ marvin board move $0 done
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-### 8. Remove the phase worktree
+### 8. Remove the phase worktree and clear the findings cache
 
 The phase worktree was created by `/implement-phase` and left in place for review. Determine the worktree path:
 
@@ -111,12 +117,21 @@ If the path does not exist (manually removed earlier), skip silently.
 
 Do **not** delete the phase branch (`feature/plan-XXXXX-N`) — it remains on the remote as the merge source and is useful for archaeology.
 
+Clear the plan's findings cache — review, drift, and red-team findings accumulated during this phase are now stale:
+
+```bash
+marvin findings clear <plan>
+```
+
+Where `<plan>` is the plan identifier from step 1 (e.g. `plan-00042`). This removes `.claude/cache/<plan>/` entirely. If the directory is already absent, this is a no-op.
+
 ### 9. Confirm
 
 Report:
 - Comment URL on impl plan issue
 - Phase issue closed and moved to Done
 - Worktree removed
+- Findings cache cleared
 
 If more phases remain: "Next: `/implement-phase <next-phase-issue-number>`"
 If this was the last phase: "Next: `/review-impl <impl-plan-issue-number>` (comprehensive cross-phase review), then `/finish-impl <impl-plan-issue-number>`."

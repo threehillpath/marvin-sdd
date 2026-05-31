@@ -19,13 +19,15 @@ Run after `/implement-phase` opens a phase PR, before merging. Spawns an opus su
 ### 1. Locate the open PR for this phase
 
 ```bash
-gh pr list --repo <repo> --state open --search "in:title PLAN-XXXXX-N" \
-  --json number,title,url,headRefName,baseRefName --limit 5
+gh issue view $0 --repo <repo> --json number,title
+marvin pr find "[PLAN-XXXXX-N]" --state open
 ```
 
-Confirm exactly one open PR matches. If zero, stop: "No open PR found for phase #$0 — has `/implement-phase` opened the PR yet?". If multiple, ask the user which to review.
+First fetch the issue title to extract the `[PLAN-XXXXX-N]` ident, then call `marvin pr find` with that ident. The JSON output includes `found`, `number`, `url`, and `state`.
 
-Capture the PR number, head ref, and base ref.
+If `found` is `false`, stop: "No open PR found for phase #$0 — has `/implement-phase` opened the PR yet?". If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+
+Capture the PR number, head ref, and base ref from the `marvin pr find` output and a follow-up `gh pr view <number> --repo <repo> --json headRefName,baseRefName`.
 
 ### 2. Fetch the phase spec for the reviewer
 
@@ -36,6 +38,14 @@ gh issue view $0 --repo <repo> --json number,title,body
 ```
 
 Extract the impl plan issue number from the phase issue body (referenced as `Implementation plan: #<n>`). The reviewer will use this to look up cross-phase context if needed.
+
+Extract the plan identifier and phase number from the issue title:
+
+```bash
+marvin parse title "<issue title>"
+```
+
+Read the `plan` field (e.g. `PLAN-00042`) and `phase` field (e.g. `3`) from the JSON output. The phase identifier for cache naming is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`). Use these values in step 7.
 
 ### 3. Spawn the review sub-agent
 
@@ -166,7 +176,17 @@ gh pr review <pr-number> --repo <repo> --$EVENT --body "$REVIEW_BODY"
 
 If any inline comment POST fails (e.g. line is outside the diff), fall back to including that finding in the top-level review body under a "Findings without anchorable line" section. Do not stop the rest of the run for one bad anchor.
 
-### 7. Confirm
+### 7. Cache the findings JSON
+
+Cache the validated findings JSON so a future auto-fix loop can read it without re-running the review:
+
+```bash
+echo "<findings JSON>" | marvin findings cache <plan> reviews <phase-ident>
+```
+
+Where `<plan>` is the plan identifier from step 2 (e.g. `plan-00042`) and `<phase-ident>` is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`). The cache is stored under `.claude/cache/<plan>/reviews/<phase-ident>.json` and is gitignored by convention.
+
+### 8. Confirm
 
 Report:
 - Review URL (link to the GitHub review)

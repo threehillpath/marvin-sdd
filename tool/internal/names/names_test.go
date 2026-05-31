@@ -23,6 +23,23 @@ func TestPlanNumber(t *testing.T) {
 	}
 }
 
+func TestPlanID(t *testing.T) {
+	tests := []struct {
+		issue int
+		want  string
+	}{
+		{42, "plan-00042"},
+		{111, "plan-00111"},
+		{1, "plan-00001"},
+		{99999, "plan-99999"},
+	}
+	for _, tc := range tests {
+		if got := names.PlanID(tc.issue); got != tc.want {
+			t.Errorf("PlanID(%d) = %q, want %q", tc.issue, got, tc.want)
+		}
+	}
+}
+
 func TestImplBranch(t *testing.T) {
 	tests := []struct {
 		issue  int

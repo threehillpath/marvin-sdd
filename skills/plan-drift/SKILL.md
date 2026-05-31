@@ -32,7 +32,7 @@ Extract the plan identifier and phase number from the issue title:
 marvin parse title "<issue title>"
 ```
 
-Read the `plan` field (an integer, e.g. `42`) and `phase` field (e.g. `3`) from the JSON output. Format the plan number as `plan-XXXXX` — lowercase, 5-digit zero-padded (e.g. `plan-00042`) — and use that string wherever `<plan>` appears in subsequent steps. The phase identifier for cache naming is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`).
+Read the `plan_number` field (e.g. `plan-00042`) and `phase` field (e.g. `3`) from the JSON output. Use `plan_number` wherever `<plan>` appears in subsequent steps. The phase identifier for cache naming is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`).
 
 ### 2. Determine the source of truth for the diff
 

@@ -23,6 +23,13 @@ func PlanNumber(issue int) string {
 	return fmt.Sprintf("PLAN-%05d", issue)
 }
 
+// PlanID returns the lowercase, path-safe plan identifier used in branch names,
+// worktree paths, and the findings cache directory.
+// Example: 42 → "plan-00042"
+func PlanID(issue int) string {
+	return fmt.Sprintf("plan-%05d", issue)
+}
+
 // ImplBranch returns the implementation branch name for an issue.
 // Suffix (if non-empty) is lowercased, matching the GLOSSARY.md convention.
 // Example: 42, "" → "feature/plan-00042"

@@ -28,7 +28,7 @@ Extract PLAN-XXXXX from the title using:
 marvin parse title "<issue title>"
 ```
 
-Read the `plan` field (an integer) from the JSON output. Format it as `plan-XXXXX` — lowercase, 5-digit zero-padded (e.g. `plan-00042` for `plan=42`) — and use that string as `<plan>` in subsequent steps. Extract the phase issue list from the "Phases created:" comment in the issue's comments:
+Read the `plan_number` field from the JSON output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps. Extract the phase issue list from the "Phases created:" comment in the issue's comments:
 
 ```bash
 echo "<phases-created-comment-body>" | marvin parse phase-list

@@ -101,7 +101,7 @@ func runNamesDerive(stdout, stderr io.Writer, issueStr, suffix, worktreeBaseFlag
 	}
 
 	out := namesOutput{
-		PlanNumber: names.PlanNumber(issue),
+		PlanNumber: names.PlanID(issue),
 		ImplBranch: names.ImplBranch(issue, suffix),
 		TitlePrefix: titlePrefix{
 			Arch: names.TitlePrefix(names.Arch, issue, suffix, phase),
@@ -124,10 +124,11 @@ func runNamesDerive(stdout, stderr io.Writer, issueStr, suffix, worktreeBaseFlag
 
 // parseTitleOutput is the JSON shape for parse title.
 type parseTitleOutput struct {
-	Found  bool   `json:"found"`
-	Plan   int    `json:"plan,omitempty"`
-	Suffix string `json:"suffix,omitempty"`
-	Phase  int    `json:"phase,omitempty"`
+	Found      bool   `json:"found"`
+	Plan       int    `json:"plan,omitempty"`
+	PlanNumber string `json:"plan_number,omitempty"` // lowercase path form, e.g. "plan-00042"
+	Suffix     string `json:"suffix,omitempty"`
+	Phase      int    `json:"phase,omitempty"`
 }
 
 // runParseTitle extracts a plan ident from a title string.
@@ -136,6 +137,7 @@ func runParseTitle(stdout, stderr io.Writer, title string) error {
 	out := parseTitleOutput{Found: ok}
 	if ok {
 		out.Plan = ident.Plan
+		out.PlanNumber = names.PlanID(ident.Plan)
 		out.Suffix = ident.Suffix
 		out.Phase = ident.Phase
 	}

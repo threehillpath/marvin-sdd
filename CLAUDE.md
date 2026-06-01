@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-A Claude Code plugin defining a structured architecture-to-implementation workflow on top of GitHub issues and Projects v2 boards. Contains no executable code — only skill definitions (markdown instruction files) consumed by the plugin system.
+A Claude Code plugin defining a structured architecture-to-implementation workflow on top of GitHub issues and Projects v2 boards. Includes `marvin`, a compiled Go CLI that encapsulates the deterministic shell operations (board moves, label management, PR lookup, worktree lifecycle, config access, findings cache) so skills can call a single binary rather than re-synthesizing `gh`/`jq`/`git` invocations.
 
 ## Repository structure
 
@@ -13,6 +13,23 @@ A Claude Code plugin defining a structured architecture-to-implementation workfl
     feature.yml                ← Feature request form (applies `enhancement` label)
     bug.yml                    ← Bug report form (applies `bug` label)
     config.yml                 ← Issue chooser config (blank_issues_enabled, contact links)
+tool/                          ← Go module for the marvin CLI
+  cmd/marvin/main.go           ← Entry point; compiled to bin/marvin at install time
+  internal/
+    board/                     ← GitHub Projects v2 board operations (add, move, status)
+    cli/                       ← Cobra command handlers
+    clierr/                    ← Exit-code constants (0 / 1 / 2)
+    config/                    ← YAML config loader, legacy markdown fallback, CWD-walk discovery
+    exec/                      ← Runner interface (injectable for tests)
+    exectest/                  ← Fake runner for unit tests (no network / no git state)
+    findings/                  ← Findings cache read/write
+    gh/                        ← gh JSON client wrapper
+    label/                     ← Label ensure-exists
+    names/                     ← Plan name derivation (PLAN-XXXXX, branch, worktree path, prefix)
+    parse/                     ← Identifier parsing (issue titles → plan numbers)
+    pr/                        ← PR discovery and target resolution
+    template/                  ← Plan-template render from YAML schemas
+    worktree/                  ← Worktree lifecycle (create, delete, exists)
 skills/
   SHARED/                      ← Files referenced by multiple skills
     CONFIG.md                  ← Template for per-project config
@@ -34,6 +51,14 @@ skills/
     SKILL.md                   ← Authoritative skill prompt
     SUPPLEMENTS/               ← Templates and deeper guidance
 ```
+
+## The marvin tool
+
+`marvin` is compiled from `tool/` by `deploy.sh` and installed to `${PLUGIN_DIR}/bin/marvin`. Skills call it for all deterministic operations — board moves, label management, config access, name derivation, PR lookup, worktree lifecycle, findings cache — so that none of that logic needs to be re-synthesized from shell in skill prose.
+
+Subcommand groups: `config`, `names`, `parse`, `template`, `board`, `label`, `pr`, `findings`, `worktree`, `version`.
+
+Exit-code contract: `0` = success, `1` = operational error, `2` = config missing or malformed. Output contract: `stdout` = data, `stderr` = diagnostics.
 
 ## Skills (in workflow order)
 
@@ -74,6 +99,10 @@ Skills read `.claude/plan-workflow-config.md` in the **consuming project**, not 
 
 ## Requirements (for consuming projects)
 
+**Install-time** (needed when running `deploy.sh`):
+- [Go SDK](https://go.dev/dl/) (`go` on PATH) — `deploy.sh` compiles `marvin` during install and hard-fails with a clear message if `go` is absent
+
+**Runtime** (needed when using skills):
 - `gh` CLI authenticated with repo and project access
 - GitHub Projects v2 board (classic projects not supported)
 - `jq` for JSON parsing in board management commands

@@ -12,7 +12,7 @@ The PR target is determined automatically from the current branch name:
 - `feature/plan-XXXXX-N` → PR targets `feature/plan-XXXXX` (implementation branch)
 - `feature/plan-XXXXX` → PR targets `main` (use `/finish-impl` instead for this case)
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for branch and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for branch and status conventions.
 
 ## Arguments
 

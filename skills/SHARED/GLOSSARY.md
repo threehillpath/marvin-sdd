@@ -34,7 +34,9 @@ Prefer phases within one impl plan over multiple impl plans whenever possible.
 | Implementation branch | `feature/plan-XXXXX` | `feature/plan-00042` |
 | Phase branch | `feature/plan-XXXXX-N` | `feature/plan-00042-3` |
 | Bug fix branch | `bug/bug-XXXXX` | `bug/bug-00143` |
-| Phase worktree path (relative to repo root) | `.claude/worktrees/phase-XXXXX-N` | `.claude/worktrees/phase-00042-3` |
+| Phase worktree path (relative to repo root) | `<worktree_base>/phase-XXXXX-N` | `.worktrees/phase-00042-3` |
+
+`worktree_base` is the configured worktree root from `.claude/plan-workflow-config.yml` (default: `.worktrees`). Use `marvin names derive <phase-issue>` to resolve the absolute path.
 
 Branch names are always lowercase with hyphens. The implementation branch is created from `main` by `/start-impl`. Phase branches are created from the implementation branch by `/implement-phase`. Phase PRs target the implementation branch; the implementation PR targets `main`.
 
@@ -73,4 +75,4 @@ These terms are defined in the skill that owns them; this list points to the sou
 | Plan red-team findings format | `SHARED/PLAN_RED_TEAM_FORMAT.md` |
 | Plan drift rubric | `SHARED/PLAN_DRIFT_RUBRIC.md` |
 | Plan drift findings format | `SHARED/PLAN_DRIFT_FORMAT.md` |
-| Board command patterns | `SHARED/CONFIG.md` (template) and `.claude/plan-workflow-config.md` (per project) |
+| Board command patterns | `SHARED/CONFIG.md` (template) and `.claude/plan-workflow-config.yml` (per project) |

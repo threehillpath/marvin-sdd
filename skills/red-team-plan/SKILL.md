@@ -10,7 +10,7 @@ Run after `/impl-plan` produces an implementation plan, before `/phase-split`. S
 
 The red-team is a check on the plan, not the code. It surfaces hidden assumptions, missing dependencies, phase-ordering risks, weak TDD entry points, and unfalsifiable success criteria — the failure modes whose cost compounds across every phase if not caught here.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
 
 ## Arguments
 

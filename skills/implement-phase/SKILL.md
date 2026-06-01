@@ -8,7 +8,7 @@ model: sonnet
 
 Implement a phase autonomously using a TDD loop in a git worktree. The sub-agent writes tests, implements features, and opens a PR to the implementation branch when all success criteria pass.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration (repo, owner) and test commands. Read `../SHARED/GLOSSARY.md` for branch, worktree, and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration (repo, owner) and test commands. Read `../SHARED/GLOSSARY.md` for branch, worktree, and status conventions.
 
 ## Arguments
 
@@ -90,9 +90,9 @@ Spawn a **general-purpose** agent **without** `isolation: "worktree"` (the workt
 2. Impl plan issue number (and `gh issue view` command for it). The sub-agent fetches the full component specs and design notes itself.
 3. **Paths only** for the relevant source files identified in step 1 — the sub-agent reads them inside the worktree.
 4. Branch names: phase branch `feature/plan-XXXXX-N`, impl branch `feature/plan-XXXXX`.
-5. Absolute worktree path: `<repo-root>/.claude/worktrees/phase-XXXXX-N`.
+5. Absolute worktree path: `<worktree_path>` (derived in step 2).
 6. Repo: `<repo>`.
-7. Test commands from `.claude/plan-workflow-config.md`.
+7. Test commands from `.claude/plan-workflow-config.yml`.
 8. Full instructions from `SUPPLEMENTS/LOOP.md` (paste this verbatim — it is the agent's primary procedural guide).
 
 The sub-agent must not pause for user confirmation except on unresolvable failure or ambiguity.
@@ -107,7 +107,7 @@ When the sub-agent returns, report:
 
 If the sub-agent stopped on failure, present the diagnostic and ask how to proceed.
 
-The worktree at `.claude/worktrees/phase-XXXXX-N` is **left in place** until `/wrap-phase` runs after merge — reviewers may want to test the branch locally, and the user may push correction commits from it.
+The worktree at `<worktree_path>` is **left in place** until `/wrap-phase` runs after merge — reviewers may want to test the branch locally, and the user may push correction commits from it.
 
 **During implementation or before opening the PR** (optional):
 - Run `/plan-drift <phase-issue-number>` to audit the worktree's diff against the phase spec — checks per-criterion coverage and flags out-of-scope or interface-divergent changes early.

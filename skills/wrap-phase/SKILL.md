@@ -82,16 +82,14 @@ EOF
 
 ### 7. Close the phase issue (if still open) and move to Done
 
-If the phase issue was open in step 2:
+```bash
+marvin board move $0 done
+```
+
+`marvin board move done` closes the issue and sets the board status in one call. On boards where `done: n/a`, the board move is a no-op — close the issue manually in that case:
 
 ```bash
 gh issue close $0 --repo <repo> --reason completed
-```
-
-Move the issue to Done on the board (this also handles the open/closed sync):
-
-```bash
-marvin board move $0 done
 ```
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."

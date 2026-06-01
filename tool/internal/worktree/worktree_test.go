@@ -153,12 +153,15 @@ func TestAddRemoteExistsLocalDoesNotProceedsToWorktreeAdd(t *testing.T) {
 	}
 }
 
-// TestRemoveCalls git worktree remove.
+// TestRemoveCalls git worktree remove --force on an existing path.
 func TestRemoveCalls(t *testing.T) {
+	// Create a real temp dir so the os.Stat existence check passes.
+	dir := t.TempDir()
+
 	fake := &exectest.FakeRunner{}
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
 
-	if err := worktree.Remove(context.Background(), fake, "/tmp/wt/phase-3"); err != nil {
+	if err := worktree.Remove(context.Background(), fake, dir); err != nil {
 		t.Fatalf("Remove returned error: %v", err)
 	}
 
@@ -166,8 +169,22 @@ func TestRemoveCalls(t *testing.T) {
 		t.Fatalf("expected 1 call, got %d", len(fake.Calls))
 	}
 	c := fake.Calls[0]
-	if c.Name != "git" || c.Args[0] != "worktree" || c.Args[1] != "remove" {
+	if c.Name != "git" || c.Args[0] != "worktree" || c.Args[1] != "remove" || c.Args[2] != "--force" {
 		t.Errorf("unexpected call: %v %v", c.Name, c.Args)
+	}
+}
+
+// TestRemoveSkipsIfPathMissing verifies that Remove returns nil without calling
+// git when the worktree path has already been removed.
+func TestRemoveSkipsIfPathMissing(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+
+	if err := worktree.Remove(context.Background(), fake, "/nonexistent/path/phase-00042-3"); err != nil {
+		t.Fatalf("Remove returned error for missing path: %v", err)
+	}
+
+	if len(fake.Calls) != 0 {
+		t.Errorf("expected no git calls for missing path, got %d", len(fake.Calls))
 	}
 }
 

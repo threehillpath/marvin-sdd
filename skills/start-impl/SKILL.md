@@ -73,8 +73,8 @@ If the test runner, `git commit`, `git push`, `gh pr`, and `marvin` are not pres
 ```bash
 git checkout main
 git pull origin main
-git checkout -b feature/plan-XXXXX
-git push -u origin feature/plan-XXXXX
+git checkout -b <impl_branch>
+git push -u origin <impl_branch>
 ```
 
 ### 6. Move impl plan to In Progress
@@ -87,6 +87,6 @@ If `marvin` exits with code 2, surface to the user: "Configuration missing — r
 
 ### 7. Confirm
 
-Report: impl plan issue, branch `feature/plan-XXXXX` created and pushed, board status.
+Report: impl plan issue, branch `<impl_branch>` created and pushed, board status.
 
 **Next step**: `/implement-phase <phase-1-issue-number>`

@@ -30,8 +30,16 @@ gh issue view <phase-issue> --repo <repo> --json number,title,state
 
 ### 2. Derive branch names
 
+Parse the plan identifier from the impl plan title (fetched in step 1):
+
 ```bash
-marvin names derive $0
+marvin parse title "<impl plan title>"
+```
+
+Read the `plan` integer field (e.g. `2`). Then derive branch names using that source-issue number:
+
+```bash
+marvin names derive <plan>
 ```
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."

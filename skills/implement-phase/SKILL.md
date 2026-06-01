@@ -32,8 +32,16 @@ From the impl plan, identify the **paths** of source files relevant to this phas
 
 ### 2. Derive branches
 
+Parse the plan identifier and phase number from the phase issue title (fetched in step 1):
+
 ```bash
-marvin names derive $0 --phase <N>
+marvin parse title "<phase issue title>"
+```
+
+Read the `plan` integer field (e.g. `2`) and `phase` integer field (e.g. `3`). Then derive branch names using the source-issue number:
+
+```bash
+marvin names derive <plan> --phase <phase>
 ```
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."

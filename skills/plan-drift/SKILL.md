@@ -32,12 +32,12 @@ Extract the plan identifier and phase number from the issue title:
 marvin parse title "<issue title>"
 ```
 
-Read the `plan_number` field (e.g. `plan-00042`) and `phase` field (e.g. `3`) from the JSON output. Use `plan_number` wherever `<plan>` appears in subsequent steps. The phase identifier for cache naming is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`).
+Read the `plan_number` field (e.g. `plan-00042`) and `phase` field (e.g. `3`) from the JSON output. Use `plan_number` wherever `<plan>` appears in subsequent steps. The phase identifier for cache naming is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`). Also read the `plan` integer field (e.g. `2`) — needed for the `names derive` call below.
 
 Resolve the worktree path:
 
 ```bash
-marvin names derive $0
+marvin names derive <plan> --phase <phase>
 ```
 
 Read the `worktree_path` field from the JSON output. Use `<worktree_path>` wherever the phase worktree path appears in subsequent steps.

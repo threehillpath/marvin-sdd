@@ -6,6 +6,7 @@ package worktree
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"threehillpath.com/claude-plan-workflow/tool/internal/clierr"
@@ -132,9 +133,13 @@ func Add(ctx context.Context, runner exec.Runner, path, branch, baseBranch strin
 	return nil
 }
 
-// Remove removes the worktree at path via git worktree remove.
+// Remove removes the worktree at path via git worktree remove --force.
+// If path does not exist it returns nil (the worktree was already cleaned up).
 func Remove(ctx context.Context, runner exec.Runner, path string) error {
-	_, stderr, code, err := runner.Run(ctx, "git", "worktree", "remove", path)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil
+	}
+	_, stderr, code, err := runner.Run(ctx, "git", "worktree", "remove", "--force", path)
 	if err != nil {
 		return fmt.Errorf("worktree remove: %w", err)
 	}

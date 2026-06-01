@@ -10,8 +10,8 @@ import (
 
 // TestCachePath verifies the path formula.
 func TestCachePath(t *testing.T) {
-	got := findings.CachePath("PLAN-00002", "review", "phase-1")
-	want := ".claude/cache/PLAN-00002/review/phase-1.json"
+	got := findings.CachePath("plan-00002", "review", "phase-1")
+	want := ".claude/cache/plan-00002/review/phase-1.json"
 	if got != want {
 		t.Errorf("CachePath = %q, want %q", got, want)
 	}
@@ -32,11 +32,11 @@ func TestCacheWritesValidJSON(t *testing.T) {
 	defer os.Chdir(origDir)
 
 	payload := []byte(`{"findings":[]}`)
-	if err := findings.Cache("PLAN-00002", "review", "phase-1", payload); err != nil {
+	if err := findings.Cache("plan-00002", "review", "phase-1", payload); err != nil {
 		t.Fatalf("Cache returned error: %v", err)
 	}
 
-	path := filepath.Join(dir, ".claude", "cache", "PLAN-00002", "review", "phase-1.json")
+	path := filepath.Join(dir, ".claude", "cache", "plan-00002", "review", "phase-1.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("file not created at %q: %v", path, err)
@@ -53,7 +53,7 @@ func TestCacheRejectsInvalidJSON(t *testing.T) {
 	os.Chdir(dir)
 	defer os.Chdir(origDir)
 
-	if err := findings.Cache("PLAN-00002", "review", "bad", []byte(`not json`)); err == nil {
+	if err := findings.Cache("plan-00002", "review", "bad", []byte(`not json`)); err == nil {
 		t.Fatal("expected error for invalid JSON, got nil")
 	}
 }
@@ -66,7 +66,7 @@ func TestClearRemovesPlanDirectory(t *testing.T) {
 	defer os.Chdir(origDir)
 
 	// Pre-create a cache file.
-	cacheDir := filepath.Join(dir, ".claude", "cache", "PLAN-00002", "review")
+	cacheDir := filepath.Join(dir, ".claude", "cache", "plan-00002", "review")
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -74,11 +74,11 @@ func TestClearRemovesPlanDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := findings.Clear("PLAN-00002"); err != nil {
+	if err := findings.Clear("plan-00002"); err != nil {
 		t.Fatalf("Clear returned error: %v", err)
 	}
 
-	planDir := filepath.Join(dir, ".claude", "cache", "PLAN-00002")
+	planDir := filepath.Join(dir, ".claude", "cache", "plan-00002")
 	if _, err := os.Stat(planDir); !os.IsNotExist(err) {
 		t.Error("expected plan directory to be removed after Clear")
 	}
@@ -104,7 +104,7 @@ func TestClearDoesNotAffectSiblings(t *testing.T) {
 	defer os.Chdir(origDir)
 
 	// Create dirs for two plans.
-	for _, plan := range []string{"PLAN-00001", "PLAN-00002"} {
+	for _, plan := range []string{"plan-00001", "plan-00002"} {
 		d := filepath.Join(dir, ".claude", "cache", plan)
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
@@ -112,20 +112,20 @@ func TestClearDoesNotAffectSiblings(t *testing.T) {
 		os.WriteFile(filepath.Join(d, "data.json"), []byte(`{}`), 0o644)
 	}
 
-	if err := findings.Clear("PLAN-00001"); err != nil {
+	if err := findings.Clear("plan-00001"); err != nil {
 		t.Fatalf("Clear returned error: %v", err)
 	}
 
-	// PLAN-00002 should still exist.
-	sibling := filepath.Join(dir, ".claude", "cache", "PLAN-00002")
+	// plan-00002 should still exist.
+	sibling := filepath.Join(dir, ".claude", "cache", "plan-00002")
 	if _, err := os.Stat(sibling); err != nil {
 		t.Errorf("sibling plan dir unexpectedly removed: %v", err)
 	}
 
-	// PLAN-00001 should be gone.
-	removed := filepath.Join(dir, ".claude", "cache", "PLAN-00001")
+	// plan-00001 should be gone.
+	removed := filepath.Join(dir, ".claude", "cache", "plan-00001")
 	if _, err := os.Stat(removed); !os.IsNotExist(err) {
-		t.Error("PLAN-00001 dir should be removed")
+		t.Error("plan-00001 dir should be removed")
 	}
 
 }

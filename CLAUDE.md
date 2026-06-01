@@ -105,5 +105,5 @@ Skills read `.claude/plan-workflow-config.yml` (preferred) or `.claude/plan-work
 **Runtime** (needed when using skills):
 - `gh` CLI authenticated with repo and project access
 - GitHub Projects v2 board (classic projects not supported)
-- `jq` for JSON parsing in board management commands
+- `jq` (optional) for post-processing `marvin` JSON output in custom skill prose
 - `glow` (optional) for rendered markdown previews in terminal

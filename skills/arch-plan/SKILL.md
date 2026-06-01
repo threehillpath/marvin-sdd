@@ -8,7 +8,7 @@ model: opus
 
 Create an architectural plan for a GitHub issue. Arch plans focus on domain/system concerns — what to build and why, not how to implement it.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration values (repo, owner). Read `../SHARED/GLOSSARY.md` for naming conventions and the status state machine.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration values (repo, owner). Read `../SHARED/GLOSSARY.md` for naming conventions and the status state machine.
 
 ## Arguments
 

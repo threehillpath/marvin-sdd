@@ -8,7 +8,7 @@ model: opus
 
 Create a technical implementation plan from an approved architecture plan. The impl plan is a specification — what to build and why, not how to code it.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for naming and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for naming and status conventions.
 
 ## Arguments
 

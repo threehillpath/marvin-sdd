@@ -8,7 +8,7 @@ model: sonnet
 
 Summarize what is about to be built, confirm phase readiness, and create the implementation branch.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for branch/issue naming and the status state machine.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for branch/issue naming and the status state machine.
 
 ## Arguments
 

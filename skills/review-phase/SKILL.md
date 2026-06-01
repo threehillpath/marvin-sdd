@@ -8,7 +8,7 @@ model: sonnet
 
 Run after `/implement-phase` opens a phase PR, before merging. Spawns an opus sub-agent (fresh context, extended thinking) that reads the phase spec and the PR diff, applies the rubric in `../SHARED/REVIEW_RUBRIC.md`, and returns structured findings per `../SHARED/REVIEW_FINDING_FORMAT.md`. Orchestrator presents findings, then on approval posts a single GitHub PR review.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
 
 ## Arguments
 

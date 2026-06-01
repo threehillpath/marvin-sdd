@@ -8,7 +8,7 @@ model: sonnet
 
 Run after `/finish-impl` has opened the impl PR to main. Spawns an opus sub-agent (fresh context, extended thinking) that reviews the cumulative impl-branch diff against `main`, treating the impl plan as the spec and the accumulated wrap-phase comments as the record of intentional drift. Posts findings as a GitHub PR review. Catches integration issues that no individual phase review could see.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
 
 ## Arguments
 

@@ -8,7 +8,7 @@ model: sonnet
 
 Run after a phase PR has been merged. Reads the merged PR's history, classifies it into decisions / scope changes / deferred items / corrections, posts a structured wrap-up comment on the impl plan issue, closes the phase issue, moves it to Done on the board, and removes the phase worktree.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for naming, worktree, and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for naming, worktree, and status conventions.
 
 ## Arguments
 

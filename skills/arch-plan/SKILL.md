@@ -54,7 +54,7 @@ For what qualifies as an ADR candidate, see `SUPPLEMENTS/ADR.md`.
 Render the arch plan template:
 
 ```bash
-marvin template render arch-plan
+marvin template render arch-plan --skeleton
 ```
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."

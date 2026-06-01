@@ -48,7 +48,7 @@ Iterate until approved.
 Render the phase issue template:
 
 ```bash
-marvin template render impl-phase
+marvin template render impl-phase --skeleton
 ```
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."

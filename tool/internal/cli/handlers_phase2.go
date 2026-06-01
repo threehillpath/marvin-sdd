@@ -131,8 +131,8 @@ func newLabelCmd(stdout, stderr io.Writer) *cobra.Command {
 // Keys are label names; values are [description, color].
 var builtinLabels = map[string][2]string{
 	"plan:arch":          {"Architecture plans", "0075ca"},
-	"plan:impl":          {"Implementation plans", "0052cc"},
-	"plan:phase":         {"Phase issues", "006b75"},
+	"plan:impl":          {"Implementation plan", "0075ca"},
+	"plan:phase":         {"Phase / implementation unit", "0075ca"},
 	"status:upcoming":    {"Issue is newly created and awaiting work", "ededed"},
 	"status:backlog":     {"Issue is in the backlog", "e4e669"},
 	"status:in-progress": {"Issue is in progress", "fbca04"},

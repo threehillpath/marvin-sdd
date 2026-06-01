@@ -127,14 +127,6 @@ func newParseCmd(stdout, stderr io.Writer) *cobra.Command {
 	})
 
 	parse.AddCommand(&cobra.Command{
-		Use:   "impl-from-phase-body",
-		Short: "Extract impl plan number from phase body (stdin)",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runParseImplFromPhaseBody(stdout, stderr)
-		},
-	})
-
-	parse.AddCommand(&cobra.Command{
 		Use:   "phase-list",
 		Short: "Extract phase issue numbers from a Phases created: comment (stdin)",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -153,17 +145,19 @@ func newTemplateCmd(stdout, stderr io.Writer) *cobra.Command {
 	}
 
 	var metaFile, sectionsFile string
+	var skeleton bool
 
 	renderCmd := &cobra.Command{
 		Use:   "render <arch-plan|impl-plan|impl-phase>",
 		Short: "Render a plan template from schema",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runTemplateRender(stdout, stderr, args[0], metaFile, sectionsFile)
+			return runTemplateRender(stdout, stderr, args[0], metaFile, sectionsFile, skeleton)
 		},
 	}
 	renderCmd.Flags().StringVar(&metaFile, "meta", "", "Path to meta JSON file")
 	renderCmd.Flags().StringVar(&sectionsFile, "sections", "", "Path to sections JSON file")
+	renderCmd.Flags().BoolVar(&skeleton, "skeleton", false, "Output empty section headings without requiring content")
 
 	tmpl.AddCommand(renderCmd)
 	return tmpl

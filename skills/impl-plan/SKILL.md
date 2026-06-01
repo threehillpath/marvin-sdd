@@ -61,7 +61,7 @@ Read `SUPPLEMENTS/CONVENTIONS.md` for what to include and exclude.
 Render the impl plan template:
 
 ```bash
-marvin template render impl-plan
+marvin template render impl-plan --skeleton
 ```
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."

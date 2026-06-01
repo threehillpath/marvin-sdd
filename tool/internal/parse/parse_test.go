@@ -80,27 +80,6 @@ func TestPlanIdentNoMatch(t *testing.T) {
 	}
 }
 
-func TestImplPlanNumberFromPhaseBody(t *testing.T) {
-	body := `**Implementation Plan:** #15 ([PLAN-00002])
-**Plan Number:** PLAN-00002
-**Status:** Upcoming`
-
-	n, ok := parse.ImplPlanNumberFromPhaseBody(body)
-	if !ok {
-		t.Fatal("expected match, got false")
-	}
-	if n != 15 {
-		t.Errorf("got %d, want 15", n)
-	}
-}
-
-func TestImplPlanNumberNotFound(t *testing.T) {
-	_, ok := parse.ImplPlanNumberFromPhaseBody("no match here")
-	if ok {
-		t.Error("expected no match, got true")
-	}
-}
-
 func TestPhaseListFromComment(t *testing.T) {
 	comment := "- #12 [PLAN-00042-1]\n- #13 [PLAN-00042-2]"
 	nums, ok := parse.PhaseListFromComment(comment)

@@ -105,3 +105,29 @@ func Render(schemaPath string, meta []KV, sections map[string][]string) (string,
 
 	return sb.String(), nil
 }
+
+// Skeleton returns a minimal heading scaffold for schemaPath.
+// Unlike Render, it does not validate required sections and emits empty
+// section headings for the caller to fill in.
+func Skeleton(schemaPath string) (string, error) {
+	raw, err := os.ReadFile(schemaPath)
+	if err != nil {
+		return "", fmt.Errorf("reading schema %q: %w", schemaPath, err)
+	}
+	var sc schema
+	if err := yaml.Unmarshal(raw, &sc); err != nil {
+		return "", fmt.Errorf("parsing schema %q: %w", schemaPath, err)
+	}
+
+	ordinal := 0
+	var sb strings.Builder
+	for _, sec := range sc.Sections {
+		if sec.Numbered {
+			ordinal++
+			fmt.Fprintf(&sb, "\n## %d. %s\n", ordinal, sec.Heading)
+		} else {
+			fmt.Fprintf(&sb, "\n## %s\n", sec.Heading)
+		}
+	}
+	return sb.String(), nil
+}

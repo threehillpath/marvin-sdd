@@ -22,7 +22,19 @@ Run after `/finish-impl` has opened the impl PR to main. Spawns an opus sub-agen
 gh issue view $0 --repo <repo> --json number,title,body,comments
 ```
 
-Extract PLAN-XXXXX and the phase issue list from the "Phases created:" comment. For each phase:
+Extract PLAN-XXXXX from the title using:
+
+```bash
+marvin parse title "<issue title>"
+```
+
+Read the `plan_number` field from the JSON output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps. Extract the phase issue list from the "Phases created:" comment in the issue's comments:
+
+```bash
+echo "<phases-created-comment-body>" | marvin parse phase-list
+```
+
+This emits a JSON object `{"found": bool, "issues": [int, ...]}` — read the `issues` field for the phase issue numbers. For each phase issue number:
 
 ```bash
 gh issue view <phase-issue> --repo <repo> --json state,title
@@ -33,11 +45,10 @@ If any phase is not `CLOSED`, list the open phases and ask the user whether to p
 Locate the open impl PR:
 
 ```bash
-gh pr list --repo <repo> --state open --search "in:title PLAN-XXXXX" \
-  --json number,title,url,headRefName,baseRefName --limit 5
+marvin pr find "[PLAN-XXXXX]" --state open
 ```
 
-Confirm exactly one open PR exists targeting `main`. If zero, stop: "No open impl PR found — run `/finish-impl $0` first." If multiple, ask the user which to review. Capture the PR number and head ref.
+The JSON output includes `found`, `number`, `url`, and `state`. If `found` is `false`, stop: "No open impl PR found — run `/finish-impl $0` first." If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first." Capture the PR number. The head branch is `feature/plan-XXXXX` (derived from the plan number parsed above); the base is `main` (also available as the `base` field in the `marvin pr find` result).
 
 Confirm the local impl branch is current:
 
@@ -163,12 +174,15 @@ EOF
 
 Note: if the repo owner is the same user running the review, GitHub will reject `APPROVE` — use `COMMENT` instead.
 
-### 6. Save the findings JSON
+### 6. Cache the findings JSON
+
+Cache the validated findings JSON so a future auto-fix loop can read it without re-running the review:
 
 ```bash
-mkdir -p .claude/reviews
-echo "<findings JSON>" > .claude/reviews/impl-XXXXX.json
+echo "<findings JSON>" | marvin findings cache <plan> reviews impl-XXXXX
 ```
+
+Where `<plan>` is the plan identifier from step 1 (e.g. `plan-00042`) and `impl-XXXXX` matches the plan number (e.g. `impl-00042`). The cache is stored under `.claude/cache/<plan>/reviews/impl-XXXXX.json` and is gitignored by convention.
 
 ### 7. Confirm and direct next step
 
@@ -176,7 +190,7 @@ Report:
 - Review URL (link to the GitHub review)
 - Verdict
 - Blocking count, nit count
-- Findings JSON path
+- Cached findings path (`.claude/cache/<plan>/reviews/impl-XXXXX.json`)
 
 Direct the user:
 

@@ -39,14 +39,6 @@ gh issue view $0 --repo <repo> --json number,title,body
 
 Extract the impl plan issue number from the phase issue body (referenced as `Implementation plan: #<n>`). The reviewer will use this to look up cross-phase context if needed.
 
-Extract the plan identifier and phase number from the issue title:
-
-```bash
-marvin parse title "<issue title>"
-```
-
-Read the `plan_number` field (e.g. `plan-00042`) and `phase` field (e.g. `3`) from the JSON output. Use `plan_number` wherever `<plan>` appears. The phase identifier for cache naming is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`). Use these values in step 7.
-
 ### 3. Spawn the review sub-agent
 
 Spawn an **Agent** with:
@@ -176,17 +168,7 @@ gh pr review <pr-number> --repo <repo> --$EVENT --body "$REVIEW_BODY"
 
 If any inline comment POST fails (e.g. line is outside the diff), fall back to including that finding in the top-level review body under a "Findings without anchorable line" section. Do not stop the rest of the run for one bad anchor.
 
-### 7. Cache the findings JSON
-
-Cache the validated findings JSON so a future auto-fix loop can read it without re-running the review:
-
-```bash
-echo "<findings JSON>" | marvin findings cache <plan> reviews <phase-ident>
-```
-
-Where `<plan>` is the plan identifier from step 2 (e.g. `plan-00042`) and `<phase-ident>` is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`). The cache is stored under `.claude/cache/<plan>/reviews/<phase-ident>.json` and is gitignored by convention.
-
-### 8. Confirm
+### 7. Confirm
 
 Report:
 - Review URL (link to the GitHub review)

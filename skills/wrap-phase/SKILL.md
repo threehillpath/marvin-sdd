@@ -30,7 +30,7 @@ marvin parse title "<issue title>"
 marvin pr find "[PLAN-XXXXX-N]" --state merged
 ```
 
-Read the `plan_number` field from `marvin parse` output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps. The JSON from `marvin pr find` includes `found`, `number`, `url`, and `state`. If `found` is `false`, stop: "No merged PR found for phase #$0 — has it been merged yet?". If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+Read the `plan_number` field from `marvin parse` output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps. Also read the `plan` integer field (e.g. `2`) and `phase` integer field (e.g. `3`) — these are needed for `marvin names derive` in step 8. The JSON from `marvin pr find` includes `found`, `number`, `url`, and `state`. If `found` is `false`, stop: "No merged PR found for phase #$0 — has it been merged yet?". If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 Capture the PR number for the next steps.
 
@@ -96,7 +96,7 @@ If `marvin` exits with code 2, surface to the user: "Configuration missing — r
 The phase worktree was created by `/implement-phase` and left in place for review. Determine the worktree path:
 
 ```bash
-marvin names derive $0 --phase <N>
+marvin names derive <plan> --phase <phase>
 ```
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."

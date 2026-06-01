@@ -8,7 +8,7 @@ model: opus
 
 Create an architectural plan for a GitHub issue. Arch plans focus on domain/system concerns — what to build and why, not how to implement it.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration values and board management commands. Read `../SHARED/GLOSSARY.md` for naming conventions and the status state machine.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration values (repo, owner). Read `../SHARED/GLOSSARY.md` for naming conventions and the status state machine.
 
 ## Arguments
 
@@ -51,11 +51,15 @@ For what qualifies as an ADR candidate, see `SUPPLEMENTS/ADR.md`.
 
 ### 5. Draft the plan
 
-Resolve the arch plan template using the convention in `../SHARED/CONFIG.md` (Plan Template Resolution section):
-1. Check for a project override at `.claude/plan-workflow-templates/arch-plan.yml` in the consuming project.
-2. If absent, use the plugin default at `../SHARED/templates/arch-plan.yml`.
-3. Read the resolved YAML file.
-4. Render the issue body from the `sections` array in order: use each section's `heading` as the markdown heading (`## <heading>`), honouring `required`, `repeatable`, and `numbered` flags per the guidance in each section entry.
+Render the arch plan template:
+
+```bash
+marvin template render arch-plan --skeleton
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+
+Use the rendered skeleton as the structural frame for the draft, filling in each section with substantive content from the arch analysis.
 
 ### 6. Present for review
 
@@ -65,14 +69,28 @@ See `../SHARED/RENDERING.md` for rendering guidance. Ask for approval on both co
 
 ### 7. Create the GitHub issue
 
+Ensure all required labels exist before creating the issue:
+
+```bash
+marvin label ensure --builtins
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+
+For any domain or source-type labels not covered by `--builtins`, ensure each one individually:
+
+```bash
+marvin label ensure "<name>" --description "<desc>" --color "<hex>"
+```
+
+Then create the issue:
+
 ```bash
 gh issue create --repo <repo> \
   --title "[PLAN-XXXXX-ARCH] <Title>" \
   --body "<approved content>" \
   --label "plan:arch,status:upcoming,<domain-labels>,<source-issue-type-if-applicable>"
 ```
-
-If a label does not exist, create it first — see `../SHARED/LABELS.md` for the create commands.
 
 ### 8. Link to source issue
 
@@ -83,7 +101,11 @@ gh issue comment $0 --repo <repo> \
 
 ### 9. Add to board as Ready
 
-Use the board management commands in `.claude/plan-workflow-config.md`. Set status to **Ready**.
+```bash
+marvin board move <new-issue-number> ready
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 ### 10. Confirm
 

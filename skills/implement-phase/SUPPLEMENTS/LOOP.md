@@ -31,7 +31,7 @@ Work through the phase success criteria **one at a time, in order**.
 For each criterion:
 
 1. **Write one failing test** — and only one. Use the TDD entry point from the phase issue as the anchor for the first criterion. Each subsequent criterion gets its own targeted test asserting the outermost observable behavior — what a caller sees, not internal state. Do not write tests for any other criterion at this step.
-2. **Run the test suite. Confirm red.** Use the test command from `.claude/plan-workflow-config.md`, run from the worktree directory. The new test must fail. If it passes immediately, the behavior already exists — note it, skip implementation, move to the next criterion.
+2. **Run the test suite. Confirm red.** Use the test command from `.claude/plan-workflow-config.yml`, run from the worktree directory. The new test must fail. If it passes immediately, the behavior already exists — note it, skip implementation, move to the next criterion.
 3. **Write the minimum code to make the test pass.** Do not implement beyond what the current test requires. Do not add code in anticipation of future criteria.
 4. **Run the test suite. Confirm green.** All previously passing tests must still pass.
 5. If still failing after implementation: diagnose, fix, re-run — up to 3 attempts total.
@@ -120,7 +120,9 @@ The PR body must include `Closes #<phase-issue-number>`.
 
 ### Move phase issue to In Review
 
-Use the board management commands from `.claude/plan-workflow-config.md`. Use `--jq '.id'` when capturing the item ID from `item-add` — do not pipe the response to shell `jq`.
+```bash
+marvin board move <phase-issue-number> in-review
+```
 
 ### Return summary
 

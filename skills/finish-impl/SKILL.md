@@ -8,7 +8,7 @@ model: sonnet
 
 Close out a completed implementation: confirm all phases are merged, open a PR from the implementation branch to main, and move the impl plan issue to In Review.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands. Read `../SHARED/GLOSSARY.md` for branch and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for branch and status conventions.
 
 ## Arguments
 
@@ -22,7 +22,21 @@ Close out a completed implementation: confirm all phases are merged, open a PR f
 gh issue view $0 --repo <repo> --json number,title,body,comments
 ```
 
-Extract PLAN-XXXXX and the phase list from the "Phases created:" comment.
+Extract PLAN-XXXXX from the title:
+
+```bash
+marvin parse title "<issue title>"
+```
+
+Read the `plan_number` field from the JSON output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps.
+
+Extract the phase list from the "Phases created:" comment in the issue's comments:
+
+```bash
+echo "<phases-created-comment-body>" | marvin parse phase-list
+```
+
+This emits a JSON object `{"found": bool, "issues": [int, ...]}` — read the `issues` field for the phase issue numbers.
 
 ### 2. Verify branch state
 
@@ -82,10 +96,24 @@ gh pr create --repo <repo> \
 
 ### 5. Move impl plan to In Review
 
-Use the board management commands in `.claude/plan-workflow-config.md`. Set status to **In Review**.
+```bash
+marvin board move $0 in-review
+```
 
-### 6. Confirm
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Report: PR URL, impl plan issue #$0 moved to In Review.
+### 6. Clear the findings cache
+
+Now that the impl PR is open, clear the plan's findings cache — any accumulated review, drift, and red-team findings are superseded by the impl-level review that `/review-impl` will produce:
+
+```bash
+marvin findings clear <plan>
+```
+
+Where `<plan>` is the plan identifier from step 1 (e.g. `plan-00042`). This removes `.claude/cache/<plan>/` entirely. If the directory is already absent, this is a no-op.
+
+### 7. Confirm
+
+Report: PR URL, impl plan issue #$0 moved to In Review, findings cache cleared.
 
 **Next step**: `/review-impl $0` to review the impl PR and post findings directly on it.

@@ -40,6 +40,13 @@ const legacyMarkdownFixture = `# Skill Set Configuration
 | "In Progress" option ID | ` + "`opt-in-progress`" + ` |
 | "In Review" option ID | ` + "`n/a`" + ` |
 | "Done" option ID | ` + "`opt-done`" + ` |
+
+## Test Commands
+
+| Scope | Command (run from repo root) |
+|---|---|
+| Backend | ` + "`go test ./...`" + ` |
+| Frontend | ` + "`none`" + ` |
 `
 
 func writeFixture(t *testing.T, dir, name, content string) string {
@@ -184,6 +191,23 @@ statuses:
 	}
 	if cfg.WorktreeBase != "custom/worktrees" {
 		t.Errorf("WorktreeBase = %q, want custom/worktrees", cfg.WorktreeBase)
+	}
+}
+
+func TestLoadLegacyMarkdownTestCommands(t *testing.T) {
+	dir := t.TempDir()
+	writeFixture(t, filepath.Join(dir, ".claude"), "plan-workflow-config.md", legacyMarkdownFixture)
+
+	cfg, err := config.Load(dir)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+
+	if got := cfg.TestCommands["backend"]; got != "go test ./..." {
+		t.Errorf("TestCommands[backend] = %q, want %q", got, "go test ./...")
+	}
+	if got := cfg.TestCommands["frontend"]; got != "none" {
+		t.Errorf("TestCommands[frontend] = %q, want %q", got, "none")
 	}
 }
 

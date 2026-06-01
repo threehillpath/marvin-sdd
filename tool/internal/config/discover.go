@@ -129,12 +129,21 @@ func loadMarkdown(path string) (*Config, error) {
 		"done":        kvs[`"Done" option ID`],
 	}
 
+	testCommands := map[string]string{}
+	if v := kvs["Backend"]; v != "" {
+		testCommands["backend"] = v
+	}
+	if v := kvs["Frontend"]; v != "" {
+		testCommands["frontend"] = v
+	}
+
 	return &Config{
 		Repo:          repo,
 		ProjectNumber: projNum,
 		ProjectID:     kvs["Project ID"],
 		StatusFieldID: kvs["Status field ID"],
 		Statuses:      statuses,
+		TestCommands:  testCommands,
 		WorktreeBase:  worktreeBase,
 	}, nil
 }

@@ -77,23 +77,6 @@ func PlanIdent(title string) (Ident, bool) {
 	return Ident{}, false
 }
 
-// implPlanRefRe matches "**Implementation Plan:** #N" in a phase issue body.
-var implPlanRefRe = regexp.MustCompile(`\*\*Implementation Plan:\*\*\s*#(\d+)`)
-
-// ImplPlanNumberFromPhaseBody extracts the implementation plan issue number from
-// the body of a phase issue. Returns (number, true) on success.
-func ImplPlanNumberFromPhaseBody(body string) (int, bool) {
-	m := implPlanRefRe.FindStringSubmatch(body)
-	if m == nil {
-		return 0, false
-	}
-	n, err := strconv.Atoi(m[1])
-	if err != nil {
-		return 0, false
-	}
-	return n, true
-}
-
 // phaseListLineRe matches a line like "- #12 [PLAN-00042-1]" and captures the issue number.
 var phaseListLineRe = regexp.MustCompile(`-\s+#(\d+)\s+\[PLAN-`)
 

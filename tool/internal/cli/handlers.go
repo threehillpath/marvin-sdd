@@ -146,22 +146,6 @@ func runParseTitle(stdout, stderr io.Writer, title string) error {
 	return enc.Encode(out)
 }
 
-// runParseImplFromPhaseBody reads stdin and extracts the impl plan number.
-func runParseImplFromPhaseBody(stdout, stderr io.Writer) error {
-	data, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		return &CLIError{Code: 1, Msg: fmt.Sprintf("reading stdin: %v", err)}
-	}
-	n, ok := parse.ImplPlanNumberFromPhaseBody(string(data))
-	out := struct {
-		Found  bool `json:"found"`
-		Number int  `json:"number,omitempty"`
-	}{Found: ok, Number: n}
-	enc := json.NewEncoder(stdout)
-	enc.SetIndent("", "  ")
-	return enc.Encode(out)
-}
-
 // runParsePhaseList reads stdin and extracts phase issue numbers.
 func runParsePhaseList(stdout, stderr io.Writer) error {
 	data, err := io.ReadAll(os.Stdin)
@@ -182,10 +166,20 @@ func runParsePhaseList(stdout, stderr io.Writer) error {
 }
 
 // runTemplateRender renders a plan template from schema.
-func runTemplateRender(stdout, stderr io.Writer, schemaName, metaFile, sectionsFile string) error {
+// When skeleton is true, emits empty section headings without requiring content.
+func runTemplateRender(stdout, stderr io.Writer, schemaName, metaFile, sectionsFile string, skeleton bool) error {
 	schemaPath, err := resolveSchemaPath(schemaName)
 	if err != nil {
 		return &CLIError{Code: 1, Msg: err.Error()}
+	}
+
+	if skeleton {
+		out, err := tmplpkg.Skeleton(schemaPath)
+		if err != nil {
+			return &CLIError{Code: 1, Msg: err.Error()}
+		}
+		fmt.Fprint(stdout, out)
+		return nil
 	}
 
 	var meta []tmplpkg.KV

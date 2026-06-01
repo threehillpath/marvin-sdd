@@ -106,9 +106,9 @@ func Render(schemaPath string, meta []KV, sections map[string][]string) (string,
 	return sb.String(), nil
 }
 
-// Skeleton returns a minimal heading scaffold for schemaPath.
-// Unlike Render, it does not validate required sections and emits empty
-// section headings for the caller to fill in.
+// Skeleton returns a minimal scaffold for schemaPath: bold metadata key
+// placeholders followed by empty section headings. Unlike Render, it does not
+// validate required sections or accept section content.
 func Skeleton(schemaPath string) (string, error) {
 	raw, err := os.ReadFile(schemaPath)
 	if err != nil {
@@ -119,8 +119,14 @@ func Skeleton(schemaPath string) (string, error) {
 		return "", fmt.Errorf("parsing schema %q: %w", schemaPath, err)
 	}
 
-	ordinal := 0
 	var sb strings.Builder
+
+	// Metadata block: one placeholder line per key.
+	for _, key := range sc.Metadata {
+		fmt.Fprintf(&sb, "**%s:**\n", key)
+	}
+
+	ordinal := 0
 	for _, sec := range sc.Sections {
 		if sec.Numbered {
 			ordinal++

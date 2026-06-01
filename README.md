@@ -78,5 +78,5 @@ Each plan traces back to a source GitHub issue. The source issue number becomes 
 **Runtime** (needed when using skills):
 - [`gh`](https://cli.github.com/) authenticated with access to your repo and project
 - A GitHub Project (classic projects not supported — must be a Projects v2 board)
-- [`jq`](https://jqlang.github.io/jq/) for JSON parsing in board commands
+- [`jq`](https://jqlang.github.io/jq/) (optional) for post-processing `marvin` JSON output in custom skill prose
 - [`glow`](https://github.com/charmbracelet/glow) (optional) for rendered markdown previews

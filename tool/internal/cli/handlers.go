@@ -37,6 +37,8 @@ func runConfigGet(stdout, stderr io.Writer, key string) error {
 		val = cfg.StatusFieldID
 	case "owner":
 		val = cfg.Owner()
+	case "worktree_base":
+		val = cfg.WorktreeBase
 	default:
 		id, present, serr := cfg.StatusOptionID(key)
 		if serr != nil {

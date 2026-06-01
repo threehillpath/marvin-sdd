@@ -165,6 +165,31 @@ func TestArchPlanMetadataKey(t *testing.T) {
 	}
 }
 
+// TestSkeletonEmitsMetadataAndHeadings verifies that Skeleton emits bold metadata
+// key placeholders before section headings, with no content validation.
+func TestSkeletonEmitsMetadataAndHeadings(t *testing.T) {
+	sd := schemaDir(t)
+	schemaPath := filepath.Join(sd, "impl-plan.yml")
+
+	out, err := tmpl.Skeleton(schemaPath)
+	if err != nil {
+		t.Fatalf("Skeleton returned error: %v", err)
+	}
+
+	// Metadata keys must appear as bold placeholders.
+	for _, key := range []string{"Objective", "Architecture Plan", "Source Issue", "Author", "Status"} {
+		want := "**" + key + ":**"
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in skeleton output, got:\n%s", want, out)
+		}
+	}
+
+	// Section headings must be present.
+	if !strings.Contains(out, "## Scope") {
+		t.Errorf("expected '## Scope' in skeleton output, got:\n%s", out)
+	}
+}
+
 // TestRenderRequiredSectionMissing verifies that omitting a required section returns an error.
 func TestRenderRequiredSectionMissing(t *testing.T) {
 	sd := schemaDir(t)

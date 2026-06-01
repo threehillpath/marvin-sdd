@@ -138,8 +138,6 @@ var builtinLabels = map[string][2]string{
 	"status:in-progress": {"Issue is in progress", "fbca04"},
 	"status:in-review":   {"Issue is in review", "fef2c0"},
 	"status:done":        {"Issue is done", "0e8a16"},
-	"domain:cli":         {"CLI / tooling work", "d93f0b"},
-	"domain:skill":       {"Skill definition work", "e11d48"},
 }
 
 func newLabelEnsureCmd(stdout, stderr io.Writer) *cobra.Command {

@@ -84,13 +84,10 @@ EOF
 
 ```bash
 marvin board move $0 done
-```
-
-`marvin board move done` closes the issue and sets the board status in one call. On boards where `done: n/a`, the board move is a no-op — close the issue manually in that case:
-
-```bash
 gh issue close $0 --repo <repo> --reason completed
 ```
+
+`marvin board move done` sets the board status and closes the issue when `done` is configured. The explicit `gh issue close` is the fallback for boards where `done: n/a` (where the board move is a no-op). Running both is safe — `gh issue close` on an already-closed issue exits 0.
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 

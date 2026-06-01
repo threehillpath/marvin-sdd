@@ -20,7 +20,7 @@ Board management is available at any point via `/move-issue`.
 
 | Skill | Description |
 |---|---|
-| `/configure-plan-plugin` | Set up `.claude/plan-workflow-config.md` for a new project (run first) |
+| `/configure-plan-plugin` | Set up `.claude/plan-workflow-config.yml` for a new project (run first) |
 | `/arch-plan <issue>` | Create an architectural plan from a GitHub issue |
 | `/impl-plan <arch-issue>` | Create a technical implementation plan from an arch plan |
 | `/phase-split <impl-issue>` | Break an impl plan into phase issues on the board |
@@ -48,7 +48,7 @@ Run `/configure-plan-plugin` in your project. It will:
 - List your GitHub Projects and let you pick one
 - Discover the project's status field and column IDs
 - Ask for your test commands
-- Write everything to `.claude/plan-workflow-config.md`
+- Write everything to `.claude/plan-workflow-config.yml`
 
 ### 3. Create GitHub labels
 
@@ -72,6 +72,10 @@ Each plan traces back to a source GitHub issue. The source issue number becomes 
 
 ## Requirements
 
+**Install-time** (needed when running `deploy.sh`):
+- [Go SDK](https://go.dev/dl/) (`go` on PATH) — `deploy.sh` compiles the bundled `marvin` CLI and will fail with a clear error message if `go` is absent
+
+**Runtime** (needed when using skills):
 - [`gh`](https://cli.github.com/) authenticated with access to your repo and project
 - A GitHub Project (classic projects not supported — must be a Projects v2 board)
 - [`jq`](https://jqlang.github.io/jq/) for JSON parsing in board commands

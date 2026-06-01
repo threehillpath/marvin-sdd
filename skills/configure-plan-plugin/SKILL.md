@@ -1,14 +1,14 @@
 ---
 name: configure-plan-plugin
-description: Walk through configuring .claude/plan-workflow-config.md for a new project
+description: Walk through configuring .claude/plan-workflow-config.yml for a new project
 argument-hint: (no arguments)
 allowed-tools: Bash, Read, Write
 model: sonnet
 ---
 
-Interactively discover and write all values needed for `.claude/plan-workflow-config.md` in the current project directory. Most values are discovered automatically from the `gh` CLI; the user confirms choices along the way.
+Interactively discover and write all values needed for `.claude/plan-workflow-config.yml` in the current project directory. Most values are discovered automatically from the `gh` CLI; the user confirms choices along the way.
 
-This skill is self-contained — it does not depend on `.claude/plan-workflow-config.md` since it is creating it.
+This skill is self-contained — it does not depend on `.claude/plan-workflow-config.yml` since it is creating it.
 
 ## Steps
 
@@ -57,14 +57,18 @@ Ask: "What command runs your backend tests from the repo root?" and "What comman
 
 Present all discovered values and ask: "Does this look correct? Type 'yes' to write the config or describe any corrections." Iterate until confirmed.
 
-### 7. Write .claude/plan-workflow-config.md
+### 7. Write .claude/plan-workflow-config.yml
 
 ```bash
 mkdir -p .claude
 ```
 
-Read `SUPPLEMENTS/TEMPLATES.md` for the file structure. Fill in all confirmed values and write the complete file to `.claude/plan-workflow-config.md`. If the file already exists, preserve the Board Management Commands section from the existing file (only the configuration table and test commands change).
+Read `SUPPLEMENTS/TEMPLATES.md` for the file structure. Fill in all confirmed values and write the complete file to `.claude/plan-workflow-config.yml` (YAML format). Do not write the legacy `.claude/plan-workflow-config.md` — existing projects that have the old markdown file will continue to work via the legacy fallback in `marvin`.
+
+Set `worktree_base` to `.worktrees` unless the user specifies otherwise.
+
+For each status column that the project board does not have, set its option ID to the string `"n/a"`.
 
 ### 8. Confirm
 
-Report that `.claude/plan-workflow-config.md` has been written for `<owner/repo>`. Plan type labels (`plan:arch`, `plan:impl`, `plan:phase`) will be created automatically the first time each skill creates an issue.
+Report that `.claude/plan-workflow-config.yml` has been written for `<owner/repo>`. Plan type labels (`plan:arch`, `plan:impl`, `plan:phase`) will be created automatically the first time each skill creates an issue.

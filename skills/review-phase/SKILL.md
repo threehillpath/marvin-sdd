@@ -8,7 +8,7 @@ model: sonnet
 
 Run after `/implement-phase` opens a phase PR, before merging. Spawns an opus sub-agent (fresh context, extended thinking) that reads the phase spec and the PR diff, applies the rubric in `../SHARED/REVIEW_RUBRIC.md`, and returns structured findings per `../SHARED/REVIEW_FINDING_FORMAT.md`. Orchestrator presents findings, then on approval posts a single GitHub PR review.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
 
 ## Arguments
 
@@ -19,13 +19,15 @@ Run after `/implement-phase` opens a phase PR, before merging. Spawns an opus su
 ### 1. Locate the open PR for this phase
 
 ```bash
-gh pr list --repo <repo> --state open --search "in:title PLAN-XXXXX-N" \
-  --json number,title,url,headRefName,baseRefName --limit 5
+gh issue view $0 --repo <repo> --json number,title
+marvin pr find "[PLAN-XXXXX-N]" --state open
 ```
 
-Confirm exactly one open PR matches. If zero, stop: "No open PR found for phase #$0 — has `/implement-phase` opened the PR yet?". If multiple, ask the user which to review.
+First fetch the issue title to extract the `[PLAN-XXXXX-N]` ident, then call `marvin pr find` with that ident. The JSON output includes `found`, `number`, `url`, and `state`.
 
-Capture the PR number, head ref, and base ref.
+If `found` is `false`, stop: "No open PR found for phase #$0 — has `/implement-phase` opened the PR yet?". If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+
+Capture the PR number from the `marvin pr find` output. The head branch is `feature/plan-XXXXX-N` (derived from the `[PLAN-XXXXX-N]` ident in the issue title). Read the base branch from the `base` field already included in the `marvin pr find` result — no extra call needed.
 
 ### 2. Fetch the phase spec for the reviewer
 
@@ -166,24 +168,12 @@ gh pr review <pr-number> --repo <repo> --$EVENT --body "$REVIEW_BODY"
 
 If any inline comment POST fails (e.g. line is outside the diff), fall back to including that finding in the top-level review body under a "Findings without anchorable line" section. Do not stop the rest of the run for one bad anchor.
 
-### 7. Save the findings JSON
-
-Write the validated findings JSON to a stable path so a future auto-fix loop can read it without re-running the review:
-
-```bash
-mkdir -p .claude/reviews
-echo "<findings JSON>" > .claude/reviews/phase-XXXXX-N.json
-```
-
-The path is gitignored by convention (`.claude/` is local working state). The user can re-run `/review-phase` to regenerate.
-
-### 8. Confirm
+### 7. Confirm
 
 Report:
 - Review URL (link to the GitHub review)
 - Verdict
 - Blocking count, nit count
-- Findings JSON path
 
 If verdict is `request-changes`: "Address findings, push corrections, then re-run `/review-phase $0` for a fresh pass — or proceed to merge if you disagree with a finding."
 If verdict is `approve` or `comment`: "Ready to merge when you are. After merge: `/wrap-phase $0 <impl-plan-issue>`."

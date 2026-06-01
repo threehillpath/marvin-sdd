@@ -10,7 +10,7 @@ Run any time during a phase to check whether the current diff matches the phase 
 
 This skill complements `review-phase` — it does *not* replace it. `review-phase` runs once at PR time and applies the full code-review rubric. `plan-drift` runs on demand, focuses only on drift, and is most valuable before the PR is opened so the implementer can correct course early.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration. Read `../SHARED/GLOSSARY.md` for branch, worktree, and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration. Read `../SHARED/GLOSSARY.md` for branch, worktree, and status conventions.
 
 ## Arguments
 
@@ -26,24 +26,39 @@ gh issue view $0 --repo <repo> --json number,title,body,labels
 
 Verify the issue is a phase issue (title matches `[PLAN-XXXXX-N] …`). Extract the impl plan issue number (referenced as `Implementation plan: #<n>`).
 
+Extract the plan identifier and phase number from the issue title:
+
+```bash
+marvin parse title "<issue title>"
+```
+
+Read the `plan_number` field (e.g. `plan-00042`) and `phase` field (e.g. `3`) from the JSON output. Use `plan_number` wherever `<plan>` appears in subsequent steps. The phase identifier for cache naming is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`). Also read the `plan` integer field (e.g. `2`) — needed for the `names derive` call below.
+
+Resolve the worktree path:
+
+```bash
+marvin names derive <plan> --phase <phase>
+```
+
+Read the `worktree_path` field from the JSON output. Use `<worktree_path>` wherever the phase worktree path appears in subsequent steps.
+
 ### 2. Determine the source of truth for the diff
 
 Check whether a phase PR exists:
 
 ```bash
-gh pr list --repo <repo> --state open --search "in:title PLAN-XXXXX-N" \
-  --json number,title,headRefName,baseRefName --limit 5
+marvin pr find "[PLAN-XXXXX-N]" --state open
 ```
 
-Branch off the result:
+Branch off the result (`found` field in the JSON):
 
-- **PR exists** — record the PR number, head ref, base ref. The sub-agent will use `gh pr diff <pr-number>`.
-- **No PR yet** — the phase work lives in the local worktree at `.claude/worktrees/phase-XXXXX-N`. Verify the worktree exists:
+- **`found: true`** — record the `number` from the JSON. The head branch is `feature/plan-XXXXX-N` (from step 1's parse output) and the base branch is the `base` field already included in the `marvin pr find` result — no extra call needed. The sub-agent will use `gh pr diff <pr-number>`.
+- **`found: false`** — the phase work lives in the local worktree at `<worktree_path>`. Verify the worktree exists:
   ```bash
-  test -d .claude/worktrees/phase-XXXXX-N && echo present || echo missing
+  test -d <worktree_path> && echo present || echo missing
   ```
-  - If present, the sub-agent will use `git -C <worktree> diff feature/plan-XXXXX...HEAD` against the impl branch.
-  - If missing, stop: "No open PR for phase #$0 and no worktree at `.claude/worktrees/phase-XXXXX-N`. Run `/implement-phase $0` first, or push the phase branch and re-run."
+  - If present, the sub-agent will use `git -C <worktree_path> diff feature/plan-XXXXX...HEAD` against the impl branch.
+  - If missing, stop: "No open PR for phase #$0 and no worktree at `<worktree_path>`. Run `/implement-phase $0` first, or push the phase branch and re-run."
 
 If multiple PRs match, ask the user which to audit.
 
@@ -201,14 +216,13 @@ Post the comment:
 
 ### 7. Save the findings JSON
 
-Write the validated findings JSON to a stable path so a future auto-correct loop can read it without re-running the audit:
+Cache the validated findings JSON so a future auto-correct loop can read it without re-running the audit:
 
 ```bash
-mkdir -p .claude/drift
-echo "<findings JSON>" > .claude/drift/phase-XXXXX-N.json
+echo "<findings JSON>" | marvin findings cache <plan> drift <phase-ident>
 ```
 
-The path is gitignored by convention (`.claude/` is local working state). The user can re-run `/plan-drift` to regenerate.
+Where `<plan>` is the plan identifier from step 1 (e.g. `plan-00042`) and `<phase-ident>` is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`). The cache is stored under `.claude/cache/<plan>/drift/<phase-ident>.json` and is gitignored by convention. The user can re-run `/plan-drift` to regenerate.
 
 ### 8. Confirm
 
@@ -217,7 +231,7 @@ Report:
 - Verdict
 - Criterion summary (e.g. "2/3 met, 1 unmet")
 - Blocking count, concerns count
-- Findings JSON path
+- Cached findings path (`.claude/cache/<plan>/drift/<phase-ident>.json`)
 
 Recommend the next step based on verdict:
 - **`aligned`**: "Diff matches spec. Open the PR with `/implement-phase` (if not already), or proceed to `/review-phase $0`."

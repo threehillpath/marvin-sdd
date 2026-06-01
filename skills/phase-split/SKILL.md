@@ -8,7 +8,7 @@ model: sonnet
 
 Break an approved implementation plan into phases sized by logical atomicity and estimated complexity. Each phase should be a coherent unit representing one branch, one PR, and one verifiable behavior change.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for naming and status conventions.
 
 If the impl plan has not been red-teamed yet, recommend running `/red-team-plan $0` first — phase boundaries depend on the plan being free of phase-ordering and missing-dependency issues, which red-team-plan surfaces. The user may skip and proceed if they prefer.
 
@@ -45,13 +45,31 @@ Iterate until approved.
 
 ### 3. Create phase issues
 
-Resolve the phase issue template using the convention in `../SHARED/CONFIG.md` (Plan Template Resolution section):
-1. Check for a project override at `.claude/plan-workflow-templates/impl-phase.yml` in the consuming project.
-2. If absent, use the plugin default at `../SHARED/templates/impl-phase.yml`.
-3. Read the resolved YAML file.
-4. Render each phase issue body from the `sections` array in order: use each section's `heading` as the markdown heading (`## <heading>`), honouring `required`, `repeatable`, and `numbered` flags per the guidance in each section entry.
+Render the phase issue template:
+
+```bash
+marvin template render impl-phase --skeleton
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+
+Use the rendered skeleton as the structural frame for each phase issue body, filling in phase-specific content.
 
 Read `../SHARED/LABELS.md` for label conventions. Infer domain labels from the impl plan content — confirm with the user once before creating all issues ("I'll apply `plan:phase`, `status:upcoming`, `domain:backend` to all phases — correct?").
+
+Ensure all required labels exist before creating issues:
+
+```bash
+marvin label ensure --builtins
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+
+For any domain labels not covered by `--builtins`, ensure each one individually:
+
+```bash
+marvin label ensure "<name>" --description "<desc>" --color "<hex>"
+```
 
 For each approved phase:
 
@@ -61,8 +79,6 @@ gh issue create --repo <repo> \
   --body "<phase content>" \
   --label "plan:phase,status:upcoming,<domain-labels>"
 ```
-
-If a label does not exist, create it first — see `../SHARED/LABELS.md` for the create commands.
 
 Capture each issue number as you go.
 
@@ -82,7 +98,13 @@ EOF
 
 ### 5. Add all phases to board as Ready
 
-For each phase issue, use the board management commands in `.claude/plan-workflow-config.md`. Set status to **Ready**.
+For each phase issue:
+
+```bash
+marvin board move <phase-issue-number> ready
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 ### 6. Confirm
 

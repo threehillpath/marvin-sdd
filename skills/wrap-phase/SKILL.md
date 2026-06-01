@@ -8,7 +8,7 @@ model: sonnet
 
 Run after a phase PR has been merged. Reads the merged PR's history, classifies it into decisions / scope changes / deferred items / corrections, posts a structured wrap-up comment on the impl plan issue, closes the phase issue, moves it to Done on the board, and removes the phase worktree.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands. Read `../SHARED/GLOSSARY.md` for naming, worktree, and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for naming, worktree, and status conventions.
 
 ## Arguments
 
@@ -20,11 +20,17 @@ Run after a phase PR has been merged. Reads the merged PR's history, classifies 
 ### 1. Locate the merged PR for this phase
 
 ```bash
-gh pr list --repo <repo> --state merged --search "in:title PLAN-XXXXX-N" \
-  --json number,title,url,mergedAt --limit 5
+gh issue view $0 --repo <repo> --json number,title
 ```
 
-Confirm exactly one merged PR matches the phase. If zero, stop: "No merged PR found for phase #$0 — has it been merged yet?". If multiple, ask the user which to use.
+Extract the `[PLAN-XXXXX-N]` ident from the title, then locate the merged PR:
+
+```bash
+marvin parse title "<issue title>"
+marvin pr find "[PLAN-XXXXX-N]" --state merged
+```
+
+Read the `plan_number` field from `marvin parse` output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps. Also read the `plan` integer field (e.g. `2`) and `phase` integer field (e.g. `3`) — these are needed for `marvin names derive` in step 8. The JSON from `marvin pr find` includes `found`, `number`, `url`, and `state`. If `found` is `false`, stop: "No merged PR found for phase #$0 — has it been merged yet?". If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 Capture the PR number for the next steps.
 
@@ -76,26 +82,43 @@ EOF
 
 ### 7. Close the phase issue (if still open) and move to Done
 
-If the phase issue was open in step 2:
-
 ```bash
+marvin board move $0 done
 gh issue close $0 --repo <repo> --reason completed
 ```
 
-Use the board management commands in `.claude/plan-workflow-config.md` to move issue #$0 to **Done**.
+`marvin board move done` sets the board status and closes the issue when `done` is configured. The explicit `gh issue close` is the fallback for boards where `done: n/a` (where the board move is a no-op). Running both is safe — `gh issue close` on an already-closed issue exits 0.
 
-### 8. Remove the phase worktree
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-The phase worktree was created by `/implement-phase` at `.claude/worktrees/phase-XXXXX-N` and left in place for review. Remove it now:
+### 8. Remove the phase worktree and clear the findings cache
+
+The phase worktree was created by `/implement-phase` and left in place for review. Determine the worktree path:
 
 ```bash
-git worktree remove --force .claude/worktrees/phase-XXXXX-N
-git worktree prune
+marvin names derive <plan> --phase <phase>
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+
+Read the `worktree_path` from the JSON output, then remove the worktree:
+
+```bash
+marvin worktree remove <worktree_path>
+marvin worktree prune
 ```
 
 If the path does not exist (manually removed earlier), skip silently.
 
 Do **not** delete the phase branch (`feature/plan-XXXXX-N`) — it remains on the remote as the merge source and is useful for archaeology.
+
+Clear the plan's findings cache — review, drift, and red-team findings accumulated during this phase are now stale:
+
+```bash
+marvin findings clear <plan>
+```
+
+Where `<plan>` is the plan identifier from step 1 (e.g. `plan-00042`). This removes `.claude/cache/<plan>/` entirely. If the directory is already absent, this is a no-op.
 
 ### 9. Confirm
 
@@ -103,6 +126,7 @@ Report:
 - Comment URL on impl plan issue
 - Phase issue closed and moved to Done
 - Worktree removed
+- Findings cache cleared
 
 If more phases remain: "Next: `/implement-phase <next-phase-issue-number>`"
 If this was the last phase: "Next: `/review-impl <impl-plan-issue-number>` (comprehensive cross-phase review), then `/finish-impl <impl-plan-issue-number>`."

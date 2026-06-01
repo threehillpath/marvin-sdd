@@ -12,7 +12,7 @@ The PR target is determined automatically from the current branch name:
 - `feature/plan-XXXXX-N` → PR targets `feature/plan-XXXXX` (implementation branch)
 - `feature/plan-XXXXX` → PR targets `main` (use `/finish-impl` instead for this case)
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration and board management commands. Read `../SHARED/GLOSSARY.md` for branch and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for branch and status conventions.
 
 ## Arguments
 
@@ -45,10 +45,16 @@ git branch --show-current
 
 If on `main` or `master`, stop and warn.
 
-Determine the PR target from the branch name:
-- If branch matches `feature/plan-XXXXX-N` (phase branch) → PR target is `feature/plan-XXXXX`
-- If branch matches `feature/plan-XXXXX` (impl branch) → PR target is `main`
-- If branch does not match either pattern, ask the user which branch to target before proceeding.
+Resolve the PR base branch from the current branch:
+
+```bash
+marvin pr base "$(git branch --show-current)"
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+If `marvin` exits with code 1 (branch does not match a known pattern), ask the user which branch to target before proceeding.
+
+Read the `base` field from the JSON output to use as the PR target.
 
 ### 4. Confirm before committing
 
@@ -87,7 +93,11 @@ The PR body must include `Closes #$0` to auto-close the phase issue on merge.
 
 ### 8. Move issue to In Review
 
-Use the board management commands in `.claude/plan-workflow-config.md`. Set status to **In Review**.
+```bash
+marvin board move $0 in-review
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 ### 9. Confirm
 

@@ -10,7 +10,7 @@ Run after `/impl-plan` produces an implementation plan, before `/phase-split`. S
 
 The red-team is a check on the plan, not the code. It surfaces hidden assumptions, missing dependencies, phase-ordering risks, weak TDD entry points, and unfalsifiable success criteria — the failure modes whose cost compounds across every phase if not caught here.
 
-**Before starting**: Read `.claude/plan-workflow-config.md` for project configuration. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
+**Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
 
 ## Arguments
 
@@ -27,6 +27,14 @@ gh issue view $0 --repo <repo> --json number,title,body,labels
 Verify the issue is an impl plan (title matches `[PLAN-XXXXX] …`, label includes `plan:impl`). If it is the arch plan or a phase issue, stop with a clear message — red-team-plan only runs against impl plans.
 
 Extract the arch plan issue number and source issue number from the impl plan body (referenced as `Architecture Plan: #<n>` and `Source Issue: #<n>`).
+
+Extract the plan identifier from the issue title:
+
+```bash
+marvin parse title "<issue title>"
+```
+
+Read the `plan_number` field from the JSON output (e.g. `plan-00042`) and use it wherever `<plan>` appears in subsequent steps.
 
 ### 2. Identify relevant source files
 
@@ -157,14 +165,13 @@ EOF
 
 ### 7. Save the findings JSON
 
-Write the validated findings JSON to a stable path so a future auto-revise loop can read it without re-running the red-team:
+Cache the validated findings JSON so a future auto-revise loop can read it without re-running the red-team:
 
 ```bash
-mkdir -p .claude/red-teams
-echo "<findings JSON>" > .claude/red-teams/plan-XXXXX.json
+echo "<findings JSON>" | marvin findings cache <plan> red-teams <plan>
 ```
 
-The path is gitignored by convention (`.claude/` is local working state). The user can re-run `/red-team-plan` to regenerate.
+Where `<plan>` is the plan identifier from step 1 (e.g. `plan-00042`). The cache is stored under `.claude/cache/<plan>/red-teams/<plan>.json` and is gitignored by convention. The user can re-run `/red-team-plan` to regenerate.
 
 ### 8. Confirm
 
@@ -172,7 +179,7 @@ Report:
 - Comment URL on impl plan issue
 - Verdict
 - Blocking count, concerns count
-- Findings JSON path
+- Cached findings path (`.claude/cache/<plan>/red-teams/<plan>.json`)
 
 Recommend the next step based on verdict:
 - **`revise`**: "Address blocking findings on the plan, then re-run `/red-team-plan $0` for a fresh pass — or proceed to `/phase-split $0` if you disagree with a finding."

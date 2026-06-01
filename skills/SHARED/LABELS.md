@@ -8,11 +8,9 @@
 | Implementation plan | `plan:impl` |
 | Phase | `plan:phase` |
 
-These labels are created by the `configure-plan-plugin` skill during setup. If a label is missing, create it before applying:
+These labels are ensured automatically at issue creation time by each plan-creating skill via `marvin label ensure --builtins`. Manual creation should not be necessary; if a label is missing, run:
 ```bash
-gh label create "plan:arch" --repo <repo> --description "Architecture plan" --color "0075ca"
-gh label create "plan:impl" --repo <repo> --description "Implementation plan" --color "0075ca"
-gh label create "plan:phase" --repo <repo> --description "Phase / implementation unit" --color "0075ca"
+marvin label ensure --builtins
 ```
 
 ## Status label (applied by skill, always)

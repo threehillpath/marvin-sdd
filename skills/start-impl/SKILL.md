@@ -22,11 +22,15 @@ Summarize what is about to be built, confirm phase readiness, and create the imp
 gh issue view $0 --repo <repo> --json number,title,body,comments
 ```
 
-Extract the PLAN-XXXXX number from the title. Find phase issues from the comments (look for the "Phases created:" comment posted by `phase-split`). Fetch each phase issue to confirm it is open.
+Extract the PLAN-XXXXX number from the title. Then fetch all phase issues for this plan in one call:
 
 ```bash
-gh issue view <phase-issue> --repo <repo> --json number,title,state
+marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX]"
 ```
+
+This returns a JSON array of `{number, title, state, labels}`. All items should have `state == "OPEN"`. If any phase is not open, surface the list to the user and ask whether to proceed.
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 ### 2. Derive branch names
 

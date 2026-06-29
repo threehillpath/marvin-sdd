@@ -45,13 +45,21 @@ Iterate until approved.
 
 ### 3. Create phase issues
 
+Before creating any issues, check whether phases already exist for this plan:
+
+```bash
+marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX]" --state all
+```
+
+If the result is non-empty, show the existing phases and stop: "Phase issues already exist for [PLAN-XXXXX]. Run `/move-issue <issue-number> in-progress` to start one, or delete the existing phase issues manually before re-splitting."
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+
 Render the phase issue template:
 
 ```bash
 marvin template render impl-phase --skeleton
 ```
-
-If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 Use the rendered skeleton as the structural frame for each phase issue body, filling in phase-specific content.
 

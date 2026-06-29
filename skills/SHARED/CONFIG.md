@@ -81,45 +81,63 @@ Run from the **repository root**. Use the framework's native invocation pattern 
 | Backend | *(configure for your project)* |
 | Frontend | *(configure for your project)* |
 
-## Board Operations
+## Board and Issue Operations
 
 `marvin` (the bundled CLI, compiled into `${PLUGIN_DIR}/bin/marvin` by `deploy.sh`) handles
-all board operations. Skills call `marvin board`, `marvin config get`, and related subcommands
-rather than constructing raw `gh project` invocations.
+all board and issue read operations. Skills call `marvin board`, `marvin issue`, and related
+subcommands rather than constructing raw `gh project` or `gh issue list` invocations.
 
-The recipes below are provided for reference when debugging or scripting outside of skills.
-
-### Add an issue to the board and capture its item ID
-
-Use `--jq '.id'` to extract the item ID directly from the response. Do NOT pipe the output
-to a separate `jq` call — the response body contains issue content with control characters
-that cause shell `jq` to fail with a parse error.
+### Reading board state
 
 ```bash
+# All items currently on the board (JSON array of {number, title, status, url})
+marvin board list
+
+# Items filtered by status — accepts any form: "in_progress", "in-progress", "In Progress"
+marvin board list --status in_progress
+marvin board list --status in_review
+
+# Current board column for a specific issue ("not-on-board" if absent; always exits 0)
+marvin board status <issue-number>
+```
+
+### Listing issues
+
+```bash
+# All open issues with a given label
+marvin issue list --label "plan:phase"
+
+# All issues (open and closed) for a specific plan, filtered by title prefix
+marvin issue list --label "plan:phase" --title-prefix "[PLAN-00042]" --state all
+
+# Check phase completion: items with state != "CLOSED" in the result are not done
+marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX]" --state all \
+  | jq '[.[] | select(.state != "CLOSED")]'
+```
+
+`marvin issue list` always exits 0 and outputs a JSON array (empty array `[]` when no results).
+
+### Moving issues on the board
+
+```bash
+# Add issue to board, set status, and sync GitHub open/closed state
+marvin board move <issue-number> <status>
+```
+
+### Raw API reference (for debugging outside skills)
+
+These raw `gh` calls are what `marvin board` wraps. Use them only when debugging or scripting
+directly outside a skill context.
+
+```bash
+# Add an issue to the board — use --jq to avoid piping through shell jq
 ITEM_ID=$(gh project item-add <project-number> --owner <owner> \
   --url https://github.com/<repo>/issues/<issue-number> \
   --format json --jq '.id')
-```
 
-Use `$ITEM_ID` immediately in the next command. Do not re-query `item-list` to find the ID —
-newly added items may not appear in list results for a few seconds.
-
-### Set board status
-
-```bash
+# Set the status field on a board item
 gh project item-edit --id <item-id> \
   --project-id <project-id> \
   --field-id <status-field-id> \
   --single-select-option-id <option-id>
-```
-
-### Check if issue is already on the board
-
-Use `--jq` to filter server-side and avoid piping through shell `jq`:
-
-```bash
-ITEM_ID=$(gh project item-list <project-number> --owner <owner> \
-  --format json --limit 100 \
-  --jq '.items[] | select(.content.number == <issue-number>) | .id')
-# If ITEM_ID is empty, the issue is not on the board — add it first, then set status
 ```

@@ -112,3 +112,98 @@ func (c *Client) IssueReopen(ctx context.Context, repo string, issue int) error 
 	}
 	return nil
 }
+
+// ProjectItemContent holds the linked issue details within a project board item.
+type ProjectItemContent struct {
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	URL    string `json:"url"`
+}
+
+// ProjectItem represents a single item from the GitHub Projects v2 board.
+type ProjectItem struct {
+	ID      string             `json:"id"`
+	Title   string             `json:"title"`
+	Status  string             `json:"status"`
+	Content ProjectItemContent `json:"content"`
+}
+
+// projectItemListResponse is the JSON shape returned by gh project item-list.
+type projectItemListResponse struct {
+	Items []ProjectItem `json:"items"`
+}
+
+// ProjectItemList runs `gh project item-list` and returns all parsed items.
+// limit caps the number of items fetched; 0 defaults to 100.
+func (c *Client) ProjectItemList(ctx context.Context, projectNumber int, owner string, limit int) ([]ProjectItem, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	args := []string{
+		"project", "item-list",
+		fmt.Sprintf("%d", projectNumber),
+		"--owner", owner,
+		"--format", "json",
+		"--limit", fmt.Sprintf("%d", limit),
+	}
+	stdout, stderr, code, err := c.runner.Run(ctx, "gh", args...)
+	if err != nil {
+		return nil, fmt.Errorf("gh project item-list: %w", err)
+	}
+	if code != 0 {
+		return nil, fmt.Errorf("gh project item-list exited %d: %s", code, stderr)
+	}
+	var resp projectItemListResponse
+	if err := json.Unmarshal(stdout, &resp); err != nil {
+		return nil, fmt.Errorf("gh project item-list: parse response: %w", err)
+	}
+	return resp.Items, nil
+}
+
+// IssueListItem represents a single issue from gh issue list output.
+type IssueListItem struct {
+	Number int      `json:"number"`
+	Title  string   `json:"title"`
+	State  string   `json:"state"`
+	Labels []ghLabel `json:"labels"`
+}
+
+// ghLabel is the label shape returned by gh issue list --json labels.
+type ghLabel struct {
+	Name string `json:"name"`
+}
+
+// IssueList runs `gh issue list --repo <repo>` with optional label and state filters
+// and returns the parsed items. label may be empty to skip label filtering.
+// state must be "open", "closed", or "all"; empty defaults to "open".
+// limit caps results; 0 defaults to 100.
+func (c *Client) IssueList(ctx context.Context, repo, label, state string, limit int) ([]IssueListItem, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	if state == "" {
+		state = "open"
+	}
+	args := []string{
+		"issue", "list",
+		"--repo", repo,
+		"--state", state,
+		"--json", "number,title,state,labels",
+		"--limit", fmt.Sprintf("%d", limit),
+	}
+	if label != "" {
+		args = append(args, "--label", label)
+	}
+	stdout, stderr, code, err := c.runner.Run(ctx, "gh", args...)
+	if err != nil {
+		return nil, fmt.Errorf("gh issue list: %w", err)
+	}
+	if code != 0 {
+		return nil, fmt.Errorf("gh issue list exited %d: %s", code, stderr)
+	}
+	var items []IssueListItem
+	if err := json.Unmarshal(stdout, &items); err != nil {
+		return nil, fmt.Errorf("gh issue list: parse response: %w", err)
+	}
+	return items, nil
+}

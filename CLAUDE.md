@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-A Claude Code plugin defining a structured architecture-to-implementation workflow on top of GitHub issues and Projects v2 boards. Includes `marvin`, a compiled Go CLI that encapsulates the deterministic shell operations (board moves, label management, PR lookup, worktree lifecycle, config access, findings cache) so skills can call a single binary rather than re-synthesizing `gh`/`jq`/`git` invocations.
+A Claude Code plugin defining a structured architecture-to-implementation workflow on top of GitHub issues and Projects v2 boards. Includes `marvin`, a compiled Go CLI that encapsulates the deterministic shell operations (board reads and moves, issue listing, label management, PR lookup, worktree lifecycle, config access, findings cache) so skills can call a single binary rather than re-synthesizing `gh`/`jq`/`git` invocations.
 
 ## Repository structure
 
@@ -16,7 +16,8 @@ A Claude Code plugin defining a structured architecture-to-implementation workfl
 tool/                          ← Go module for the marvin CLI
   cmd/marvin/main.go           ← Entry point; compiled to bin/marvin at install time
   internal/
-    board/                     ← GitHub Projects v2 board operations (add, move, status)
+    board/                     ← GitHub Projects v2 board operations (add, move, list, status)
+    issue/                     ← GitHub issue reads (list with label/prefix/state filters)
     cli/                       ← Cobra command handlers
     clierr/                    ← Exit-code constants (0 / 1 / 2)
     config/                    ← YAML config loader, legacy markdown fallback, CWD-walk discovery
@@ -56,7 +57,7 @@ skills/
 
 `marvin` is compiled from `tool/` by `deploy.sh` and installed to `${PLUGIN_DIR}/bin/marvin`. Skills call it for all deterministic operations — board moves, label management, config access, name derivation, PR lookup, worktree lifecycle, findings cache — so that none of that logic needs to be re-synthesized from shell in skill prose.
 
-Subcommand groups: `config`, `names`, `parse`, `template`, `board`, `label`, `pr`, `findings`, `worktree`, `version`.
+Subcommand groups: `config`, `names`, `parse`, `template`, `board`, `issue`, `label`, `pr`, `findings`, `worktree`, `version`.
 
 Exit-code contract: `0` = success, `1` = operational error, `2` = config missing or malformed. Output contract: `stdout` = data, `stderr` = diagnostics.
 

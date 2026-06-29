@@ -14,6 +14,7 @@ import (
 	"threehillpath.com/claude-plan-workflow/tool/internal/config"
 	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
 	"threehillpath.com/claude-plan-workflow/tool/internal/findings"
+	"threehillpath.com/claude-plan-workflow/tool/internal/issue"
 	"threehillpath.com/claude-plan-workflow/tool/internal/label"
 	"threehillpath.com/claude-plan-workflow/tool/internal/pr"
 	"threehillpath.com/claude-plan-workflow/tool/internal/worktree"
@@ -44,6 +45,8 @@ func newBoardCmd(stdout, stderr io.Writer) *cobra.Command {
 	board.AddCommand(newBoardAddCmd(stdout, stderr))
 	board.AddCommand(newBoardSetStatusCmd(stdout, stderr))
 	board.AddCommand(newBoardMoveCmd(stdout, stderr))
+	board.AddCommand(newBoardListCmd(stdout, stderr))
+	board.AddCommand(newBoardStatusCmd(stdout, stderr))
 	return board
 }
 
@@ -110,6 +113,60 @@ func newBoardMoveCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err := board.Move(context.Background(), newRunner(), cfg, issueNumber, args[1]); err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
+			return nil
+		},
+	}
+}
+
+func newBoardListCmd(stdout, stderr io.Writer) *cobra.Command {
+	var statusFilter string
+	var limit int
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List board items as JSON, optionally filtered by status",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			items, err := board.List(context.Background(), newRunner(), cfg, statusFilter, limit)
+			if err != nil {
+				return &CLIError{Code: 1, Msg: err.Error()}
+			}
+			if items == nil {
+				items = []board.BoardItem{}
+			}
+			enc := json.NewEncoder(stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(items)
+		},
+	}
+	cmd.Flags().StringVar(&statusFilter, "status", "", "Filter by status (e.g. in_progress, in_review, \"In Progress\")")
+	cmd.Flags().IntVar(&limit, "limit", 100, "Maximum number of items to fetch from the API")
+	return cmd
+}
+
+func newBoardStatusCmd(stdout, stderr io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "status <issue-number>",
+		Short: "Print the current board status for an issue (\"not-on-board\" if absent)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			n, err := strconv.Atoi(args[0])
+			if err != nil {
+				return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", args[0], err)}
+			}
+			status, err := board.Status(context.Background(), newRunner(), cfg, n)
+			if err != nil {
+				return &CLIError{Code: 1, Msg: err.Error()}
+			}
+			fmt.Fprintln(stdout, status)
 			return nil
 		},
 	}
@@ -367,4 +424,48 @@ func newWorktreePruneCmd(stdout, stderr io.Writer) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// ── issue ─────────────────────────────────────────────────────────────────────
+
+// newIssueCmd returns the issue subcommand group.
+func newIssueCmd(stdout, stderr io.Writer) *cobra.Command {
+	issueCmd := &cobra.Command{
+		Use:   "issue",
+		Short: "Read GitHub issues",
+	}
+	issueCmd.AddCommand(newIssueListCmd(stdout, stderr))
+	return issueCmd
+}
+
+func newIssueListCmd(stdout, stderr io.Writer) *cobra.Command {
+	var labelFilter, titlePrefix, state string
+	var limit int
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List issues as JSON, with optional label, title-prefix, and state filters",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			items, err := issue.List(context.Background(), newRunner(), cfg, labelFilter, titlePrefix, state, limit)
+			if err != nil {
+				return &CLIError{Code: 1, Msg: err.Error()}
+			}
+			if items == nil {
+				items = []issue.Item{}
+			}
+			enc := json.NewEncoder(stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(items)
+		},
+	}
+	cmd.Flags().StringVar(&labelFilter, "label", "", "Filter by label name")
+	cmd.Flags().StringVar(&titlePrefix, "title-prefix", "", "Filter by title prefix (e.g. \"[PLAN-00002]\")")
+	cmd.Flags().StringVar(&state, "state", "open", "Issue state: open, closed, or all")
+	cmd.Flags().IntVar(&limit, "limit", 100, "Maximum number of issues to fetch")
+	return cmd
 }

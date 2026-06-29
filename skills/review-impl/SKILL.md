@@ -28,19 +28,15 @@ Extract PLAN-XXXXX from the title using:
 marvin parse title "<issue title>"
 ```
 
-Read the `plan_number` field from the JSON output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps. Extract the phase issue list from the "Phases created:" comment in the issue's comments:
+Read the `plan_number` field from the JSON output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps.
+
+Verify all phases for this plan are merged with a single call:
 
 ```bash
-echo "<phases-created-comment-body>" | marvin parse phase-list
+marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX]" --state all
 ```
 
-This emits a JSON object `{"found": bool, "issues": [int, ...]}` — read the `issues` field for the phase issue numbers. For each phase issue number:
-
-```bash
-gh issue view <phase-issue> --repo <repo> --json state,title
-```
-
-If any phase is not `CLOSED`, list the open phases and ask the user whether to proceed anyway.
+If any item in the returned array has `state != "CLOSED"`, list the still-open phases and ask the user whether to proceed anyway. If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 Locate the open impl PR:
 

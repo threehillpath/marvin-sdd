@@ -4,6 +4,7 @@
 package label
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -31,9 +32,14 @@ func Ensure(ctx context.Context, runner exec.Runner, cfg *config.Config, name, d
 		return fmt.Errorf("label ensure: list exited %d: %s", code, stderr)
 	}
 
+	// `gh label list --search` emits zero-length stdout (not `[]`) when there
+	// are no matches. Treat that as "zero labels found" rather than attempting
+	// to parse it as JSON, which would fail with "unexpected end of JSON input".
 	var labels []ghLabel
-	if err := json.Unmarshal(stdout, &labels); err != nil {
-		return fmt.Errorf("label ensure: parse list response: %w", err)
+	if len(bytes.TrimSpace(stdout)) > 0 {
+		if err := json.Unmarshal(stdout, &labels); err != nil {
+			return fmt.Errorf("label ensure: parse list response: %w", err)
+		}
 	}
 
 	// Check for exact name match (gh --search may do substring matching).

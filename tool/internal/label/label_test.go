@@ -50,6 +50,35 @@ func TestEnsureCreatesLabel(t *testing.T) {
 	}
 }
 
+// TestEnsureCreatesLabelEmptyStdout verifies that Ensure treats zero-length
+// stdout from `gh label list --search` (the real-world "no matches" response,
+// as opposed to the defensive `[]` case) as "zero labels found" and proceeds
+// to create the label, rather than failing to parse empty stdout as JSON.
+func TestEnsureCreatesLabelEmptyStdout(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	// gh label list returns zero-length stdout → label absent
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(``)})
+	// gh label create succeeds
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(``)})
+
+	cfg := buildConfig()
+	if err := label.Ensure(context.Background(), fake, cfg, "plan:arch", "Architecture plans", "0075ca"); err != nil {
+		t.Fatalf("Ensure returned error: %v", err)
+	}
+
+	if len(fake.Calls) != 2 {
+		t.Fatalf("expected 2 calls, got %d: %v", len(fake.Calls), fake.Calls)
+	}
+
+	c1 := fake.Calls[1]
+	if !containsArg(c1.Args, "create") {
+		t.Errorf("call[1] missing 'create': %v", c1.Args)
+	}
+	if !containsArg(c1.Args, "plan:arch") {
+		t.Errorf("call[1] missing label name: %v", c1.Args)
+	}
+}
+
 // TestEnsureIdempotent verifies that Ensure is a no-op when the label already exists.
 func TestEnsureIdempotent(t *testing.T) {
 	fake := &exectest.FakeRunner{}

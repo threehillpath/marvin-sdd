@@ -1,6 +1,6 @@
 # Markdown Rendering
 
-Skills that present drafted documents for review should render them readably when possible.
+Skills that present drafted documents for review must include the full draft directly in their response so the user can read it.
 
 ## Delivery mechanism
 

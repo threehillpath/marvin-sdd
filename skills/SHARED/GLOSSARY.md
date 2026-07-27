@@ -16,10 +16,10 @@ One arch plan, one impl plan, and any number of phase issues all share the same 
 Rare — used only when the work cleanly splits into independent tracks (e.g. backend and frontend developed in parallel). Suffix the impl plan with a letter:
 
 - Arch plan: `[PLAN-00042-ARCH] Feature`
-- Impl plan A: `[PLAN-00042-A] Feature — Backend`, branch `feature/plan-00042-a`
-- Impl plan B: `[PLAN-00042-B] Feature — Frontend`, branch `feature/plan-00042-b`
-- Phases under A: `[PLAN-00042-A-1]`, `[PLAN-00042-A-2]`, …
-- Phases under B: `[PLAN-00042-B-1]`, `[PLAN-00042-B-2]`, …
+- Impl plan A: `[PLAN-00042-A] Feature — Backend`, trunk branch `feature/PLAN-00042/main-a`
+- Impl plan B: `[PLAN-00042-B] Feature — Frontend`, trunk branch `feature/PLAN-00042/main-b`
+- Phases under A: `[PLAN-00042-A-1]`, `[PLAN-00042-A-2]`, … → phase branches `feature/PLAN-00042/phase-a-1`, `feature/PLAN-00042/phase-a-2`
+- Phases under B: `[PLAN-00042-B-1]`, `[PLAN-00042-B-2]`, … → phase branches `feature/PLAN-00042/phase-b-1`, `feature/PLAN-00042/phase-b-2`
 
 Prefer phases within one impl plan over multiple impl plans whenever possible.
 
@@ -31,14 +31,15 @@ Prefer phases within one impl plan over multiple impl plans whenever possible.
 | Arch plan issue title | `[PLAN-XXXXX-ARCH] <title>` | `[PLAN-00042-ARCH] Member Invitations` |
 | Impl plan issue title | `[PLAN-XXXXX] <title>` | `[PLAN-00042] Member Invitations` |
 | Phase issue title | `[PLAN-XXXXX-N] <title>` | `[PLAN-00042-3] Domain Model` |
-| Implementation branch | `feature/plan-XXXXX` | `feature/plan-00042` |
-| Phase branch | `feature/plan-XXXXX-N` | `feature/plan-00042-3` |
-| Bug fix branch | `bug/bug-XXXXX` | `bug/bug-00143` |
+| Trunk branch | `<type>/PLAN-XXXXX/main` | `feature/PLAN-00042/main` |
+| Phase branch | `<type>/PLAN-XXXXX/phase-N` | `feature/PLAN-00042/phase-3` |
 | Phase worktree path (relative to repo root) | `<worktree_base>/phase-XXXXX-N` | `.worktrees/phase-00042-3` |
 
-`worktree_base` is the configured worktree root from `.claude/plan-workflow-config.yml` (default: `.worktrees`). Use `marvin names derive <phase-issue>` to resolve the absolute path.
+`worktree_base` is the configured worktree root from `.claude/plan-workflow-config.yml` (default: `.worktrees`). Use `marvin names derive <phase-issue>` to resolve the absolute path. Worktree paths stay flat (`.worktrees/phase-XXXXX-N`), independent of the branch hierarchy above.
 
-Branch names are always lowercase with hyphens. The implementation branch is created from `main` by `/start-impl`. Phase branches are created from the implementation branch by `/implement-phase`. Phase PRs target the implementation branch; the implementation PR targets `main`.
+`<type>` is `feature` or `bug`, derived from the source issue's `bug`/`enhancement` label (default `feature` when neither is present), resolved via `marvin names derive --type`.
+
+The `PLAN-XXXXX` token is uppercase; the `<type>` segment, `main`, `phase-N`, and any addendum slug are lowercase with hyphens. The trunk branch is created from `main` by `/start-impl`. Phase branches are created from the trunk branch by `/implement-phase`. Phase PRs target the trunk branch; the trunk (implementation) PR targets `main`.
 
 ## Status state machine
 

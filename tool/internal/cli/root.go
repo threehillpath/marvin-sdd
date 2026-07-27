@@ -92,7 +92,7 @@ func newNamesCmd(stdout, stderr io.Writer) *cobra.Command {
 		Short: "Derive canonical plan names",
 	}
 
-	var suffix, worktreeBase string
+	var typ, suffix, worktreeBase string
 	var phase int
 
 	deriveCmd := &cobra.Command{
@@ -100,9 +100,10 @@ func newNamesCmd(stdout, stderr io.Writer) *cobra.Command {
 		Short: "Derive all names for an issue number",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNamesDerive(stdout, stderr, args[0], suffix, worktreeBase, phase)
+			return runNamesDerive(stdout, stderr, args[0], typ, suffix, worktreeBase, phase)
 		},
 	}
+	deriveCmd.Flags().StringVar(&typ, "type", "feature", "Branch type: feature or bug")
 	deriveCmd.Flags().StringVar(&suffix, "suffix", "", "Multi-impl suffix (e.g. a, b)")
 	deriveCmd.Flags().IntVar(&phase, "phase", 0, "Phase number (0 = no phase)")
 	deriveCmd.Flags().StringVar(&worktreeBase, "worktree-base", "", "Worktree base directory (overrides config value; required when --phase is set and no config is present)")

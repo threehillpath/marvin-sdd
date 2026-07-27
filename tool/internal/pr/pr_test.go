@@ -99,25 +99,44 @@ func TestFindStateMergedPassesMergedArg(t *testing.T) {
 	t.Error("--state flag not found in gh args")
 }
 
-// TestBasePhaseBranch verifies that feature/plan-XXXXX-N maps to feature/plan-XXXXX.
+// TestBasePhaseBranch verifies that <type>/PLAN-XXXXX/phase-N maps to
+// <type>/PLAN-XXXXX/main, preserving the type and (if present) suffix.
 func TestBasePhaseBranch(t *testing.T) {
-	base, err := pr.Base("feature/plan-00002-3")
-	if err != nil {
-		t.Fatalf("Base returned error: %v", err)
+	tests := []struct {
+		branch string
+		want   string
+	}{
+		{"feature/PLAN-00042/phase-3", "feature/PLAN-00042/main"},
+		{"bug/PLAN-00143/phase-a-2", "bug/PLAN-00143/main-a"},
 	}
-	if base != "feature/plan-00002" {
-		t.Errorf("Base = %q, want feature/plan-00002", base)
+	for _, tc := range tests {
+		base, err := pr.Base(tc.branch)
+		if err != nil {
+			t.Fatalf("Base(%q) returned error: %v", tc.branch, err)
+		}
+		if base != tc.want {
+			t.Errorf("Base(%q) = %q, want %q", tc.branch, base, tc.want)
+		}
 	}
 }
 
-// TestBaseImplBranch verifies that feature/plan-XXXXX maps to main.
-func TestBaseImplBranch(t *testing.T) {
-	base, err := pr.Base("feature/plan-00002")
-	if err != nil {
-		t.Fatalf("Base returned error: %v", err)
+// TestBaseMainBranch verifies that <type>/PLAN-XXXXX/main[-suffix] maps to "main".
+func TestBaseMainBranch(t *testing.T) {
+	tests := []struct {
+		branch string
+		want   string
+	}{
+		{"feature/PLAN-00042/main", "main"},
+		{"feature/PLAN-00042/main-a", "main"},
 	}
-	if base != "main" {
-		t.Errorf("Base = %q, want main", base)
+	for _, tc := range tests {
+		base, err := pr.Base(tc.branch)
+		if err != nil {
+			t.Fatalf("Base(%q) returned error: %v", tc.branch, err)
+		}
+		if base != tc.want {
+			t.Errorf("Base(%q) = %q, want %q", tc.branch, base, tc.want)
+		}
 	}
 }
 

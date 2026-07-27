@@ -110,7 +110,7 @@ marvin worktree prune
 
 If the path does not exist (manually removed earlier), skip silently.
 
-Do **not** delete the phase branch (`feature/plan-XXXXX-N`) — it remains on the remote as the merge source and is useful for archaeology.
+Do **not** delete the phase branch (`<type>/PLAN-XXXXX/phase-N`) — it remains on the remote as the merge source and is useful for archaeology.
 
 Clear the plan's findings cache — review, drift, and red-team findings accumulated during this phase are now stale:
 

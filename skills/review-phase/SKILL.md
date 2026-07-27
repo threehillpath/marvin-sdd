@@ -27,7 +27,7 @@ First fetch the issue title to extract the `[PLAN-XXXXX-N]` ident, then call `ma
 
 If `found` is `false`, stop: "No open PR found for phase #$0 — has `/implement-phase` opened the PR yet?". If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Capture the PR number from the `marvin pr find` output. The head branch is `feature/plan-XXXXX-N` (derived from the `[PLAN-XXXXX-N]` ident in the issue title). Read the base branch from the `base` field already included in the `marvin pr find` result — no extra call needed.
+Capture the PR number from the `marvin pr find` output. The head branch is `<type>/PLAN-XXXXX/phase-N` (derived from the `[PLAN-XXXXX-N]` ident in the issue title). Read the base branch from the `base` field already included in the `marvin pr find` result — no extra call needed.
 
 ### 2. Fetch the phase spec for the reviewer
 

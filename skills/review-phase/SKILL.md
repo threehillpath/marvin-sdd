@@ -23,11 +23,11 @@ gh issue view $0 --repo <repo> --json number,title
 marvin pr find "[PLAN-XXXXX-N]" --state open
 ```
 
-First fetch the issue title to extract the `[PLAN-XXXXX-N]` ident, then call `marvin pr find` with that ident. The JSON output includes `found`, `number`, `url`, and `state`.
+First fetch the issue title to extract the `[PLAN-XXXXX-N]` ident, then call `marvin pr find` with that ident. The JSON output includes `found`, `number`, `url`, `head`, `base`, and `state`.
 
 If `found` is `false`, stop: "No open PR found for phase #$0 — has `/implement-phase` opened the PR yet?". If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Capture the PR number from the `marvin pr find` output. The head branch is `feature/plan-XXXXX-N` (derived from the `[PLAN-XXXXX-N]` ident in the issue title). Read the base branch from the `base` field already included in the `marvin pr find` result — no extra call needed.
+Capture the PR number, head branch, and base branch directly from the `marvin pr find` output's `head` and `base` fields — no need to reconstruct either name, since the PR already exists and carries its real branch names (this also sidesteps having to know `<type>`, which nothing in this skill resolves).
 
 ### 2. Fetch the phase spec for the reviewer
 

@@ -1,6 +1,6 @@
 ---
 name: review-impl
-description: Comprehensive code-review of the impl PR (feature/plan-XXXXX → main) after it is opened by finish-impl
+description: Comprehensive code-review of the impl PR (trunk branch → main) after it is opened by finish-impl
 argument-hint: <impl-plan-issue-number>
 allowed-tools: Bash, Read, Agent
 model: sonnet
@@ -44,12 +44,12 @@ Locate the open impl PR:
 marvin pr find "[PLAN-XXXXX]" --state open
 ```
 
-The JSON output includes `found`, `number`, `url`, and `state`. If `found` is `false`, stop: "No open impl PR found — run `/finish-impl $0` first." If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first." Capture the PR number. The head branch is `feature/plan-XXXXX` (derived from the plan number parsed above); the base is `main` (also available as the `base` field in the `marvin pr find` result).
+The JSON output includes `found`, `number`, `url`, `head`, `base`, and `state`. If `found` is `false`, stop: "No open impl PR found — run `/finish-impl $0` first." If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first." Capture the PR number and read the trunk branch directly from the `head` field (call it `<main_branch>`) — no need to reconstruct it, since the PR already exists and carries its real branch name; the base is `main` (also available as the `base` field).
 
 Confirm the local impl branch is current:
 
 ```bash
-git fetch origin feature/plan-XXXXX
+git fetch origin <main_branch>
 ```
 
 ### 2. Spawn the review sub-agent
@@ -64,7 +64,7 @@ Prompt template:
 
 > You are reviewing an implementation PR before it merges to main. Your output is a single JSON object per the format in `<absolute-path-to>/skills/SHARED/REVIEW_FINDING_FORMAT.md`. Read that file first, then read `<absolute-path-to>/skills/SHARED/REVIEW_RUBRIC.md` for the rubric. The `integration` category is in scope for this review.
 >
-> **PR to review**: #<pr-number> in repo `<repo>`. Head: `feature/plan-XXXXX`. Base: `main`.
+> **PR to review**: #<pr-number> in repo `<repo>`. Head: `<main_branch>`. Base: `main`.
 > **Impl plan (the spec)**: #$0 in repo `<repo>`. Read the body for component sections, success criteria, and TDD entry points.
 > **Phase wrap-up comments**: comments on issue #$0 posted by `/wrap-phase`. These record decisions, scope changes, deferred items, and corrections. Drift recorded here is **not** a finding — it is the legitimate channel.
 >
@@ -74,8 +74,8 @@ Prompt template:
 > gh issue view $0 --repo <repo> --json title,body,comments
 > gh pr view <pr-number> --repo <repo> --json title,body,commits,files
 > gh pr diff <pr-number> --repo <repo>
-> git fetch origin main feature/plan-XXXXX
-> git log origin/main..origin/feature/plan-XXXXX --oneline
+> git fetch origin main <main_branch>
+> git log origin/main..origin/<main_branch> --oneline
 > ```
 >
 > Read the diff fully. Review by component sections from the impl plan, not by phase — the goal is to catch things that span phases. Pay particular attention to:
@@ -98,7 +98,7 @@ Same validation as `review-phase` step 4. The `integration` category is valid in
 Present a human-readable summary, grouped by category since cross-cutting findings benefit from grouping:
 
 ```
-Review of implementation feature/plan-XXXXX (vs main)
+Review of implementation <main_branch> (vs main)
 
 Verdict: <verdict>
 
@@ -190,5 +190,5 @@ Report:
 
 Direct the user:
 
-- If `verdict` is `request-changes`: "Address findings on the impl branch (either as new commits to `feature/plan-XXXXX` directly, or by opening a follow-up phase if the work is large), then re-run `/review-impl $0` for a fresh pass."
+- If `verdict` is `request-changes`: "Address findings on the impl branch (either as new commits to `<main_branch>` directly, or by opening a follow-up phase if the work is large), then re-run `/review-impl $0` for a fresh pass."
 - If `verdict` is `approve` or `comment`: "Ready to merge when you are. After merge, the impl plan issue will auto-close via `Closes #$0` in the PR body — move it to Done on the board manually if needed."

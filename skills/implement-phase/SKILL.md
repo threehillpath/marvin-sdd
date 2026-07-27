@@ -25,7 +25,7 @@ gh issue view $0 --repo <repo> --json number,title,body
 Extract PLAN-XXXXX-N, the phase title, the success criteria checklist, and the impl plan issue number from the body.
 
 ```bash
-gh issue view <impl-plan-issue> --repo <repo> --json number,title,body
+gh issue view <impl-plan-issue> --repo <repo> --json number,title,body,labels
 ```
 
 From the impl plan, identify the **paths** of source files relevant to this phase — handlers, workers, repos, components, and any neighbours that will need to be edited or referenced. Do **not** read these files into your own context. The sub-agent will read them in its own window.
@@ -38,32 +38,36 @@ Parse the plan identifier and phase number from the phase issue title (fetched i
 marvin parse title "<phase issue title>"
 ```
 
-Read the `plan` integer field (e.g. `2`) and `phase` integer field (e.g. `3`). Then derive branch names using the source-issue number:
+Read the `plan` integer field (e.g. `2`) and `phase` integer field (e.g. `3`).
+
+Resolve `<type>`: check the impl plan issue's labels (fetched in step 1) for `bug` or `enhancement` — per `../SHARED/LABELS.md`, the impl plan issue carries forward the source issue's type label. If `bug` is present, `<type>` is `bug`; otherwise (including when neither label is present) `<type>` is `feature`.
+
+Then derive branch names using the source-issue number and the resolved type:
 
 ```bash
-marvin names derive <plan> --phase <phase>
+marvin names derive <plan> --type <type> --phase <phase>
 ```
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Read the JSON output to obtain `impl_branch`, `phase_branch`, and `worktree_path`. Verify the impl branch exists on the remote:
+Read the JSON output to obtain `main_branch`, `phase_branch`, and `worktree_path`. Verify the trunk branch exists on the remote:
 
 ```bash
-git ls-remote --heads origin <impl_branch>
+git ls-remote --heads origin <main_branch>
 ```
 
-If not found, stop: "Implementation branch `<impl_branch>` not found. Run `/start-impl <impl-plan-issue>` first."
+If not found, stop: "Trunk branch `<main_branch>` not found. Run `/start-impl <impl-plan-issue>` first."
 
 ### 2b. Pre-create the phase branch and worktree
 
 Create the phase branch from the impl branch and add a worktree for it. This gives the sub-agent a correctly-based working directory without relying on the Agent tool to set up the branch.
 
 ```bash
-marvin worktree add <worktree_path> <phase_branch> <impl_branch>
+marvin worktree add <worktree_path> <phase_branch> <main_branch>
 ```
 
 `marvin worktree add` handles all three branch-state cases automatically:
-- **Neither local nor remote exists**: creates the branch from `<impl_branch>` and pushes it.
+- **Neither local nor remote exists**: creates the branch from `<main_branch>` and pushes it.
 - **Remote exists, local does not**: fetches and tracks the remote branch.
 - **Local branch already exists**: exits 1 with a clear message — a previous run left it behind. Stop and ask the user how to proceed — options are (a) reuse the existing branch by running `git worktree add <worktree_path> <phase_branch>` directly (`marvin worktree add` refuses when a local branch exists without a matching worktree mapping), or (b) delete the branch (`git branch -D <phase_branch>`) and then re-run `marvin worktree add`.
 
@@ -97,7 +101,7 @@ Spawn a **general-purpose** agent **without** `isolation: "worktree"` (the workt
 1. Phase issue number `$0` (and `gh issue view` command for it). The sub-agent fetches the title, objective, scope, TDD entry point, and success criteria itself.
 2. Impl plan issue number (and `gh issue view` command for it). The sub-agent fetches the full component specs and design notes itself.
 3. **Paths only** for the relevant source files identified in step 1 — the sub-agent reads them inside the worktree.
-4. Branch names: phase branch `feature/plan-XXXXX-N`, impl branch `feature/plan-XXXXX`.
+4. Branch names: phase branch `<type>/PLAN-XXXXX/phase-N`, trunk branch `<type>/PLAN-XXXXX/main`.
 5. Absolute worktree path: `<worktree_path>` (derived in step 2).
 6. Repo: `<repo>`.
 7. Test commands from `.claude/plan-workflow-config.yml`.

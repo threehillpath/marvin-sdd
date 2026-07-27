@@ -44,12 +44,12 @@ This emits a JSON object `{"found": bool, "issues": [int, ...]}` — read the `i
 git branch --show-current
 ```
 
-Must be on `feature/plan-XXXXX`. If not, warn and stop — instruct the user to check out the implementation branch first.
+Must be on `<type>/PLAN-XXXXX/main`. If not, warn and stop — instruct the user to check out the implementation branch first.
 
 Pull the latest from the remote — phase PRs were merged on GitHub and the local branch may be behind:
 
 ```bash
-git pull origin feature/plan-XXXXX
+git pull origin <type>/PLAN-XXXXX/main
 ```
 
 ```bash
@@ -67,7 +67,7 @@ git log main..HEAD --oneline
 Present the summary:
 
 ```
-Implementation branch: feature/plan-XXXXX
+Implementation branch: <type>/PLAN-XXXXX/main
 Target: main
 
 Commits since main:
@@ -78,7 +78,7 @@ Phases:
   [PLAN-XXXXX-2] <title>
   ...
 
-This will open a PR: feature/plan-XXXXX → main. Proceed?
+This will open a PR: <type>/PLAN-XXXXX/main → main. Proceed?
 ```
 
 Ask for confirmation before creating the PR.

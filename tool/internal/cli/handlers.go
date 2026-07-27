@@ -57,7 +57,8 @@ func runConfigGet(stdout, stderr io.Writer, key string) error {
 // namesOutput is the JSON shape emitted by names derive.
 type namesOutput struct {
 	PlanNumber   string      `json:"plan_number"`
-	ImplBranch   string      `json:"impl_branch"`
+	Type         string      `json:"type"`
+	MainBranch   string      `json:"main_branch"`
 	PhaseBranch  string      `json:"phase_branch,omitempty"`
 	WorktreePath string      `json:"worktree_path,omitempty"`
 	TitlePrefix  titlePrefix `json:"title_prefix"`
@@ -87,10 +88,17 @@ func resolveWorktreeBase(flagVal string) (string, error) {
 }
 
 // runNamesDerive derives all canonical names for an issue number.
-func runNamesDerive(stdout, stderr io.Writer, issueStr, suffix, worktreeBaseFlag string, phase int) error {
+// typ is "feature" or "bug"; empty defaults to "feature" (defaulting logic
+// lives in names.ResolveType). A non-empty typ that isn't "feature" or "bug"
+// is rejected here, at the CLI layer where user input first arrives.
+func runNamesDerive(stdout, stderr io.Writer, issueStr, typ, suffix, worktreeBaseFlag string, phase int) error {
 	issue, err := strconv.Atoi(issueStr)
 	if err != nil {
 		return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", issueStr, err)}
+	}
+
+	if typ != "" && typ != "feature" && typ != "bug" {
+		return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid --type %q: must be \"feature\" or \"bug\"", typ)}
 	}
 
 	var base string
@@ -104,14 +112,15 @@ func runNamesDerive(stdout, stderr io.Writer, issueStr, suffix, worktreeBaseFlag
 
 	out := namesOutput{
 		PlanNumber: names.PlanID(issue),
-		ImplBranch: names.ImplBranch(issue, suffix),
+		Type:       names.ResolveType(typ),
+		MainBranch: names.TrunkBranch(typ, issue, suffix),
 		TitlePrefix: titlePrefix{
 			Arch: names.TitlePrefix(names.Arch, issue, suffix, phase),
 			Impl: names.TitlePrefix(names.Impl, issue, suffix, phase),
 		},
 	}
 	if phase > 0 {
-		out.PhaseBranch = names.PhaseBranch(issue, suffix, phase)
+		out.PhaseBranch = names.PhaseBranch(typ, issue, suffix, phase)
 		out.WorktreePath = names.WorktreePath(base, issue, suffix, phase)
 		out.TitlePrefix.Phase = names.TitlePrefix(names.Phase, issue, suffix, phase)
 	}

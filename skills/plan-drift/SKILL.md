@@ -34,13 +34,19 @@ marvin parse title "<issue title>"
 
 Read the `plan_number` field (e.g. `plan-00042`) and `phase` field (e.g. `3`) from the JSON output. Use `plan_number` wherever `<plan>` appears in subsequent steps. The phase identifier for cache naming is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`). Also read the `plan` integer field (e.g. `2`) — needed for the `names derive` call below.
 
-Resolve the worktree path:
+Resolve `<type>`: fetch the impl plan issue's labels and check for `bug` or `enhancement` — per `../SHARED/LABELS.md`, the impl plan issue carries forward the source issue's type label. If `bug` is present, `<type>` is `bug`; otherwise (including when neither label is present) `<type>` is `feature`.
 
 ```bash
-marvin names derive <plan> --phase <phase>
+gh issue view <impl-plan-issue> --repo <repo> --json labels
 ```
 
-Read the `worktree_path` field from the JSON output. Use `<worktree_path>` wherever the phase worktree path appears in subsequent steps.
+Resolve the trunk branch name and worktree path:
+
+```bash
+marvin names derive <plan> --type <type> --phase <phase>
+```
+
+Read the `main_branch` and `worktree_path` fields from the JSON output. Use `<worktree_path>` wherever the phase worktree path appears in subsequent steps, and `<main_branch>` wherever the trunk branch name appears (worktree-mode only — PR-mode gets its base branch from `marvin pr find` instead, see step 2).
 
 ### 2. Determine the source of truth for the diff
 
@@ -52,12 +58,12 @@ marvin pr find "[PLAN-XXXXX-N]" --state open
 
 Branch off the result (`found` field in the JSON):
 
-- **`found: true`** — record the `number` from the JSON. The head branch is `feature/plan-XXXXX-N` (from step 1's parse output) and the base branch is the `base` field already included in the `marvin pr find` result — no extra call needed. The sub-agent will use `gh pr diff <pr-number>`.
+- **`found: true`** — record the `number` from the JSON. The head branch is `<type>/PLAN-XXXXX/phase-N` (from step 1's parse output and resolved type) and the base branch is the `base` field already included in the `marvin pr find` result — no extra call needed. The sub-agent will use `gh pr diff <pr-number>`.
 - **`found: false`** — the phase work lives in the local worktree at `<worktree_path>`. Verify the worktree exists:
   ```bash
   test -d <worktree_path> && echo present || echo missing
   ```
-  - If present, the sub-agent will use `git -C <worktree_path> diff feature/plan-XXXXX...HEAD` against the impl branch.
+  - If present, the sub-agent will use `git -C <worktree_path> diff <main_branch>...HEAD` against the trunk branch.
   - If missing, stop: "No open PR for phase #$0 and no worktree at `<worktree_path>`. Run `/implement-phase $0` first, or push the phase branch and re-run."
 
 If multiple PRs match, ask the user which to audit.
@@ -101,14 +107,14 @@ Prompt template (PR-mode variant):
 
 Prompt template (worktree-mode variant — only the PR block changes):
 
-> **Working tree under audit**: `<absolute-path-to-worktree>` (branch `feature/plan-XXXXX-N`, based on `feature/plan-XXXXX`). There is no PR yet, so there is no Notes section to consult — any divergence is a candidate finding.
+> **Working tree under audit**: `<absolute-path-to-worktree>` (branch `<type>/PLAN-XXXXX/phase-N`, based on `<main_branch>`). There is no PR yet, so there is no Notes section to consult — any divergence is a candidate finding.
 >
 > Fetch the diff with:
 >
 > ```
-> git -C <absolute-path-to-worktree> diff feature/plan-XXXXX...HEAD
-> git -C <absolute-path-to-worktree> diff --name-only feature/plan-XXXXX...HEAD
-> git -C <absolute-path-to-worktree> log feature/plan-XXXXX..HEAD --oneline
+> git -C <absolute-path-to-worktree> diff <main_branch>...HEAD
+> git -C <absolute-path-to-worktree> diff --name-only <main_branch>...HEAD
+> git -C <absolute-path-to-worktree> log <main_branch>..HEAD --oneline
 > ```
 >
 > Read source files inside the worktree path when you need surrounding context.

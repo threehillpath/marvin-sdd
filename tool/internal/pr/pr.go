@@ -109,27 +109,31 @@ func Find(ctx context.Context, runner exec.Runner, cfg *config.Config, ident str
 	return FindResult{Found: false}, nil
 }
 
-// phaseBranchRe matches feature/plan-NNNNN[-suffix]-N (a phase branch).
-// Group 1: plan number digits, Group 2: optional suffix, Group 3: phase number.
-var phaseBranchRe = regexp.MustCompile(`^feature/plan-(\d{5})(?:-([a-z]+))?-(\d+)$`)
+// phaseBranchRe matches <type>/PLAN-NNNNN/phase-[suffix-]N (a phase branch).
+// Group 1: type, Group 2: plan number digits, Group 3: optional suffix, Group 4: phase number.
+var phaseBranchRe = regexp.MustCompile(`^([a-z]+)/PLAN-(\d{5})/phase-(?:([a-z]+)-)?(\d+)$`)
 
-// implBranchRe matches feature/plan-NNNNN[-suffix] (impl branch, no trailing -N).
-var implBranchRe = regexp.MustCompile(`^feature/plan-(\d{5})(?:-([a-z]+))?$`)
+// mainBranchRe matches <type>/PLAN-NNNNN/main[-suffix] (trunk branch).
+// Group 1: type, Group 2: plan number digits, Group 3: optional suffix.
+var mainBranchRe = regexp.MustCompile(`^([a-z]+)/PLAN-(\d{5})/main(?:-([a-z]+))?$`)
 
 // Base maps a plan branch to its PR target base branch:
-//   - feature/plan-XXXXX-N (phase branch) → feature/plan-XXXXX (impl branch)
-//   - feature/plan-XXXXX   (impl branch)  → main
-//   - anything else         → CLIError{Code:1}
+//   - <type>/PLAN-XXXXX/phase-N (phase branch)   → <type>/PLAN-XXXXX/main (trunk branch)
+//   - <type>/PLAN-XXXXX/main    (trunk branch)   → main
+//   - anything else                              → CLIError{Code:1}
+//
+// <type> and any suffix are preserved from the matched branch.
 func Base(branch string) (string, error) {
 	if m := phaseBranchRe.FindStringSubmatch(branch); m != nil {
-		num := m[1]
-		suffix := m[2]
+		typ := m[1]
+		num := m[2]
+		suffix := m[3]
 		if suffix == "" {
-			return fmt.Sprintf("feature/plan-%s", num), nil
+			return fmt.Sprintf("%s/PLAN-%s/main", typ, num), nil
 		}
-		return fmt.Sprintf("feature/plan-%s-%s", num, suffix), nil
+		return fmt.Sprintf("%s/PLAN-%s/main-%s", typ, num, suffix), nil
 	}
-	if m := implBranchRe.FindStringSubmatch(branch); m != nil {
+	if m := mainBranchRe.FindStringSubmatch(branch); m != nil {
 		return "main", nil
 	}
 	return "", clierr.Operational(fmt.Sprintf("cannot determine base for branch %q: not a plan branch", branch))

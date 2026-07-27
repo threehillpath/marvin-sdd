@@ -9,8 +9,8 @@ model: sonnet
 Close out a completed phase: commit staged work, push, open a PR to the correct base branch, and move the issue to In Review.
 
 The PR target is determined automatically from the current branch name:
-- `feature/plan-XXXXX-N` → PR targets `feature/plan-XXXXX` (implementation branch)
-- `feature/plan-XXXXX` → PR targets `main` (use `/finish-impl` instead for this case)
+- `<type>/PLAN-XXXXX/phase-N` → PR targets `<type>/PLAN-XXXXX/main` (implementation branch)
+- `<type>/PLAN-XXXXX/main` → PR targets `main` (use `/finish-impl` instead for this case)
 
 **Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for branch and status conventions.
 

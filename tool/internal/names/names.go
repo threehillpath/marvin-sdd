@@ -30,27 +30,45 @@ func PlanID(issue int) string {
 	return fmt.Sprintf("plan-%05d", issue)
 }
 
-// ImplBranch returns the implementation branch name for an issue.
+// DefaultType is the branch-type value applied when a caller passes an empty
+// type string. This is the sole place the empty-defaults-to-feature rule is
+// implemented; validating that a non-empty type is exactly "feature" or "bug"
+// is the CLI layer's responsibility (tool/internal/cli), not this package's.
+const DefaultType = "feature"
+
+// ResolveType returns typ, defaulting to DefaultType when typ is empty.
+func ResolveType(typ string) string {
+	if typ == "" {
+		return DefaultType
+	}
+	return typ
+}
+
+// TrunkBranch returns the trunk branch name for an issue: "<type>/PLAN-XXXXX/main".
+// typ is "feature" or "bug"; an empty typ defaults to "feature" (via ResolveType).
 // Suffix (if non-empty) is lowercased, matching the GLOSSARY.md convention.
-// Example: 42, "" → "feature/plan-00042"
-// Example: 42, "A" → "feature/plan-00042-a"
-func ImplBranch(issue int, suffix string) string {
-	base := fmt.Sprintf("feature/plan-%05d", issue)
+// Example: "feature", 42, "" → "feature/PLAN-00042/main"
+// Example: "bug", 42, "" → "bug/PLAN-00042/main"
+// Example: "feature", 42, "a" → "feature/PLAN-00042/main-a"
+func TrunkBranch(typ string, issue int, suffix string) string {
+	base := fmt.Sprintf("%s/%s/main", ResolveType(typ), PlanNumber(issue))
 	if suffix == "" {
 		return base
 	}
 	return base + "-" + strings.ToLower(suffix)
 }
 
-// PhaseBranch returns the phase branch name.
+// PhaseBranch returns the phase branch name: "<type>/PLAN-XXXXX/phase-N".
+// typ is "feature" or "bug"; an empty typ defaults to "feature" (via ResolveType).
 // Suffix is lowercased; phase is a positive integer.
-// Example: 42, "", 3  → "feature/plan-00042-3"
-// Example: 42, "A", 2 → "feature/plan-00042-a-2"
-func PhaseBranch(issue int, suffix string, phase int) string {
+// Example: "feature", 42, "", 3  → "feature/PLAN-00042/phase-3"
+// Example: "bug", 143, "a", 2 → "bug/PLAN-00143/phase-a-2"
+func PhaseBranch(typ string, issue int, suffix string, phase int) string {
+	planNum := PlanNumber(issue)
 	if suffix == "" {
-		return fmt.Sprintf("feature/plan-%05d-%d", issue, phase)
+		return fmt.Sprintf("%s/%s/phase-%d", ResolveType(typ), planNum, phase)
 	}
-	return fmt.Sprintf("feature/plan-%05d-%s-%d", issue, strings.ToLower(suffix), phase)
+	return fmt.Sprintf("%s/%s/phase-%s-%d", ResolveType(typ), planNum, strings.ToLower(suffix), phase)
 }
 
 // WorktreePath returns the relative worktree path from the repo root.

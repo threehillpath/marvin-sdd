@@ -29,28 +29,23 @@ func loadConfig() (*config.Config, error) {
 	return config.Load(cwd)
 }
 
-// newRunner returns a real OS-backed runner for production use.
-func newRunner() exec.Runner {
-	return exec.OSRunner{}
-}
-
 // ── board ─────────────────────────────────────────────────────────────────────
 
 // newBoardCmd returns the board subcommand group.
-func newBoardCmd(stdout, stderr io.Writer) *cobra.Command {
+func newBoardCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	board := &cobra.Command{
 		Use:   "board",
 		Short: "Manage GitHub Projects v2 board state",
 	}
-	board.AddCommand(newBoardAddCmd(stdout, stderr))
-	board.AddCommand(newBoardSetStatusCmd(stdout, stderr))
-	board.AddCommand(newBoardMoveCmd(stdout, stderr))
-	board.AddCommand(newBoardListCmd(stdout, stderr))
-	board.AddCommand(newBoardStatusCmd(stdout, stderr))
+	board.AddCommand(newBoardAddCmd(stdout, stderr, runner))
+	board.AddCommand(newBoardSetStatusCmd(stdout, stderr, runner))
+	board.AddCommand(newBoardMoveCmd(stdout, stderr, runner))
+	board.AddCommand(newBoardListCmd(stdout, stderr, runner))
+	board.AddCommand(newBoardStatusCmd(stdout, stderr, runner))
 	return board
 }
 
-func newBoardAddCmd(stdout, stderr io.Writer) *cobra.Command {
+func newBoardAddCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	return &cobra.Command{
 		Use:   "add <issue-number>",
 		Short: "Add an issue to the board and print the item ID",
@@ -64,7 +59,7 @@ func newBoardAddCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", args[0], err)}
 			}
-			id, err := board.AddItem(context.Background(), newRunner(), cfg, n)
+			id, err := board.AddItem(context.Background(), runner, cfg, n)
 			if err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
@@ -74,7 +69,7 @@ func newBoardAddCmd(stdout, stderr io.Writer) *cobra.Command {
 	}
 }
 
-func newBoardSetStatusCmd(stdout, stderr io.Writer) *cobra.Command {
+func newBoardSetStatusCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set-status <issue-number> <status>",
 		Short: "Add an issue to the board and set its status field",
@@ -88,7 +83,7 @@ func newBoardSetStatusCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", args[0], err)}
 			}
-			if err := board.SetStatus(context.Background(), newRunner(), cfg, n, args[1]); err != nil {
+			if err := board.SetStatus(context.Background(), runner, cfg, n, args[1]); err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
 			return nil
@@ -96,7 +91,7 @@ func newBoardSetStatusCmd(stdout, stderr io.Writer) *cobra.Command {
 	}
 }
 
-func newBoardMoveCmd(stdout, stderr io.Writer) *cobra.Command {
+func newBoardMoveCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	return &cobra.Command{
 		Use:   "move <issue-number> <status>",
 		Short: "Add issue to board, set status, and sync open/closed state",
@@ -110,7 +105,7 @@ func newBoardMoveCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", args[0], err)}
 			}
-			if err := board.Move(context.Background(), newRunner(), cfg, issueNumber, args[1]); err != nil {
+			if err := board.Move(context.Background(), runner, cfg, issueNumber, args[1]); err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
 			return nil
@@ -118,9 +113,10 @@ func newBoardMoveCmd(stdout, stderr io.Writer) *cobra.Command {
 	}
 }
 
-func newBoardListCmd(stdout, stderr io.Writer) *cobra.Command {
+func newBoardListCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	var statusFilter string
 	var limit int
+	var jsonOut bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -131,24 +127,32 @@ func newBoardListCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			items, err := board.List(context.Background(), newRunner(), cfg, statusFilter, limit)
-			if err != nil {
-				return &CLIError{Code: 1, Msg: err.Error()}
-			}
-			if items == nil {
-				items = []board.BoardItem{}
-			}
-			enc := json.NewEncoder(stdout)
-			enc.SetIndent("", "  ")
-			return enc.Encode(items)
+			return runBoardList(stdout, stderr, cfg, statusFilter, limit, jsonOut, runner)
 		},
 	}
 	cmd.Flags().StringVar(&statusFilter, "status", "", "Filter by status (e.g. in_progress, in_review, \"In Progress\")")
 	cmd.Flags().IntVar(&limit, "limit", 100, "Maximum number of items to fetch from the API")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Output JSON instead of plain text")
 	return cmd
 }
 
-func newBoardStatusCmd(stdout, stderr io.Writer) *cobra.Command {
+// runBoardList lists board items, encoding them as JSON. jsonOut is threaded
+// through for the --json flag; plain-text-by-default output is added in a
+// later phase, so output is unconditionally JSON today.
+func runBoardList(stdout, stderr io.Writer, cfg *config.Config, statusFilter string, limit int, jsonOut bool, runner exec.Runner) error {
+	items, err := board.List(context.Background(), runner, cfg, statusFilter, limit)
+	if err != nil {
+		return &CLIError{Code: 1, Msg: err.Error()}
+	}
+	if items == nil {
+		items = []board.BoardItem{}
+	}
+	enc := json.NewEncoder(stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(items)
+}
+
+func newBoardStatusCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status <issue-number>",
 		Short: "Print the current board status for an issue (\"not-on-board\" if absent)",
@@ -162,7 +166,7 @@ func newBoardStatusCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", args[0], err)}
 			}
-			status, err := board.Status(context.Background(), newRunner(), cfg, n)
+			status, err := board.Status(context.Background(), runner, cfg, n)
 			if err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
@@ -175,12 +179,12 @@ func newBoardStatusCmd(stdout, stderr io.Writer) *cobra.Command {
 // ── label ─────────────────────────────────────────────────────────────────────
 
 // newLabelCmd returns the label subcommand group.
-func newLabelCmd(stdout, stderr io.Writer) *cobra.Command {
+func newLabelCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	lbl := &cobra.Command{
 		Use:   "label",
 		Short: "Manage GitHub labels",
 	}
-	lbl.AddCommand(newLabelEnsureCmd(stdout, stderr))
+	lbl.AddCommand(newLabelEnsureCmd(stdout, stderr, runner))
 	return lbl
 }
 
@@ -197,7 +201,7 @@ var builtinLabels = map[string][2]string{
 	"status:done":        {"Issue is done", "0e8a16"},
 }
 
-func newLabelEnsureCmd(stdout, stderr io.Writer) *cobra.Command {
+func newLabelEnsureCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	var description, color string
 	var useBuiltins bool
 
@@ -210,7 +214,6 @@ func newLabelEnsureCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			runner := newRunner()
 			ctx := context.Background()
 
 			if useBuiltins {
@@ -242,13 +245,13 @@ func newLabelEnsureCmd(stdout, stderr io.Writer) *cobra.Command {
 // ── pr ────────────────────────────────────────────────────────────────────────
 
 // newPRCmd returns the pr subcommand group.
-func newPRCmd(stdout, stderr io.Writer) *cobra.Command {
+func newPRCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	prCmd := &cobra.Command{
 		Use:   "pr",
 		Short: "PR discovery and base-branch resolution",
 	}
-	prCmd.AddCommand(newPRFindCmd(stdout, stderr))
-	prCmd.AddCommand(newPRBaseCmd(stdout, stderr))
+	prCmd.AddCommand(newPRFindCmd(stdout, stderr, runner))
+	prCmd.AddCommand(newPRBaseCmd(stdout, stderr, runner))
 	return prCmd
 }
 
@@ -263,8 +266,9 @@ type prFindOutput struct {
 	State  string `json:"state,omitempty"`
 }
 
-func newPRFindCmd(stdout, stderr io.Writer) *cobra.Command {
+func newPRFindCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	var stateStr string
+	var jsonOut bool
 
 	cmd := &cobra.Command{
 		Use:   "find <ident>",
@@ -279,26 +283,34 @@ func newPRFindCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
-			result, err := pr.Find(context.Background(), newRunner(), cfg, args[0], state)
-			if err != nil {
-				return &CLIError{Code: 1, Msg: err.Error()}
-			}
-			out := prFindOutput{
-				Found:  result.Found,
-				Number: result.Number,
-				Title:  result.Title,
-				URL:    result.URL,
-				Head:   result.Head,
-				Base:   result.Base,
-				State:  result.State,
-			}
-			enc := json.NewEncoder(stdout)
-			enc.SetIndent("", "  ")
-			return enc.Encode(out)
+			return runPRFind(stdout, stderr, cfg, args[0], state, jsonOut, runner)
 		},
 	}
 	cmd.Flags().StringVar(&stateStr, "state", "any", "Filter by PR state: open, merged, or any")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Output JSON instead of plain text")
 	return cmd
+}
+
+// runPRFind finds a PR and encodes the result as JSON. jsonOut is threaded
+// through for the --json flag; plain-text-by-default output is added in a
+// later phase, so output is unconditionally JSON today.
+func runPRFind(stdout, stderr io.Writer, cfg *config.Config, ident string, state pr.State, jsonOut bool, runner exec.Runner) error {
+	result, err := pr.Find(context.Background(), runner, cfg, ident, state)
+	if err != nil {
+		return &CLIError{Code: 1, Msg: err.Error()}
+	}
+	out := prFindOutput{
+		Found:  result.Found,
+		Number: result.Number,
+		Title:  result.Title,
+		URL:    result.URL,
+		Head:   result.Head,
+		Base:   result.Base,
+		State:  result.State,
+	}
+	enc := json.NewEncoder(stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
 }
 
 // prBaseOutput is the JSON shape for pr base.
@@ -306,22 +318,36 @@ type prBaseOutput struct {
 	Base string `json:"base"`
 }
 
-func newPRBaseCmd(stdout, stderr io.Writer) *cobra.Command {
-	return &cobra.Command{
+func newPRBaseCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
+	var jsonOut bool
+
+	cmd := &cobra.Command{
 		Use:   "base <branch>",
 		Short: "Resolve the PR base branch for a plan branch",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			base, err := pr.Base(args[0])
-			if err != nil {
-				return err // already CLIError{Code:1}
-			}
-			out := prBaseOutput{Base: base}
-			enc := json.NewEncoder(stdout)
-			enc.SetIndent("", "  ")
-			return enc.Encode(out)
+			return runPRBase(stdout, stderr, args[0], jsonOut, runner)
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Output JSON instead of plain text")
+	return cmd
+}
+
+// runPRBase resolves the PR base branch and encodes the result as JSON. jsonOut
+// is threaded through for the --json flag; plain-text-by-default output is
+// added in a later phase, so output is unconditionally JSON today. runner is
+// unused today — pr.Base is pure string logic with no gh/git calls — but is
+// threaded through for consistency with the other three Component 4
+// extractions (board list, pr find, issue list).
+func runPRBase(stdout, stderr io.Writer, branch string, jsonOut bool, runner exec.Runner) error {
+	base, err := pr.Base(branch)
+	if err != nil {
+		return err // already CLIError{Code:1}
+	}
+	out := prBaseOutput{Base: base}
+	enc := json.NewEncoder(stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
 }
 
 // ── findings ─────────────────────────────────────────────────────────────────
@@ -343,7 +369,7 @@ func newFindingsCacheCmd(stdout, stderr io.Writer) *cobra.Command {
 		Short: "Validate and write JSON from stdin to the findings cache",
 		Args:  cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := io.ReadAll(os.Stdin)
+			payload, err := io.ReadAll(cmd.InOrStdin())
 			if err != nil {
 				return &CLIError{Code: 1, Msg: fmt.Sprintf("reading stdin: %v", err)}
 			}
@@ -374,24 +400,24 @@ func newFindingsClearCmd(stdout, stderr io.Writer) *cobra.Command {
 // ── worktree ─────────────────────────────────────────────────────────────────
 
 // newWorktreeCmd returns the worktree subcommand group.
-func newWorktreeCmd(stdout, stderr io.Writer) *cobra.Command {
+func newWorktreeCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	wtCmd := &cobra.Command{
 		Use:   "worktree",
 		Short: "Manage git worktrees for plan phases",
 	}
-	wtCmd.AddCommand(newWorktreeAddCmd(stdout, stderr))
-	wtCmd.AddCommand(newWorktreeRemoveCmd(stdout, stderr))
-	wtCmd.AddCommand(newWorktreePruneCmd(stdout, stderr))
+	wtCmd.AddCommand(newWorktreeAddCmd(stdout, stderr, runner))
+	wtCmd.AddCommand(newWorktreeRemoveCmd(stdout, stderr, runner))
+	wtCmd.AddCommand(newWorktreePruneCmd(stdout, stderr, runner))
 	return wtCmd
 }
 
-func newWorktreeAddCmd(stdout, stderr io.Writer) *cobra.Command {
+func newWorktreeAddCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	return &cobra.Command{
 		Use:   "add <path> <branch> <base-branch>",
 		Short: "Create a git worktree, handling all branch-state cases",
 		Args:  cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := worktree.Add(context.Background(), newRunner(), args[0], args[1], args[2]); err != nil {
+			if err := worktree.Add(context.Background(), runner, args[0], args[1], args[2]); err != nil {
 				return err // already CLIError or wrapped error
 			}
 			return nil
@@ -399,13 +425,13 @@ func newWorktreeAddCmd(stdout, stderr io.Writer) *cobra.Command {
 	}
 }
 
-func newWorktreeRemoveCmd(stdout, stderr io.Writer) *cobra.Command {
+func newWorktreeRemoveCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove <path>",
 		Short: "Remove a git worktree",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := worktree.Remove(context.Background(), newRunner(), args[0]); err != nil {
+			if err := worktree.Remove(context.Background(), runner, args[0]); err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
 			return nil
@@ -413,12 +439,12 @@ func newWorktreeRemoveCmd(stdout, stderr io.Writer) *cobra.Command {
 	}
 }
 
-func newWorktreePruneCmd(stdout, stderr io.Writer) *cobra.Command {
+func newWorktreePruneCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	return &cobra.Command{
 		Use:   "prune",
 		Short: "Prune stale git worktree administrative files",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := worktree.Prune(context.Background(), newRunner()); err != nil {
+			if err := worktree.Prune(context.Background(), runner); err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
 			return nil
@@ -429,18 +455,19 @@ func newWorktreePruneCmd(stdout, stderr io.Writer) *cobra.Command {
 // ── issue ─────────────────────────────────────────────────────────────────────
 
 // newIssueCmd returns the issue subcommand group.
-func newIssueCmd(stdout, stderr io.Writer) *cobra.Command {
+func newIssueCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	issueCmd := &cobra.Command{
 		Use:   "issue",
 		Short: "Read GitHub issues",
 	}
-	issueCmd.AddCommand(newIssueListCmd(stdout, stderr))
+	issueCmd.AddCommand(newIssueListCmd(stdout, stderr, runner))
 	return issueCmd
 }
 
-func newIssueListCmd(stdout, stderr io.Writer) *cobra.Command {
+func newIssueListCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	var labelFilter, titlePrefix, state string
 	var limit int
+	var jsonOut bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -451,21 +478,29 @@ func newIssueListCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			items, err := issue.List(context.Background(), newRunner(), cfg, labelFilter, titlePrefix, state, limit)
-			if err != nil {
-				return &CLIError{Code: 1, Msg: err.Error()}
-			}
-			if items == nil {
-				items = []issue.Item{}
-			}
-			enc := json.NewEncoder(stdout)
-			enc.SetIndent("", "  ")
-			return enc.Encode(items)
+			return runIssueList(stdout, stderr, cfg, labelFilter, titlePrefix, state, limit, jsonOut, runner)
 		},
 	}
 	cmd.Flags().StringVar(&labelFilter, "label", "", "Filter by label name")
 	cmd.Flags().StringVar(&titlePrefix, "title-prefix", "", "Filter by title prefix (e.g. \"[PLAN-00002]\")")
 	cmd.Flags().StringVar(&state, "state", "open", "Issue state: open, closed, or all")
 	cmd.Flags().IntVar(&limit, "limit", 100, "Maximum number of issues to fetch")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Output JSON instead of plain text")
 	return cmd
+}
+
+// runIssueList lists issues, encoding them as JSON. jsonOut is threaded
+// through for the --json flag; plain-text-by-default output is added in a
+// later phase, so output is unconditionally JSON today.
+func runIssueList(stdout, stderr io.Writer, cfg *config.Config, labelFilter, titlePrefix, state string, limit int, jsonOut bool, runner exec.Runner) error {
+	items, err := issue.List(context.Background(), runner, cfg, labelFilter, titlePrefix, state, limit)
+	if err != nil {
+		return &CLIError{Code: 1, Msg: err.Error()}
+	}
+	if items == nil {
+		items = []issue.Item{}
+	}
+	enc := json.NewEncoder(stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(items)
 }

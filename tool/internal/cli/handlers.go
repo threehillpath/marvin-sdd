@@ -91,7 +91,9 @@ func resolveWorktreeBase(flagVal string) (string, error) {
 // typ is "feature" or "bug"; empty defaults to "feature" (defaulting logic
 // lives in names.ResolveType). A non-empty typ that isn't "feature" or "bug"
 // is rejected here, at the CLI layer where user input first arrives.
-func runNamesDerive(stdout, stderr io.Writer, issueStr, typ, suffix, worktreeBaseFlag string, phase int) error {
+// jsonOut is threaded through for the --json flag; plain-text-by-default
+// output is added in a later phase, so output is unconditionally JSON today.
+func runNamesDerive(stdout, stderr io.Writer, issueStr, typ, suffix, worktreeBaseFlag string, phase int, jsonOut bool) error {
 	issue, err := strconv.Atoi(issueStr)
 	if err != nil {
 		return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", issueStr, err)}
@@ -142,8 +144,9 @@ type parseTitleOutput struct {
 	Phase      int    `json:"phase,omitempty"`
 }
 
-// runParseTitle extracts a plan ident from a title string.
-func runParseTitle(stdout, stderr io.Writer, title string) error {
+// runParseTitle extracts a plan ident from a title string. jsonOut is threaded
+// through for the --json flag; output is unconditionally JSON today.
+func runParseTitle(stdout, stderr io.Writer, title string, jsonOut bool) error {
 	ident, ok := parse.PlanIdent(title)
 	out := parseTitleOutput{Found: ok}
 	if ok {
@@ -157,9 +160,11 @@ func runParseTitle(stdout, stderr io.Writer, title string) error {
 	return enc.Encode(out)
 }
 
-// runParsePhaseList reads stdin and extracts phase issue numbers.
-func runParsePhaseList(stdout, stderr io.Writer) error {
-	data, err := io.ReadAll(os.Stdin)
+// runParsePhaseList reads stdin and extracts phase issue numbers. stdin is
+// injected (not os.Stdin directly) so tests can supply canned input. jsonOut
+// is threaded through for the --json flag; output is unconditionally JSON today.
+func runParsePhaseList(stdin io.Reader, stdout, stderr io.Writer, jsonOut bool) error {
+	data, err := io.ReadAll(stdin)
 	if err != nil {
 		return &CLIError{Code: 1, Msg: fmt.Sprintf("reading stdin: %v", err)}
 	}

@@ -295,6 +295,9 @@ func (c *Client) IssueRef(ctx context.Context, repo string, number int) (ref Sub
 	if jsonErr := json.Unmarshal(stdout, &resp); jsonErr != nil {
 		return SubIssueRef{}, "", fmt.Errorf("gh issue view: parse response: %w", jsonErr)
 	}
+	if resp.ID == "" {
+		return SubIssueRef{}, "", fmt.Errorf("gh issue view: response missing id field")
+	}
 	return SubIssueRef{Number: resp.Number, Title: resp.Title, State: resp.State}, resp.ID, nil
 }
 

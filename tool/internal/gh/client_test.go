@@ -217,6 +217,26 @@ func TestIssueRefReturnsRefAndNodeID(t *testing.T) {
 	}
 }
 
+// TestIssueRefEmptyIDReturnsError verifies that IssueRef returns an error,
+// not a zero-value node ID, when gh's response is missing the id field —
+// mirroring the guard ProjectItemAdd already applies to the same failure
+// mode, so callers get a clear cause instead of a confusing downstream
+// GraphQL error from node(id: "").
+func TestIssueRefEmptyIDReturnsError(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{
+		Stdout: []byte(`{"id":"","number":58,"title":"[PLAN-00041-1] GraphQL foundation","state":"OPEN"}`),
+	})
+
+	_, nodeID, err := gh.New(fake).IssueRef(context.Background(), "owner/repo", 58)
+	if err == nil {
+		t.Fatal("expected an error for a missing id field, got nil")
+	}
+	if nodeID != "" {
+		t.Errorf("nodeID = %q, want empty string on error", nodeID)
+	}
+}
+
 // TestAddSubIssueCallsGraphQLMutation verifies that AddSubIssue calls
 // GraphQL with the addSubIssue mutation, passing the given parent/child node
 // IDs through as GraphQL variables.
@@ -241,6 +261,9 @@ func TestAddSubIssueCallsGraphQLMutation(t *testing.T) {
 	}
 	if !argsContainFlagValue(args, "childId=I_child") {
 		t.Errorf("args = %v, want a -f flag containing childId=I_child", args)
+	}
+	if !strings.Contains(args[3], "addSubIssue(input: {issueId: $parentId, subIssueId: $childId})") {
+		t.Errorf("query = %q, want it to contain the addSubIssue mutation body", args[3])
 	}
 }
 
@@ -301,6 +324,9 @@ func TestSubIssuesReturnsPhasesRegardlessOfTitlePrefix(t *testing.T) {
 	if !argsContainFlagValue(fake.Calls[1].Args, "id=I_impl36") {
 		t.Errorf("call 1 args = %v, want a -f flag containing id=I_impl36", fake.Calls[1].Args)
 	}
+	if !strings.Contains(fake.Calls[1].Args[3], "subIssues(first: 50)") {
+		t.Errorf("call 1 query = %q, want it to contain subIssues(first: 50)", fake.Calls[1].Args[3])
+	}
 }
 
 // TestParentIssueFound verifies that ParentIssue resolves the target's node
@@ -324,6 +350,9 @@ func TestParentIssueFound(t *testing.T) {
 	}
 	if ref.Number != 36 || ref.Title != "[PLAN-00036] Something" || ref.State != "OPEN" {
 		t.Errorf("ref = %+v, want {36 [PLAN-00036] Something OPEN}", ref)
+	}
+	if !strings.Contains(fake.Calls[1].Args[3], "parent { number title state }") {
+		t.Errorf("call 1 query = %q, want it to contain the parent field selection", fake.Calls[1].Args[3])
 	}
 }
 

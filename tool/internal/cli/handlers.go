@@ -7,12 +7,36 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"threehillpath.com/claude-plan-workflow/tool/internal/config"
 	"threehillpath.com/claude-plan-workflow/tool/internal/names"
 	"threehillpath.com/claude-plan-workflow/tool/internal/parse"
 	tmplpkg "threehillpath.com/claude-plan-workflow/tool/internal/template"
 )
+
+// kv is one line of plain-text object-command output: "Key: Value", printed
+// unless Omit is true. Omit encodes the same "populated" rule as the JSON
+// struct's `omitempty` tag: a field with no omitempty tag is never omitted
+// (Omit is always false); a field with omitempty is omitted exactly when its
+// value is the zero value, matching encoding/json's own omission rule.
+type kv struct {
+	Key   string
+	Value string
+	Omit  bool
+}
+
+// writeKV writes one "key: value" line to w for each entry not marked Omit,
+// in the given order. Shared by the object commands (names derive, parse
+// title, pr find) so the populated-field rule is expressed once.
+func writeKV(w io.Writer, entries []kv) {
+	for _, e := range entries {
+		if e.Omit {
+			continue
+		}
+		fmt.Fprintf(w, "%s: %s\n", e.Key, e.Value)
+	}
+}
 
 // runConfigGet prints a single config value to stdout.
 func runConfigGet(stdout, stderr io.Writer, key string) error {
@@ -91,8 +115,9 @@ func resolveWorktreeBase(flagVal string) (string, error) {
 // typ is "feature" or "bug"; empty defaults to "feature" (defaulting logic
 // lives in names.ResolveType). A non-empty typ that isn't "feature" or "bug"
 // is rejected here, at the CLI layer where user input first arrives.
-// jsonOut is threaded through for the --json flag; plain-text-by-default
-// output is added in a later phase, so output is unconditionally JSON today.
+// jsonOut selects JSON output (--json); by default, output is plain text:
+// one key:value line per populated field, with title_prefix flattened to
+// three lines.
 func runNamesDerive(stdout, stderr io.Writer, issueStr, typ, suffix, worktreeBaseFlag string, phase int, jsonOut bool) error {
 	issue, err := strconv.Atoi(issueStr)
 	if err != nil {
@@ -127,6 +152,20 @@ func runNamesDerive(stdout, stderr io.Writer, issueStr, typ, suffix, worktreeBas
 		out.TitlePrefix.Phase = names.TitlePrefix(names.Phase, issue, suffix, phase)
 	}
 
+	if !jsonOut {
+		writeKV(stdout, []kv{
+			{Key: "plan_number", Value: out.PlanNumber},
+			{Key: "type", Value: out.Type},
+			{Key: "main_branch", Value: out.MainBranch},
+			{Key: "phase_branch", Value: out.PhaseBranch, Omit: out.PhaseBranch == ""},
+			{Key: "worktree_path", Value: out.WorktreePath, Omit: out.WorktreePath == ""},
+			{Key: "title_prefix_arch", Value: out.TitlePrefix.Arch},
+			{Key: "title_prefix_impl", Value: out.TitlePrefix.Impl},
+			{Key: "title_prefix_phase", Value: out.TitlePrefix.Phase, Omit: out.TitlePrefix.Phase == ""},
+		})
+		return nil
+	}
+
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(out); err != nil {
@@ -144,8 +183,9 @@ type parseTitleOutput struct {
 	Phase      int    `json:"phase,omitempty"`
 }
 
-// runParseTitle extracts a plan ident from a title string. jsonOut is threaded
-// through for the --json flag; output is unconditionally JSON today.
+// runParseTitle extracts a plan ident from a title string. jsonOut selects
+// JSON output (--json); by default, output is plain text: one key:value line
+// per populated field. found is always printed, even when false.
 func runParseTitle(stdout, stderr io.Writer, title string, jsonOut bool) error {
 	ident, ok := parse.PlanIdent(title)
 	out := parseTitleOutput{Found: ok}
@@ -155,6 +195,18 @@ func runParseTitle(stdout, stderr io.Writer, title string, jsonOut bool) error {
 		out.Suffix = ident.Suffix
 		out.Phase = ident.Phase
 	}
+
+	if !jsonOut {
+		writeKV(stdout, []kv{
+			{Key: "found", Value: strconv.FormatBool(out.Found)},
+			{Key: "plan", Value: strconv.Itoa(out.Plan), Omit: out.Plan == 0},
+			{Key: "plan_number", Value: out.PlanNumber, Omit: out.PlanNumber == ""},
+			{Key: "suffix", Value: out.Suffix, Omit: out.Suffix == ""},
+			{Key: "phase", Value: strconv.Itoa(out.Phase), Omit: out.Phase == 0},
+		})
+		return nil
+	}
+
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(out)
@@ -162,7 +214,9 @@ func runParseTitle(stdout, stderr io.Writer, title string, jsonOut bool) error {
 
 // runParsePhaseList reads stdin and extracts phase issue numbers. stdin is
 // injected (not os.Stdin directly) so tests can supply canned input. jsonOut
-// is threaded through for the --json flag; output is unconditionally JSON today.
+// selects JSON output (--json); by default, output stays key:value (not
+// columnar, unlike the list commands): found: true|false then an issues line
+// ("issues: 39,40,41" or "issues: (none)" when empty).
 func runParsePhaseList(stdin io.Reader, stdout, stderr io.Writer, jsonOut bool) error {
 	data, err := io.ReadAll(stdin)
 	if err != nil {
@@ -176,6 +230,23 @@ func runParsePhaseList(stdin io.Reader, stdout, stderr io.Writer, jsonOut bool) 
 	if out.Issues == nil {
 		out.Issues = []int{}
 	}
+
+	if !jsonOut {
+		issuesStr := "(none)"
+		if len(out.Issues) > 0 {
+			strs := make([]string, len(out.Issues))
+			for i, n := range out.Issues {
+				strs[i] = strconv.Itoa(n)
+			}
+			issuesStr = strings.Join(strs, ",")
+		}
+		writeKV(stdout, []kv{
+			{Key: "found", Value: strconv.FormatBool(out.Found)},
+			{Key: "issues", Value: issuesStr},
+		})
+		return nil
+	}
+
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(out)

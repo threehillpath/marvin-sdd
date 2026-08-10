@@ -16,7 +16,7 @@ import (
 func TestNamesDeriveType(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
-	root.SetArgs([]string{"names", "derive", "42", "--type", "bug", "--phase", "3", "--worktree-base", ".worktrees"})
+	root.SetArgs([]string{"names", "derive", "42", "--type", "bug", "--phase", "3", "--worktree-base", ".worktrees", "--json"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("names derive returned error: %v\nstderr: %s", err, stderr.String())
@@ -46,7 +46,7 @@ func TestNamesDeriveType(t *testing.T) {
 func TestNamesDeriveDefaultType(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
-	root.SetArgs([]string{"names", "derive", "42"})
+	root.SetArgs([]string{"names", "derive", "42", "--json"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("names derive returned error: %v\nstderr: %s", err, stderr.String())
@@ -64,6 +64,62 @@ func TestNamesDeriveDefaultType(t *testing.T) {
 	}
 	if out.MainBranch != "feature/PLAN-00042/main" {
 		t.Errorf("main_branch = %q, want %q", out.MainBranch, "feature/PLAN-00042/main")
+	}
+}
+
+// TestNamesDeriveDefaultPlainText is this phase's TDD entry point: `names derive`
+// without --json must print one key:value line per populated field, in
+// struct-field order, with the nested title_prefix flattened to three lines.
+func TestNamesDeriveDefaultPlainText(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"names", "derive", "42", "--type", "bug", "--phase", "3", "--worktree-base", ".worktrees"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("names derive returned error: %v\nstderr: %s", err, stderr.String())
+	}
+
+	want := "plan_number: plan-00042\n" +
+		"type: bug\n" +
+		"main_branch: bug/PLAN-00042/main\n" +
+		"phase_branch: bug/PLAN-00042/phase-3\n" +
+		"worktree_path: .worktrees/phase-00042-3\n" +
+		"title_prefix_arch: [PLAN-00042-ARCH]\n" +
+		"title_prefix_impl: [PLAN-00042]\n" +
+		"title_prefix_phase: [PLAN-00042-3]\n"
+
+	if stdout.String() != want {
+		t.Errorf("plain-text output mismatch\ngot:\n%s\nwant:\n%s", stdout.String(), want)
+	}
+}
+
+// TestNamesDeriveJSONUnchanged verifies that --json for the same input as
+// TestNamesDeriveDefaultPlainText reproduces the exact pre-Component-5 JSON
+// shape, byte-identical, unaffected by the new plain-text default.
+func TestNamesDeriveJSONUnchanged(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"names", "derive", "42", "--type", "bug", "--phase", "3", "--worktree-base", ".worktrees", "--json"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("names derive --json returned error: %v\nstderr: %s", err, stderr.String())
+	}
+
+	want := `{
+  "plan_number": "plan-00042",
+  "type": "bug",
+  "main_branch": "bug/PLAN-00042/main",
+  "phase_branch": "bug/PLAN-00042/phase-3",
+  "worktree_path": ".worktrees/phase-00042-3",
+  "title_prefix": {
+    "arch": "[PLAN-00042-ARCH]",
+    "impl": "[PLAN-00042]",
+    "phase": "[PLAN-00042-3]"
+  }
+}
+`
+	if stdout.String() != want {
+		t.Errorf("--json output mismatch\ngot:\n%s\nwant:\n%s", stdout.String(), want)
 	}
 }
 

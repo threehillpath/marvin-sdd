@@ -163,9 +163,9 @@ func (c *Client) ProjectItemList(ctx context.Context, projectNumber int, owner s
 
 // IssueListItem represents a single issue from gh issue list output.
 type IssueListItem struct {
-	Number int      `json:"number"`
-	Title  string   `json:"title"`
-	State  string   `json:"state"`
+	Number int       `json:"number"`
+	Title  string    `json:"title"`
+	State  string    `json:"state"`
 	Labels []ghLabel `json:"labels"`
 }
 
@@ -414,4 +414,44 @@ func (c *Client) ParentIssue(ctx context.Context, repo string, number int) (SubI
 		return SubIssueRef{}, false, nil
 	}
 	return SubIssueRef{Number: p.Number, Title: p.Title, State: p.State}, true, nil
+}
+
+// PRListItem represents a single pull request from gh pr list output.
+type PRListItem struct {
+	Number      int    `json:"number"`
+	Title       string `json:"title"`
+	URL         string `json:"url"`
+	HeadRefName string `json:"headRefName"`
+	BaseRefName string `json:"baseRefName"`
+	State       string `json:"state"`
+}
+
+// PRList runs `gh pr list --repo <repo>` filtered by state and returns the parsed items.
+// state must be "open", "closed", "merged", or "all". limit caps results; 0 defaults to 100.
+func (c *Client) PRList(ctx context.Context, repo, state string, limit int) ([]PRListItem, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	if state == "" {
+		state = "open"
+	}
+	args := []string{
+		"pr", "list",
+		"--repo", repo,
+		"--json", "number,title,url,headRefName,baseRefName,state",
+		"--state", state,
+		"--limit", fmt.Sprintf("%d", limit),
+	}
+	stdout, stderr, code, err := c.runner.Run(ctx, "gh", args...)
+	if err != nil {
+		return nil, fmt.Errorf("gh pr list: %w", err)
+	}
+	if code != 0 {
+		return nil, fmt.Errorf("gh pr list exited %d: %s", code, stderr)
+	}
+	var items []PRListItem
+	if err := json.Unmarshal(stdout, &items); err != nil {
+		return nil, fmt.Errorf("gh pr list: parse response: %w", err)
+	}
+	return items, nil
 }

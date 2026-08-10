@@ -442,3 +442,51 @@ func TestGraphQLSuccessReturnsStdoutAndSortsVars(t *testing.T) {
 		}
 	}
 }
+
+// TestPRListArgs verifies the gh arg vector and JSON parsing for PRList.
+func TestPRListArgs(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	payload := []byte(`[{"number":68,"title":"[PLAN-00041-2] parse.Ident.Kind","url":"https://github.com/owner/repo/pull/68","headRefName":"feature/PLAN-00041/phase-2","baseRefName":"feature/PLAN-00041/main","state":"OPEN"}]`)
+	fake.Enqueue(exectest.FakeResponse{Stdout: payload})
+
+	items, err := gh.New(fake).PRList(context.Background(), "owner/repo", "merged", 200)
+	if err != nil {
+		t.Fatalf("PRList returned error: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+	if items[0].HeadRefName != "feature/PLAN-00041/phase-2" || items[0].BaseRefName != "feature/PLAN-00041/main" {
+		t.Errorf("HeadRefName/BaseRefName = %q/%q, want feature/PLAN-00041/phase-2/feature/PLAN-00041/main", items[0].HeadRefName, items[0].BaseRefName)
+	}
+
+	args := fake.Calls[0].Args
+	wantArgs := []string{"pr", "list", "--repo", "owner/repo", "--json", "number,title,url,headRefName,baseRefName,state", "--state", "merged", "--limit", "200"}
+	if len(args) != len(wantArgs) {
+		t.Fatalf("args = %v, want %v", args, wantArgs)
+	}
+	for i, a := range args {
+		if a != wantArgs[i] {
+			t.Errorf("arg[%d] = %q, want %q", i, a, wantArgs[i])
+		}
+	}
+}
+
+// TestPRListDefaults verifies that a zero limit and empty state fall back to 100/"open".
+func TestPRListDefaults(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`[]`)})
+
+	if _, err := gh.New(fake).PRList(context.Background(), "owner/repo", "", 0); err != nil {
+		t.Fatalf("PRList error: %v", err)
+	}
+	args := fake.Calls[0].Args
+	for i, a := range args {
+		if a == "--state" && i+1 < len(args) && args[i+1] != "open" {
+			t.Errorf("expected --state open, got --state %s", args[i+1])
+		}
+		if a == "--limit" && i+1 < len(args) && args[i+1] != "100" {
+			t.Errorf("expected --limit 100, got --limit %s", args[i+1])
+		}
+	}
+}

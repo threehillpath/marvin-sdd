@@ -3,7 +3,6 @@ package pr
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -11,6 +10,8 @@ import (
 	"threehillpath.com/claude-plan-workflow/tool/internal/clierr"
 	"threehillpath.com/claude-plan-workflow/tool/internal/config"
 	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
+	"threehillpath.com/claude-plan-workflow/tool/internal/gh"
+	"threehillpath.com/claude-plan-workflow/tool/internal/parse"
 )
 
 // State filters PR search by lifecycle state.
@@ -60,41 +61,33 @@ type FindResult struct {
 	State  string
 }
 
-// ghPR is the JSON shape from gh pr list --json.
-type ghPR struct {
-	Number      int    `json:"number"`
-	Title       string `json:"title"`
-	URL         string `json:"url"`
-	HeadRefName string `json:"headRefName"`
-	BaseRefName string `json:"baseRefName"`
-	State       string `json:"state"`
+// identMatches reports whether a candidate PR title structurally matches ident.
+// Both are parsed via parse.PlanIdent; a match requires Plan, Suffix, Phase, and
+// Kind to all be equal. If ident itself fails to parse, this falls back to a
+// substring check against the candidate title (defensive — no current caller
+// passes a non-conforming ident, but nothing guarantees against it).
+func identMatches(ident, title string) bool {
+	wantIdent, ok := parse.PlanIdent(ident)
+	if !ok {
+		return strings.Contains(title, ident)
+	}
+	gotIdent, ok := parse.PlanIdent(title)
+	if !ok {
+		return false
+	}
+	return gotIdent == wantIdent
 }
 
-// Find searches for a PR whose title contains ident (e.g. "[PLAN-00002-3]"),
+// Find searches for a PR whose title structurally matches ident (e.g. "[PLAN-00002-3]"),
 // filtered by state. A missing match is not an error — the result will have Found=false.
 func Find(ctx context.Context, runner exec.Runner, cfg *config.Config, ident string, state State) (FindResult, error) {
-	args := []string{
-		"pr", "list",
-		"--repo", cfg.Repo,
-		"--json", "number,title,url,headRefName,baseRefName,state",
-		"--state", state.ghArg(),
-		"--limit", "200",
-	}
-	stdout, stderr, code, err := runner.Run(ctx, "gh", args...)
+	prs, err := gh.New(runner).PRList(ctx, cfg.Repo, state.ghArg(), 200)
 	if err != nil {
 		return FindResult{}, fmt.Errorf("pr find: %w", err)
 	}
-	if code != 0 {
-		return FindResult{}, fmt.Errorf("pr find: gh exited %d: %s", code, stderr)
-	}
-
-	var prs []ghPR
-	if err := json.Unmarshal(stdout, &prs); err != nil {
-		return FindResult{}, fmt.Errorf("pr find: parse response: %w", err)
-	}
 
 	for _, p := range prs {
-		if strings.Contains(p.Title, ident) {
+		if identMatches(ident, p.Title) {
 			return FindResult{
 				Found:  true,
 				Number: p.Number,

@@ -93,6 +93,30 @@ func TestNamesDeriveDefaultPlainText(t *testing.T) {
 	}
 }
 
+// TestNamesDeriveNoPhasePlainText verifies the plain-text omission path for
+// the invocation with no --phase: phase_branch, worktree_path, and
+// title_prefix_phase must all be absent (not printed as empty values), which
+// is the form impl-plan/start-impl call.
+func TestNamesDeriveNoPhasePlainText(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"names", "derive", "42"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("names derive returned error: %v\nstderr: %s", err, stderr.String())
+	}
+
+	want := "plan_number: plan-00042\n" +
+		"type: feature\n" +
+		"main_branch: feature/PLAN-00042/main\n" +
+		"title_prefix_arch: [PLAN-00042-ARCH]\n" +
+		"title_prefix_impl: [PLAN-00042]\n"
+
+	if stdout.String() != want {
+		t.Errorf("plain-text output mismatch\ngot:\n%s\nwant:\n%s", stdout.String(), want)
+	}
+}
+
 // TestNamesDeriveJSONUnchanged verifies that --json for the same input as
 // TestNamesDeriveDefaultPlainText reproduces the exact pre-Component-5 JSON
 // shape, byte-identical, unaffected by the new plain-text default.

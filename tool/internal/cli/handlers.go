@@ -28,7 +28,8 @@ type kv struct {
 
 // writeKV writes one "key: value" line to w for each entry not marked Omit,
 // in the given order. Shared by the object commands (names derive, parse
-// title, pr find) so the populated-field rule is expressed once.
+// title, pr find) and by parse phase-list, whose output is key:value rather
+// than columnar, so the populated-field rule is expressed once.
 func writeKV(w io.Writer, entries []kv) {
 	for _, e := range entries {
 		if e.Omit {

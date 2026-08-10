@@ -40,11 +40,11 @@ var planIdentRe = regexp.MustCompile(`\[PLAN-(\d{5})([^\]]*)\]`)
 //
 // Supported forms:
 //
-//	[PLAN-00042]        → {42, "", 0}
-//	[PLAN-00042-ARCH]   → {42, "", 0}  (ARCH treated as no phase/suffix)
-//	[PLAN-00042-3]      → {42, "", 3}
-//	[PLAN-00042-A]      → {42, "A", 0}
-//	[PLAN-00042-A-2]    → {42, "A", 2}
+//	[PLAN-00042]        → {42, "", 0, KindImpl}
+//	[PLAN-00042-ARCH]   → {42, "", 0, KindArch}  (ARCH sets Kind, not phase/suffix)
+//	[PLAN-00042-3]      → {42, "", 3, KindImpl}
+//	[PLAN-00042-A]      → {42, "A", 0, KindImpl}
+//	[PLAN-00042-A-2]    → {42, "A", 2, KindImpl}
 func PlanIdent(title string) (Ident, bool) {
 	m := planIdentRe.FindStringSubmatch(title)
 	if m == nil {

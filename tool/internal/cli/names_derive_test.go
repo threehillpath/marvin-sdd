@@ -3,9 +3,11 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"threehillpath.com/claude-plan-workflow/tool/internal/cli"
+	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
 )
 
 // TestNamesDeriveType verifies that 'marvin names derive <issue> --type bug --phase N'
@@ -13,7 +15,7 @@ import (
 // the resolved type field.
 func TestNamesDeriveType(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	root := cli.NewRootCmd(&stdout, &stderr)
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
 	root.SetArgs([]string{"names", "derive", "42", "--type", "bug", "--phase", "3", "--worktree-base", ".worktrees"})
 
 	if err := root.Execute(); err != nil {
@@ -43,7 +45,7 @@ func TestNamesDeriveType(t *testing.T) {
 // TestNamesDeriveDefaultType verifies that omitting --type defaults to "feature".
 func TestNamesDeriveDefaultType(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	root := cli.NewRootCmd(&stdout, &stderr)
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
 	root.SetArgs([]string{"names", "derive", "42"})
 
 	if err := root.Execute(); err != nil {
@@ -69,7 +71,7 @@ func TestNamesDeriveDefaultType(t *testing.T) {
 // with a clear error message.
 func TestNamesDeriveInvalidType(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	root := cli.NewRootCmd(&stdout, &stderr)
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
 	root.SetArgs([]string{"names", "derive", "42", "--type", "bogus"})
 
 	err := root.Execute()

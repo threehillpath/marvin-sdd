@@ -369,7 +369,7 @@ func newFindingsCacheCmd(stdout, stderr io.Writer) *cobra.Command {
 		Short: "Validate and write JSON from stdin to the findings cache",
 		Args:  cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := io.ReadAll(os.Stdin)
+			payload, err := io.ReadAll(cmd.InOrStdin())
 			if err != nil {
 				return &CLIError{Code: 1, Msg: fmt.Sprintf("reading stdin: %v", err)}
 			}

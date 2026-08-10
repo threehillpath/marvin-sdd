@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"threehillpath.com/claude-plan-workflow/tool/internal/cli"
+	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
 )
 
 const configGetFixture = `
@@ -42,7 +43,7 @@ func TestConfigGetWorktreeBase(t *testing.T) {
 	defer os.Chdir(orig)
 
 	var stdout, stderr bytes.Buffer
-	root := cli.NewRootCmd(&stdout, &stderr)
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
 	root.SetArgs([]string{"config", "get", "worktree_base"})
 
 	if err := root.Execute(); err != nil {

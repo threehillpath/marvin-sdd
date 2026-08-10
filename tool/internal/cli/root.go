@@ -7,11 +7,14 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
 )
 
 // NewRootCmd constructs the root Cobra command with all subcommand groups registered.
-// stdout and stderr are injectable for testing.
-func NewRootCmd(stdout, stderr io.Writer) *cobra.Command {
+// stdin, stdout, and stderr are injectable for testing, as is runner — the exec.Runner
+// used by every subcommand that shells out to gh or git.
+func NewRootCmd(stdin io.Reader, stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "marvin",
 		Short: "marvin — plan-workflow deterministic CLI tool",
@@ -29,14 +32,14 @@ management, name derivation, config access, and plan-template rendering.`,
 	root.AddCommand(newVersionCmd(stdout))
 	root.AddCommand(newConfigCmd(stdout, stderr))
 	root.AddCommand(newNamesCmd(stdout, stderr))
-	root.AddCommand(newParseCmd(stdout, stderr))
+	root.AddCommand(newParseCmd(stdin, stdout, stderr))
 	root.AddCommand(newTemplateCmd(stdout, stderr))
-	root.AddCommand(newBoardCmd(stdout, stderr))
-	root.AddCommand(newLabelCmd(stdout, stderr))
-	root.AddCommand(newPRCmd(stdout, stderr))
+	root.AddCommand(newBoardCmd(stdout, stderr, runner))
+	root.AddCommand(newLabelCmd(stdout, stderr, runner))
+	root.AddCommand(newPRCmd(stdout, stderr, runner))
 	root.AddCommand(newFindingsCmd(stdout, stderr))
-	root.AddCommand(newWorktreeCmd(stdout, stderr))
-	root.AddCommand(newIssueCmd(stdout, stderr))
+	root.AddCommand(newWorktreeCmd(stdout, stderr, runner))
+	root.AddCommand(newIssueCmd(stdout, stderr, runner))
 
 	return root
 }
@@ -45,7 +48,7 @@ management, name derivation, config access, and plan-template rendering.`,
 // appropriate code. This is the only function that calls os.Exit.
 func Execute() {
 	code := RunWithStreams(os.Stdout, os.Stderr, func() error {
-		root := NewRootCmd(os.Stdout, os.Stderr)
+		root := NewRootCmd(os.Stdin, os.Stdout, os.Stderr, exec.OSRunner{})
 		return root.Execute()
 	})
 	if code != 0 {
@@ -94,47 +97,56 @@ func newNamesCmd(stdout, stderr io.Writer) *cobra.Command {
 
 	var typ, suffix, worktreeBase string
 	var phase int
+	var jsonOut bool
 
 	deriveCmd := &cobra.Command{
 		Use:   "derive <issue>",
 		Short: "Derive all names for an issue number",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNamesDerive(stdout, stderr, args[0], typ, suffix, worktreeBase, phase)
+			return runNamesDerive(stdout, stderr, args[0], typ, suffix, worktreeBase, phase, jsonOut)
 		},
 	}
 	deriveCmd.Flags().StringVar(&typ, "type", "feature", "Branch type: feature or bug")
 	deriveCmd.Flags().StringVar(&suffix, "suffix", "", "Multi-impl suffix (e.g. a, b)")
 	deriveCmd.Flags().IntVar(&phase, "phase", 0, "Phase number (0 = no phase)")
 	deriveCmd.Flags().StringVar(&worktreeBase, "worktree-base", "", "Worktree base directory (overrides config value; required when --phase is set and no config is present)")
+	deriveCmd.Flags().BoolVar(&jsonOut, "json", false, "Output JSON instead of plain text")
 
 	names.AddCommand(deriveCmd)
 	return names
 }
 
-// newParseCmd returns the parse subcommand group.
-func newParseCmd(stdout, stderr io.Writer) *cobra.Command {
+// newParseCmd returns the parse subcommand group. stdin is the injected reader
+// for `parse phase-list`, which reads a comment body from stdin.
+func newParseCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	parse := &cobra.Command{
 		Use:   "parse",
 		Short: "Parse plan identifiers from text",
 	}
 
-	parse.AddCommand(&cobra.Command{
+	var titleJSON bool
+	titleCmd := &cobra.Command{
 		Use:   "title <title>",
 		Short: "Extract plan ident from an issue title",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runParseTitle(stdout, stderr, args[0])
+			return runParseTitle(stdout, stderr, args[0], titleJSON)
 		},
-	})
+	}
+	titleCmd.Flags().BoolVar(&titleJSON, "json", false, "Output JSON instead of plain text")
+	parse.AddCommand(titleCmd)
 
-	parse.AddCommand(&cobra.Command{
+	var phaseListJSON bool
+	phaseListCmd := &cobra.Command{
 		Use:   "phase-list",
 		Short: "Extract phase issue numbers from a Phases created: comment (stdin)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runParsePhaseList(stdout, stderr)
+			return runParsePhaseList(stdin, stdout, stderr, phaseListJSON)
 		},
-	})
+	}
+	phaseListCmd.Flags().BoolVar(&phaseListJSON, "json", false, "Output JSON instead of plain text")
+	parse.AddCommand(phaseListCmd)
 
 	return parse
 }

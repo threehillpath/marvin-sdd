@@ -268,7 +268,7 @@ func newPRFindCmd(stdout, stderr io.Writer) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "find <ident>",
-		Short: "Find a PR whose title contains ident (e.g. [PLAN-00002-3])",
+		Short: "Find a PR whose title matches ident (e.g. [PLAN-00002-3])",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()

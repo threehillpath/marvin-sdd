@@ -42,6 +42,28 @@ func TestFindFound(t *testing.T) {
 	}
 }
 
+// prListSubstringFalsePositiveResponse is a canned gh pr list JSON response whose sole PR
+// title contains the ident string as a substring but is NOT the same plan/phase/kind — the
+// false-positive case strings.Contains genuinely allows.
+const prListSubstringFalsePositiveResponse = `[{"number":99,"title":"[PLAN-00043-2] Address review from [PLAN-00042]","url":"https://github.com/owner/repo/pull/99","headRefName":"feature/plan-00043-2","baseRefName":"feature/plan-00043","state":"OPEN"}]`
+
+// TestFindRejectsSubstringFalsePositive verifies that Find does not match a candidate PR
+// whose title merely contains ident as a substring when the candidate's own leading ident
+// differs structurally (different Plan/Phase).
+func TestFindRejectsSubstringFalsePositive(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(prListSubstringFalsePositiveResponse)})
+
+	cfg := buildConfig()
+	result, err := pr.Find(context.Background(), fake, cfg, "[PLAN-00042]", pr.StateAny)
+	if err != nil {
+		t.Fatalf("Find returned error: %v", err)
+	}
+	if result.Found {
+		t.Errorf("expected Found=false for substring false-positive, got Found=true (Number=%d)", result.Number)
+	}
+}
+
 // TestFindNotFound verifies that Find returns found:false (not an error) when no PR matches.
 func TestFindNotFound(t *testing.T) {
 	fake := &exectest.FakeRunner{}

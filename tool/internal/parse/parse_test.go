@@ -54,6 +54,9 @@ func TestPlanIdentImplPlan(t *testing.T) {
 	if ident.Phase != 0 {
 		t.Errorf("Phase = %d, want 0", ident.Phase)
 	}
+	if ident.Kind != parse.KindImpl {
+		t.Errorf("Kind = %v, want KindImpl", ident.Kind)
+	}
 }
 
 func TestPlanIdentArch(t *testing.T) {
@@ -70,6 +73,9 @@ func TestPlanIdentArch(t *testing.T) {
 	}
 	if ident.Phase != 0 {
 		t.Errorf("Phase = %d, want 0", ident.Phase)
+	}
+	if ident.Kind != parse.KindArch {
+		t.Errorf("Kind = %v, want KindArch for ARCH", ident.Kind)
 	}
 }
 

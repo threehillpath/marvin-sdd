@@ -90,23 +90,7 @@ const boardListMultiPayload = `{"items":[{"id":"PVTI_1","title":"Phase 1","statu
 // pipe-delimited with no header row: <number> | <status> | <title>, one line
 // per item, url omitted (only available via --json).
 func TestBoardListPlainText(t *testing.T) {
-	dir := t.TempDir()
-	claudeDir := filepath.Join(dir, ".claude")
-	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(claudeDir, "plan-workflow-config.yml"), []byte(boardJSONConfigFixture), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	orig, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Chdir(orig)
+	withConfigFixture(t)
 
 	fake := &exectest.FakeRunner{}
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(boardListMultiPayload)})
@@ -128,23 +112,7 @@ func TestBoardListPlainText(t *testing.T) {
 // TestBoardListPlainTextEmpty verifies an empty result prints nothing (no
 // header row, no placeholder line).
 func TestBoardListPlainTextEmpty(t *testing.T) {
-	dir := t.TempDir()
-	claudeDir := filepath.Join(dir, ".claude")
-	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(claudeDir, "plan-workflow-config.yml"), []byte(boardJSONConfigFixture), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	orig, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Chdir(orig)
+	withConfigFixture(t)
 
 	fake := &exectest.FakeRunner{}
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"items":[]}`)})

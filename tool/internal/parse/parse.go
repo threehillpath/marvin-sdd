@@ -9,6 +9,17 @@ import (
 	"strings"
 )
 
+// Kind distinguishes an arch plan from an impl plan or phase.
+type Kind int
+
+const (
+	// KindImpl covers both impl plans and phases (phases are further
+	// distinguished by Phase != 0).
+	KindImpl Kind = iota
+	// KindArch marks an arch plan (a "-ARCH" suffixed ident).
+	KindArch
+)
+
 // Ident holds the parsed components of a plan bracket token like [PLAN-00042-A-3].
 // Phase == 0 means no phase (arch plan or impl plan).
 // Suffix == "" means no multi-impl suffix.
@@ -16,6 +27,7 @@ type Ident struct {
 	Plan   int    // zero-padded issue number
 	Suffix string // e.g. "A" or "B"; empty if none
 	Phase  int    // phase ordinal; 0 if none
+	Kind   Kind   // KindArch for "-ARCH" idents, KindImpl otherwise
 }
 
 // planIdentRe matches the canonical bracket token at the start of an issue title.
@@ -53,7 +65,7 @@ func PlanIdent(title string) (Ident, bool) {
 
 	// Special keyword ARCH → no suffix, no phase
 	if rest == "ARCH" {
-		return Ident{Plan: planNum}, true
+		return Ident{Plan: planNum, Kind: KindArch}, true
 	}
 
 	parts := strings.Split(rest, "-")

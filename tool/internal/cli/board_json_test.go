@@ -81,3 +81,51 @@ func TestBoardListJSONFidelity(t *testing.T) {
 		t.Fatalf("expected 1 gh call, got %d: %v", len(fake.Calls), fake.Calls)
 	}
 }
+
+// boardListMultiPayload is a canned gh project item-list response with two
+// items, used to assert board list's pipe-delimited plain-text default.
+const boardListMultiPayload = `{"items":[{"id":"PVTI_1","title":"Phase 1","status":"In Progress","content":{"number":10,"title":"Phase 1","url":"https://github.com/threehillpath/claude-plan-workflow/issues/10"}},{"id":"PVTI_2","title":"Phase 2","status":"In Review","content":{"number":11,"title":"Phase 2","url":"https://github.com/threehillpath/claude-plan-workflow/issues/11"}}]}`
+
+// TestBoardListPlainText verifies the default (non-JSON) output is
+// pipe-delimited with no header row: <number> | <status> | <title>, one line
+// per item, url omitted (only available via --json).
+func TestBoardListPlainText(t *testing.T) {
+	withConfigFixture(t)
+
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(boardListMultiPayload)})
+
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, fake)
+	root.SetArgs([]string{"board", "list"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("board list returned error: %v\nstderr: %s", err, stderr.String())
+	}
+
+	want := "10 | In Progress | Phase 1\n11 | In Review | Phase 2\n"
+	if stdout.String() != want {
+		t.Errorf("plain-text output mismatch\ngot:\n%s\nwant:\n%s", stdout.String(), want)
+	}
+}
+
+// TestBoardListPlainTextEmpty verifies an empty result prints nothing (no
+// header row, no placeholder line).
+func TestBoardListPlainTextEmpty(t *testing.T) {
+	withConfigFixture(t)
+
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"items":[]}`)})
+
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, fake)
+	root.SetArgs([]string{"board", "list"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("board list returned error: %v\nstderr: %s", err, stderr.String())
+	}
+
+	if stdout.String() != "" {
+		t.Errorf("expected empty output, got:\n%s", stdout.String())
+	}
+}

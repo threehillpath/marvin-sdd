@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -120,7 +121,7 @@ func newBoardListCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comman
 
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List board items as JSON, optionally filtered by status",
+		Short: "List board items as plain text (--json for JSON), optionally filtered by status",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
@@ -136,9 +137,10 @@ func newBoardListCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comman
 	return cmd
 }
 
-// runBoardList lists board items, encoding them as JSON. jsonOut is threaded
-// through for the --json flag; plain-text-by-default output is added in a
-// later phase, so output is unconditionally JSON today.
+// runBoardList lists board items. jsonOut selects JSON output (--json); by
+// default, output is pipe-delimited plain text with no header row:
+// "<number> | <status> | <title>", one line per item, url omitted (title is
+// last so a literal "|" in a title is still safe to parse).
 func runBoardList(stdout, stderr io.Writer, cfg *config.Config, statusFilter string, limit int, jsonOut bool, runner exec.Runner) error {
 	items, err := board.List(context.Background(), runner, cfg, statusFilter, limit)
 	if err != nil {
@@ -147,6 +149,14 @@ func runBoardList(stdout, stderr io.Writer, cfg *config.Config, statusFilter str
 	if items == nil {
 		items = []board.BoardItem{}
 	}
+
+	if !jsonOut {
+		for _, item := range items {
+			fmt.Fprintf(stdout, "%d | %s | %s\n", item.Number, item.Status, item.Title)
+		}
+		return nil
+	}
+
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(items)
@@ -291,9 +301,10 @@ func newPRFindCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	return cmd
 }
 
-// runPRFind finds a PR and encodes the result as JSON. jsonOut is threaded
-// through for the --json flag; plain-text-by-default output is added in a
-// later phase, so output is unconditionally JSON today.
+// runPRFind finds a PR and prints the result. jsonOut selects JSON output
+// (--json); by default, output is plain text: one key:value line per
+// populated field, in struct-field order. found is always printed, even when
+// false. url prints like any other populated field — no exceptions.
 func runPRFind(stdout, stderr io.Writer, cfg *config.Config, ident string, state pr.State, jsonOut bool, runner exec.Runner) error {
 	result, err := pr.Find(context.Background(), runner, cfg, ident, state)
 	if err != nil {
@@ -308,6 +319,20 @@ func runPRFind(stdout, stderr io.Writer, cfg *config.Config, ident string, state
 		Base:   result.Base,
 		State:  result.State,
 	}
+
+	if !jsonOut {
+		writeKV(stdout, []kv{
+			{Key: "found", Value: strconv.FormatBool(out.Found)},
+			{Key: "number", Value: strconv.Itoa(out.Number), Omit: out.Number == 0},
+			{Key: "title", Value: out.Title, Omit: out.Title == ""},
+			{Key: "url", Value: out.URL, Omit: out.URL == ""},
+			{Key: "head", Value: out.Head, Omit: out.Head == ""},
+			{Key: "base", Value: out.Base, Omit: out.Base == ""},
+			{Key: "state", Value: out.State, Omit: out.State == ""},
+		})
+		return nil
+	}
+
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(out)
@@ -333,9 +358,9 @@ func newPRBaseCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	return cmd
 }
 
-// runPRBase resolves the PR base branch and encodes the result as JSON. jsonOut
-// is threaded through for the --json flag; plain-text-by-default output is
-// added in a later phase, so output is unconditionally JSON today. runner is
+// runPRBase resolves the PR base branch and prints it. jsonOut selects JSON
+// output (--json); by default, the single field collapses to a bare value
+// with no label, matching the board status/config get precedent. runner is
 // unused today — pr.Base is pure string logic with no gh/git calls — but is
 // threaded through for consistency with the other three Component 4
 // extractions (board list, pr find, issue list).
@@ -344,6 +369,12 @@ func runPRBase(stdout, stderr io.Writer, branch string, jsonOut bool, runner exe
 	if err != nil {
 		return err // already CLIError{Code:1}
 	}
+
+	if !jsonOut {
+		fmt.Fprintln(stdout, base)
+		return nil
+	}
+
 	out := prBaseOutput{Base: base}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
@@ -471,7 +502,7 @@ func newIssueListCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comman
 
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List issues as JSON, with optional label, title-prefix, and state filters",
+		Short: "List issues as plain text (--json for JSON), with optional label, title-prefix, and state filters",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
@@ -489,9 +520,10 @@ func newIssueListCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comman
 	return cmd
 }
 
-// runIssueList lists issues, encoding them as JSON. jsonOut is threaded
-// through for the --json flag; plain-text-by-default output is added in a
-// later phase, so output is unconditionally JSON today.
+// runIssueList lists issues. jsonOut selects JSON output (--json); by
+// default, output is pipe-delimited plain text with no header row:
+// "<number> | <state> | <labels-comma-joined> | <title>", one line per
+// issue, title last (safe against a literal "|" in a title).
 func runIssueList(stdout, stderr io.Writer, cfg *config.Config, labelFilter, titlePrefix, state string, limit int, jsonOut bool, runner exec.Runner) error {
 	items, err := issue.List(context.Background(), runner, cfg, labelFilter, titlePrefix, state, limit)
 	if err != nil {
@@ -500,6 +532,14 @@ func runIssueList(stdout, stderr io.Writer, cfg *config.Config, labelFilter, tit
 	if items == nil {
 		items = []issue.Item{}
 	}
+
+	if !jsonOut {
+		for _, item := range items {
+			fmt.Fprintf(stdout, "%d | %s | %s | %s\n", item.Number, item.State, strings.Join(item.Labels, ","), item.Title)
+		}
+		return nil
+	}
+
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(items)

@@ -25,6 +25,7 @@ management, name derivation, config access, and plan-template rendering.`,
 		SilenceErrors: true,
 	}
 
+	root.SetIn(stdin)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 

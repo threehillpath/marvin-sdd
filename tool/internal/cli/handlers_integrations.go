@@ -15,6 +15,7 @@ import (
 	"threehillpath.com/claude-plan-workflow/tool/internal/config"
 	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
 	"threehillpath.com/claude-plan-workflow/tool/internal/findings"
+	"threehillpath.com/claude-plan-workflow/tool/internal/gh"
 	"threehillpath.com/claude-plan-workflow/tool/internal/issue"
 	"threehillpath.com/claude-plan-workflow/tool/internal/label"
 	"threehillpath.com/claude-plan-workflow/tool/internal/pr"
@@ -492,6 +493,8 @@ func newIssueCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 		Short: "Read GitHub issues",
 	}
 	issueCmd.AddCommand(newIssueListCmd(stdout, stderr, runner))
+	issueCmd.AddCommand(newIssueTreeCmd(stdout, stderr, runner))
+	issueCmd.AddCommand(newIssueLinkParentCmd(stdout, stderr, runner))
 	return issueCmd
 }
 
@@ -543,4 +546,99 @@ func runIssueList(stdout, stderr io.Writer, cfg *config.Config, labelFilter, tit
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(items)
+}
+
+func newIssueTreeCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
+	var jsonOut bool
+
+	cmd := &cobra.Command{
+		Use:   "tree <issue-number>",
+		Short: "Resolve the full arch/impl/phase hierarchy for a plan issue via GitHub sub-issue links",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			n, err := strconv.Atoi(args[0])
+			if err != nil {
+				return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", args[0], err)}
+			}
+			return runIssueTree(stdout, stderr, cfg, n, jsonOut, runner)
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Output JSON instead of plain text")
+	return cmd
+}
+
+// runIssueTree resolves and prints the plan hierarchy for an issue. jsonOut
+// selects JSON output (--json); by default, output is pipe-delimited plain
+// text with no header row: "<kind> | #<number> | <state> | <status> |
+// <title>", one line per node, title last (safe against a literal "|" in a
+// title). Output is empty only when the target issue is not a plan issue at
+// all — a plan issue with no sub-issue links still emits its own single node.
+func runIssueTree(stdout, stderr io.Writer, cfg *config.Config, number int, jsonOut bool, runner exec.Runner) error {
+	nodes, err := issue.Tree(context.Background(), runner, cfg, cfg.Repo, number)
+	if err != nil {
+		return &CLIError{Code: 1, Msg: err.Error()}
+	}
+	if nodes == nil {
+		nodes = []issue.Node{}
+	}
+
+	if !jsonOut {
+		for _, n := range nodes {
+			fmt.Fprintf(stdout, "%s | #%d | %s | %s | %s\n", n.Kind, n.Number, n.State, n.Status, n.Title)
+		}
+		return nil
+	}
+
+	enc := json.NewEncoder(stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(nodes)
+}
+
+func newIssueLinkParentCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
+	return &cobra.Command{
+		Use:   "link-parent <child-issue-number> <parent-issue-number>",
+		Short: "Set a GitHub-native sub-issue link between two issues",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			childNum, err := strconv.Atoi(args[0])
+			if err != nil {
+				return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid child issue number %q: %v", args[0], err)}
+			}
+			parentNum, err := strconv.Atoi(args[1])
+			if err != nil {
+				return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid parent issue number %q: %v", args[1], err)}
+			}
+			return runIssueLinkParent(cfg, childNum, parentNum, runner)
+		},
+	}
+}
+
+// runIssueLinkParent resolves both issue numbers to GraphQL node IDs (child
+// first, then parent) and links them as a native GitHub sub-issue
+// relationship. Silent on success (no stdout), matching board move / label
+// ensure's convention; non-zero exit with a stderr message on failure.
+func runIssueLinkParent(cfg *config.Config, childNum, parentNum int, runner exec.Runner) error {
+	ctx := context.Background()
+	client := gh.New(runner)
+
+	_, childNodeID, err := client.IssueRef(ctx, cfg.Repo, childNum)
+	if err != nil {
+		return &CLIError{Code: 1, Msg: fmt.Sprintf("resolving child issue #%d: %v", childNum, err)}
+	}
+	_, parentNodeID, err := client.IssueRef(ctx, cfg.Repo, parentNum)
+	if err != nil {
+		return &CLIError{Code: 1, Msg: fmt.Sprintf("resolving parent issue #%d: %v", parentNum, err)}
+	}
+	if err := client.AddSubIssue(ctx, parentNodeID, childNodeID); err != nil {
+		return &CLIError{Code: 1, Msg: fmt.Sprintf("linking #%d as sub-issue of #%d: %v", childNum, parentNum, err)}
+	}
+	return nil
 }

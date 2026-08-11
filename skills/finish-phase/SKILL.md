@@ -54,7 +54,7 @@ marvin pr base "$(git branch --show-current)"
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 If `marvin` exits with code 1 (branch does not match a known pattern), ask the user which branch to target before proceeding.
 
-Read the `base` field from the JSON output to use as the PR target.
+The output is a bare value with no key (matching `board status`/`config get`'s convention) — read it directly as the PR target.
 
 ### 4. Confirm before committing
 

@@ -38,7 +38,7 @@ Parse the plan identifier and phase number from the phase issue title (fetched i
 marvin parse title "<phase issue title>"
 ```
 
-Read the `plan` integer field (e.g. `2`) and `phase` integer field (e.g. `3`).
+Read the `plan:` line (e.g. `2`) and `phase:` line (e.g. `3`) from the output.
 
 Resolve `<type>`: check the impl plan issue's labels (fetched in step 1) for `bug` or `enhancement` — per `../SHARED/LABELS.md`, the impl plan issue carries forward the source issue's type label. If `bug` is present, `<type>` is `bug`; otherwise (including when neither label is present) `<type>` is `feature`.
 
@@ -50,7 +50,7 @@ marvin names derive <plan> --type <type> --phase <phase>
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Read the JSON output to obtain `main_branch`, `phase_branch`, and `worktree_path`. Verify the trunk branch exists on the remote:
+Read the `main_branch:`, `phase_branch:`, and `worktree_path:` lines from the output. Verify the trunk branch exists on the remote:
 
 ```bash
 git ls-remote --heads origin <main_branch>

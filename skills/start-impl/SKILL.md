@@ -50,7 +50,7 @@ Parse the plan identifier from the impl plan title (fetched in step 1):
 marvin parse title "<impl plan title>"
 ```
 
-Read the `plan` integer field (e.g. `2`).
+Read the `plan:` line (e.g. `2`) from the output.
 
 Resolve `<type>`: check the labels fetched in step 1 for `bug` or `enhancement` — per `../SHARED/LABELS.md`, the impl plan issue carries forward the source issue's type label. If `bug` is present, `<type>` is `bug`; otherwise (including when neither label is present) `<type>` is `feature`.
 
@@ -62,7 +62,7 @@ marvin names derive <plan> --type <type>
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Read the JSON output to obtain `main_branch` and the title prefix values. Phase branches follow the pattern `<type>/PLAN-XXXXX/phase-N` as documented in `../SHARED/GLOSSARY.md`.
+Read the `main_branch:` and `title_prefix_*:` lines from the output. Phase branches follow the pattern `<type>/PLAN-XXXXX/phase-N` as documented in `../SHARED/GLOSSARY.md`.
 
 ### 3. Present summary for confirmation
 

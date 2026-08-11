@@ -28,7 +28,7 @@ Extract PLAN-XXXXX from the title using:
 marvin parse title "<issue title>"
 ```
 
-Read the `plan_number` field from the JSON output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps.
+Read the `plan_number:` line from the output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps.
 
 Verify all phases for this plan are merged:
 
@@ -54,7 +54,7 @@ Locate the open impl PR:
 marvin pr find "[PLAN-XXXXX]" --state open
 ```
 
-The JSON output includes `found`, `number`, `url`, `head`, `base`, and `state`. If `found` is `false`, stop: "No open impl PR found — run `/finish-impl $0` first." If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first." Capture the PR number and read the trunk branch directly from the `head` field (call it `<main_branch>`) — no need to reconstruct it, since the PR already exists and carries its real branch name; the base is `main` (also available as the `base` field).
+The output includes `found:`, `number:`, `url:`, `head:`, `base:`, and `state:` lines. If `found` is `false`, stop: "No open impl PR found — run `/finish-impl $0` first." If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first." Capture the PR number and read the trunk branch directly from the `head:` line (call it `<main_branch>`) — no need to reconstruct it, since the PR already exists and carries its real branch name; the base is `main` (also available as the `base:` line).
 
 Confirm the local impl branch is current:
 

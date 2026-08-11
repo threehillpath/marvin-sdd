@@ -28,7 +28,7 @@ Extract PLAN-XXXXX from the title:
 marvin parse title "<issue title>"
 ```
 
-Read the `plan_number` field from the JSON output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps.
+Read the `plan_number:` line from the output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps.
 
 Extract the phase list from the "Phases created:" comment in the issue's comments:
 
@@ -36,7 +36,7 @@ Extract the phase list from the "Phases created:" comment in the issue's comment
 echo "<phases-created-comment-body>" | marvin parse phase-list
 ```
 
-This emits a JSON object `{"found": bool, "issues": [int, ...]}` — read the `issues` field for the phase issue numbers.
+This emits `found: true|false` followed by `issues: <comma-joined-numbers>` (or `issues: (none)`) — read the `issues:` line for the phase issue numbers.
 
 ### 2. Verify branch state
 

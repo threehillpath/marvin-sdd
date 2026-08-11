@@ -59,6 +59,8 @@ marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX-" --state all
 
 Note the trailing hyphen and **no closing bracket** — this is a true string-prefix match against phase titles like `[PLAN-XXXXX-1] ...`, unlike the closing-bracket form. This returns one pipe-delimited line per issue — `<number> | <state> | <labels-comma-joined> | <title>`.
 
+For a multi-impl track (`[PLAN-XXXXX-A]`, `[PLAN-XXXXX-B]` — see `../SHARED/GLOSSARY.md`), apply the same rule one level deeper and use `--title-prefix "[PLAN-XXXXX-<suffix>-"` (e.g. `"[PLAN-00042-A-"`), so the fallback does not also match the sibling track's phases.
+
 If any phase issues are found by either method, show the existing phases and stop: "Phase issues already exist for [PLAN-XXXXX]. Run `/move-issue <issue-number> in-progress` to start one, or delete the existing phase issues manually before re-splitting."
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
@@ -106,7 +108,7 @@ If `marvin` exits with code 2, surface to the user: "Configuration missing — r
 
 Capture each issue number as you go.
 
-### 4. Link phases to impl plan
+### 4. Post the phases-created comment
 
 `gh issue comment --body` does not interpret backslash escapes, so use a HEREDOC to get real newlines:
 

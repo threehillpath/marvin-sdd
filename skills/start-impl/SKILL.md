@@ -22,13 +22,23 @@ Summarize what is about to be built, confirm phase readiness, and create the imp
 gh issue view $0 --repo <repo> --json number,title,body,comments,labels
 ```
 
-Extract the PLAN-XXXXX number from the title. Then fetch all phase issues for this plan in one call:
+Extract the PLAN-XXXXX number from the title. Then fetch the phase hierarchy for this plan:
 
 ```bash
-marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX]"
+marvin issue tree $0
 ```
 
-This returns a JSON array of `{number, title, state, labels}`. All items should have `state == "OPEN"`. If any phase is not open, surface the list to the user and ask whether to proceed.
+This returns one pipe-delimited line per node — `<kind> | #<number> | <state> | <status> | <title>` — with `kind` one of `arch`, `impl`, `phase`. Filter for lines where `kind` is `phase`. If zero `phase` lines are found (not the same as an empty result — `issue tree` always emits the target's own node), this plan predates sub-issue linking; fall back to:
+
+```bash
+marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX-" --state all
+```
+
+Note the trailing hyphen and **no closing bracket** — this is a true string-prefix match against phase titles like `[PLAN-XXXXX-1] ...`, unlike the closing-bracket form. This returns one pipe-delimited line per issue — `<number> | <state> | <labels-comma-joined> | <title>`.
+
+For a multi-impl track (`[PLAN-XXXXX-A]`, `[PLAN-XXXXX-B]` — see `../SHARED/GLOSSARY.md`), apply the same rule one level deeper and use `--title-prefix "[PLAN-XXXXX-<suffix>-"` (e.g. `"[PLAN-00042-A-"`), so the fallback does not also match the sibling track's phases.
+
+All phases should have `state == OPEN`. If any phase is not open, surface the list to the user and ask whether to proceed.
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 

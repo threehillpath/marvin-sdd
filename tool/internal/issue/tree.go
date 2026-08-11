@@ -81,7 +81,11 @@ func Tree(ctx context.Context, runner exec.Runner, cfg *config.Config, repo stri
 	}
 
 	// Walk upward to the arch-plan root, stopping at the first parent whose
-	// title does not parse as a plan ident (or when there is no parent).
+	// title does not parse as a plan ident, when there is no parent, or when
+	// a parent repeats one already visited (defends against a cyclic or
+	// self-referential parent chain in the remote data; GitHub's sub-issue
+	// API rejects cycles today, so this is a defensive bound, not a live case).
+	visited := map[int]bool{targetRef.Number: true}
 	rootRef := targetRef
 	cur := targetRef
 	for {
@@ -95,6 +99,10 @@ func Tree(ctx context.Context, runner exec.Runner, cfg *config.Config, repo stri
 		if _, ok := parse.PlanIdent(parentRef.Title); !ok {
 			break
 		}
+		if visited[parentRef.Number] {
+			break
+		}
+		visited[parentRef.Number] = true
 		rootRef = parentRef
 		cur = parentRef
 	}
@@ -112,6 +120,7 @@ func Tree(ctx context.Context, runner exec.Runner, cfg *config.Config, repo stri
 			Number: ref.Number,
 			Title:  ref.Title,
 			State:  ref.State,
+			Status: board.NotOnBoard,
 		})
 	}
 
@@ -130,12 +139,18 @@ func Tree(ctx context.Context, runner exec.Runner, cfg *config.Config, repo stri
 		targetIsRoot := rootRef.Number == targetRef.Number
 		var retained []gh.SubIssueRef
 		for _, child := range children {
+			childIdent, ok := parse.PlanIdent(child.Title)
+			if !ok {
+				// Not a plan issue (e.g. a stray issue manually linked under
+				// the arch plan) — the spec says "descend into every impl
+				// child", which presupposes the child IS an impl plan.
+				continue
+			}
 			if targetIsRoot {
 				retained = append(retained, child)
 				continue
 			}
-			childIdent, ok := parse.PlanIdent(child.Title)
-			if ok && childIdent.Plan == targetIdent.Plan && childIdent.Suffix == targetIdent.Suffix {
+			if childIdent.Plan == targetIdent.Plan && childIdent.Suffix == targetIdent.Suffix {
 				retained = append(retained, child)
 			}
 		}
@@ -153,9 +168,16 @@ func Tree(ctx context.Context, runner exec.Runner, cfg *config.Config, repo stri
 	} else {
 		// rootRef is not an arch plan (an isolated impl/phase root): its
 		// SubIssues are leaf phase nodes directly, no further recursion.
-		sorted := append([]gh.SubIssueRef(nil), children...)
-		sort.Slice(sorted, func(i, j int) bool { return sorted[i].Number < sorted[j].Number })
-		for _, p := range sorted {
+		// Non-plan children (a stray issue manually linked under the impl
+		// plan) are skipped, matching the arch-branch filtering above.
+		var validChildren []gh.SubIssueRef
+		for _, child := range children {
+			if _, ok := parse.PlanIdent(child.Title); ok {
+				validChildren = append(validChildren, child)
+			}
+		}
+		sort.Slice(validChildren, func(i, j int) bool { return validChildren[i].Number < validChildren[j].Number })
+		for _, p := range validChildren {
 			add(p)
 		}
 	}

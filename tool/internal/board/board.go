@@ -89,8 +89,11 @@ func List(ctx context.Context, runner exec.Runner, cfg *config.Config, status st
 	return result, nil
 }
 
+// NotOnBoard is the sentinel status for an issue absent from the project board.
+const NotOnBoard = "not-on-board"
+
 // Status returns the current board status for a single issue number.
-// Returns "not-on-board" if the issue is not present on the project board.
+// Returns NotOnBoard if the issue is not present on the project board.
 func Status(ctx context.Context, runner exec.Runner, cfg *config.Config, issueNumber int) (string, error) {
 	items, err := List(ctx, runner, cfg, "", 0)
 	if err != nil {
@@ -101,7 +104,7 @@ func Status(ctx context.Context, runner exec.Runner, cfg *config.Config, issueNu
 			return item.Status, nil
 		}
 	}
-	return "not-on-board", nil
+	return NotOnBoard, nil
 }
 
 // Move sets an issue's board status and syncs its GitHub open/closed state:

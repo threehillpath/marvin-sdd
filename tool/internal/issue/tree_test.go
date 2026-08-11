@@ -159,3 +159,81 @@ func TestTreeMultiImplScoping(t *testing.T) {
 		t.Errorf("expected 4 nodes (arch, implB, 2 phases), got %d: %v", len(nodes), nodes)
 	}
 }
+
+// TestTreeArchRootFansOutToAllImpls exercises the other half of the scoping
+// rule that TestTreeMultiImplScoping does not reach: when target IS the arch
+// root itself (targetIsRoot == true in Tree), every impl child is kept and
+// walked for its phases — not just one track. Also asserts the arch node's
+// own Kind is "arch", which no other test checks.
+func TestTreeArchRootFansOutToAllImpls(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+
+	archTitle := "[PLAN-00057-ARCH] Multi-impl arch plan"
+	implATitle := "[PLAN-00057-A] Track A impl plan"
+	implBTitle := "[PLAN-00057-B] Track B impl plan"
+	phaseA1Title := "[PLAN-00057-A-1] Track A phase 1"
+	phaseB1Title := "[PLAN-00057-B-1] Track B phase 1"
+
+	// 1) IssueRef(target=57, the arch plan itself)
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(issueRefResponse("ID_57", 57, archTitle, "OPEN"))})
+	// 2) ParentIssue(57): internal IssueRef(57)
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(issueRefResponse("ID_57", 57, archTitle, "OPEN"))})
+	// 2) ParentIssue(57): graphql parent query -> no parent (arch is already the root)
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"data":{"node":{"parent":null}}}`)})
+	// 3) SubIssues(archRoot=57): internal IssueRef(57)
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(issueRefResponse("ID_57", 57, archTitle, "OPEN"))})
+	// 3) SubIssues(57): graphql subIssues query -> both impl children, A and B.
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(
+		`{"data":{"node":{"subIssues":{"nodes":[` +
+			`{"number":60,"title":"` + implATitle + `","state":"OPEN"},` +
+			`{"number":58,"title":"` + implBTitle + `","state":"OPEN"}` +
+			`]}}}}`,
+	)})
+	// 4) SubIssues(implA=60): internal IssueRef(60)
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(issueRefResponse("ID_60", 60, implATitle, "OPEN"))})
+	// 4) SubIssues(60): graphql subIssues query -> track A's phase
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(
+		`{"data":{"node":{"subIssues":{"nodes":[{"number":63,"title":"` + phaseA1Title + `","state":"OPEN"}]}}}}`,
+	)})
+	// 4) SubIssues(implB=58): internal IssueRef(58)
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(issueRefResponse("ID_58", 58, implBTitle, "OPEN"))})
+	// 4) SubIssues(58): graphql subIssues query -> track B's phase
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(
+		`{"data":{"node":{"subIssues":{"nodes":[{"number":61,"title":"` + phaseB1Title + `","state":"OPEN"}]}}}}`,
+	)})
+	// 5) board.List
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"items":[]}`)})
+
+	cfg := buildConfig()
+
+	nodes, err := issue.Tree(context.Background(), fake, cfg, cfg.Repo, 57)
+	if err != nil {
+		t.Fatalf("Tree returned error: %v", err)
+	}
+
+	numbers := map[int]bool{}
+	kinds := map[int]string{}
+	for _, n := range nodes {
+		numbers[n.Number] = true
+		kinds[n.Number] = n.Kind
+	}
+
+	// Both tracks must be present: the arch node, both impl children, and both phases.
+	for _, want := range []int{57, 60, 58, 63, 61} {
+		if !numbers[want] {
+			t.Errorf("expected node #%d in result, got nodes: %v", want, nodes)
+		}
+	}
+	if len(nodes) != 5 { // arch(57) + implA(60) + implB(58) + phaseA1(63) + phaseB1(61)
+		t.Errorf("expected 5 nodes (arch, 2 impls, 2 phases), got %d: %v", len(nodes), nodes)
+	}
+	if kinds[57] != "arch" {
+		t.Errorf("expected node #57's Kind to be \"arch\", got %q", kinds[57])
+	}
+	if kinds[60] != "impl" || kinds[58] != "impl" {
+		t.Errorf("expected #60 and #58's Kind to be \"impl\", got #60=%q #58=%q", kinds[60], kinds[58])
+	}
+	if kinds[63] != "phase" || kinds[61] != "phase" {
+		t.Errorf("expected #63 and #61's Kind to be \"phase\", got #63=%q #61=%q", kinds[63], kinds[61])
+	}
+}

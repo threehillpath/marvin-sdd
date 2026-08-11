@@ -40,7 +40,7 @@ func TestIssueTreePlainText(t *testing.T) {
 		t.Fatalf("issue tree returned error: %v\nstderr: %s", err, stderr.String())
 	}
 
-	want := "impl | #57 | OPEN |  | " + implTitle + "\n" +
+	want := "impl | #57 | OPEN | not-on-board | " + implTitle + "\n" +
 		"phase | #62 | OPEN | In Progress | [PLAN-00041-5] Phase 5\n"
 	if stdout.String() != want {
 		t.Errorf("plain-text output mismatch\ngot:\n%s\nwant:\n%s", stdout.String(), want)
@@ -80,7 +80,7 @@ func TestIssueTreeJSON(t *testing.T) {
     "number": 50,
     "title": "[PLAN-00050] Solo plan",
     "state": "OPEN",
-    "status": ""
+    "status": "not-on-board"
   }
 ]
 `

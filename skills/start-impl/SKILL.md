@@ -62,7 +62,7 @@ marvin names derive <plan> --type <type>
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Read the `main_branch:` and `title_prefix_*:` lines from the output. Phase branches follow the pattern `<type>/PLAN-XXXXX/phase-N` as documented in `../SHARED/GLOSSARY.md`.
+Read the `main_branch:`, `title_prefix_arch:`, and `title_prefix_impl:` lines from the output (`title_prefix_phase:` is emitted only when `--phase` is passed, which this call does not). Phase branches follow the pattern `<type>/PLAN-XXXXX/phase-N` as documented in `../SHARED/GLOSSARY.md`.
 
 ### 3. Present summary for confirmation
 

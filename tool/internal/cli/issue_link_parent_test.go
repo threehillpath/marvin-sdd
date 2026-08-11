@@ -55,6 +55,42 @@ func TestIssueLinkParentCallSequence(t *testing.T) {
 	}
 }
 
+// TestIssueLinkParentFailsOnGraphQLError verifies the failure path: a
+// non-zero-exit GraphQL response (the addSubIssue mutation) surfaces as exit
+// code 1 with the GraphQL error message on stderr, and no stdout — the spec
+// requires "non-zero exit + stderr message on failure", which
+// TestIssueLinkParentCallSequence's success-only assertion does not cover.
+func TestIssueLinkParentFailsOnGraphQLError(t *testing.T) {
+	withConfigFixture(t)
+
+	fake := &exectest.FakeRunner{}
+	// 1) IssueRef(child=58)
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"id":"ID_58","number":58,"title":"[PLAN-00041-5] Phase 5","state":"OPEN"}`)})
+	// 2) IssueRef(parent=57)
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"id":"ID_57","number":57,"title":"[PLAN-00041] Impl plan","state":"OPEN"}`)})
+	// 3) gh api graphql (addSubIssue mutation) -- non-zero exit with a GraphQL errors envelope
+	fake.Enqueue(exectest.FakeResponse{
+		Stdout:   []byte(`{"data":null,"errors":[{"message":"boom"}]}`),
+		ExitCode: 1,
+	})
+
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, fake)
+	root.SetArgs([]string{"issue", "link-parent", "58", "57"})
+
+	code := cli.RunWithStreams(&stdout, &stderr, root.Execute)
+
+	if code != 1 {
+		t.Errorf("expected exit code 1, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), "boom") {
+		t.Errorf("expected stderr to contain %q, got %q", "boom", stderr.String())
+	}
+	if stdout.String() != "" {
+		t.Errorf("expected no stdout, got: %q", stdout.String())
+	}
+}
+
 func containsArg(args []string, want string) bool {
 	for _, a := range args {
 		if a == want {

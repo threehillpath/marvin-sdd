@@ -108,6 +108,14 @@ gh issue comment $0 --repo <repo> \
   --body "Implementation plan created: #<new-issue> ([PLAN-XXXXX])"
 ```
 
+Also set a real GitHub-native sub-issue link so `marvin issue tree` can resolve this plan's hierarchy without relying on title matching:
+
+```bash
+marvin issue link-parent <new-issue> $0
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+
 ### 7. Add to board as Ready
 
 ```bash

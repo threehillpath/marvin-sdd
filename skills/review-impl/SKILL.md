@@ -30,13 +30,21 @@ marvin parse title "<issue title>"
 
 Read the `plan_number` field from the JSON output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps.
 
-Verify all phases for this plan are merged with a single call:
+Verify all phases for this plan are merged:
 
 ```bash
-marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX]" --state all
+marvin issue tree $0
 ```
 
-If any item in the returned array has `state != "CLOSED"`, list the still-open phases and ask the user whether to proceed anyway. If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+This returns one pipe-delimited line per node — `<kind> | #<number> | <state> | <status> | <title>` — with `kind` one of `arch`, `impl`, `phase`. Filter for lines where `kind` is `phase`. If zero `phase` lines are found (not the same as an empty result — `issue tree` always emits the target's own node), this plan predates sub-issue linking; fall back to:
+
+```bash
+marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX-" --state all
+```
+
+Note the trailing hyphen and **no closing bracket** — this is a true string-prefix match against phase titles like `[PLAN-XXXXX-1] ...`, unlike the closing-bracket form. This returns one pipe-delimited line per issue — `<number> | <state> | <labels-comma-joined> | <title>`.
+
+If any phase has `state != CLOSED`, list the still-open phases and ask the user whether to proceed anyway. If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 Locate the open impl PR:
 

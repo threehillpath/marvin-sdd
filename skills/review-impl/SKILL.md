@@ -28,15 +28,25 @@ Extract PLAN-XXXXX from the title using:
 marvin parse title "<issue title>"
 ```
 
-Read the `plan_number` field from the JSON output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps.
+Read the `plan_number:` line from the output (e.g. `plan-00042`) and use it as `<plan>` in subsequent steps.
 
-Verify all phases for this plan are merged with a single call:
+Verify all phases for this plan are merged:
 
 ```bash
-marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX]" --state all
+marvin issue tree $0
 ```
 
-If any item in the returned array has `state != "CLOSED"`, list the still-open phases and ask the user whether to proceed anyway. If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+This returns one pipe-delimited line per node — `<kind> | #<number> | <state> | <status> | <title>` — with `kind` one of `arch`, `impl`, `phase`. Filter for lines where `kind` is `phase`. If zero `phase` lines are found (not the same as an empty result — `issue tree` always emits the target's own node), this plan predates sub-issue linking; fall back to:
+
+```bash
+marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX-" --state all
+```
+
+Note the trailing hyphen and **no closing bracket** — this is a true string-prefix match against phase titles like `[PLAN-XXXXX-1] ...`, unlike the closing-bracket form. This returns one pipe-delimited line per issue — `<number> | <state> | <labels-comma-joined> | <title>`.
+
+For a multi-impl track (`[PLAN-XXXXX-A]`, `[PLAN-XXXXX-B]` — see `../SHARED/GLOSSARY.md`), apply the same rule one level deeper and use `--title-prefix "[PLAN-XXXXX-<suffix>-"` (e.g. `"[PLAN-00042-A-"`), so the fallback does not also match the sibling track's phases.
+
+If any phase has `state != CLOSED`, list the still-open phases and ask the user whether to proceed anyway. If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 Locate the open impl PR:
 
@@ -44,7 +54,7 @@ Locate the open impl PR:
 marvin pr find "[PLAN-XXXXX]" --state open
 ```
 
-The JSON output includes `found`, `number`, `url`, `head`, `base`, and `state`. If `found` is `false`, stop: "No open impl PR found — run `/finish-impl $0` first." If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first." Capture the PR number and read the trunk branch directly from the `head` field (call it `<main_branch>`) — no need to reconstruct it, since the PR already exists and carries its real branch name; the base is `main` (also available as the `base` field).
+The output includes `found:`, `number:`, `url:`, `head:`, `base:`, and `state:` lines. If `found` is `false`, stop: "No open impl PR found — run `/finish-impl $0` first." If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first." Capture the PR number and read the trunk branch directly from the `head:` line (call it `<main_branch>`) — no need to reconstruct it, since the PR already exists and carries its real branch name; the base is `main` (also available as the `base:` line).
 
 Confirm the local impl branch is current:
 

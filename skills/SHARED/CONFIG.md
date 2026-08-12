@@ -90,7 +90,8 @@ subcommands rather than constructing raw `gh project` or `gh issue list` invocat
 ### Reading board state
 
 ```bash
-# All items currently on the board (JSON array of {number, title, status, url})
+# All items currently on the board — plain text, one line per item:
+# <number> | <status> | <title>
 marvin board list
 
 # Items filtered by status — accepts any form: "in_progress", "in-progress", "In Progress"
@@ -101,21 +102,42 @@ marvin board list --status in_review
 marvin board status <issue-number>
 ```
 
+`--json` is available as an opt-in escape hatch and reproduces the old shape (a JSON array of `{number, title, status, url}`), e.g. `marvin board list --json`.
+
 ### Listing issues
 
 ```bash
-# All open issues with a given label
+# All open issues with a given label — plain text, one line per issue:
+# <number> | <state> | <labels-comma-joined> | <title>
 marvin issue list --label "plan:phase"
+```
 
-# All issues (open and closed) for a specific plan, filtered by title prefix
-marvin issue list --label "plan:phase" --title-prefix "[PLAN-00042]" --state all
+To resolve a plan's full arch/impl/phase hierarchy — and in particular to find its phase issues — prefer the hierarchy walk over title-prefix filtering:
 
-# Check phase completion: items with state != "CLOSED" in the result are not done
-marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX]" --state all \
+```bash
+marvin issue tree <plan-issue-number>
+```
+
+(`<plan-issue-number>` can be the arch, impl, or phase issue — any node of the plan resolves the whole tree.)
+
+This returns one pipe-delimited line per node — `<kind> | #<number> | <state> | <status> | <title>` — with `kind` one of `arch`, `impl`, `phase`. Filter for lines where `kind` is `phase`. If zero `phase` lines are found (not the same as an empty result — `issue tree` always emits the target's own node), the plan predates sub-issue linking; fall back to:
+
+```bash
+marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX-" --state all
+```
+
+Note the trailing hyphen and **no closing bracket** — this is a true string-prefix match against phase titles like `[PLAN-XXXXX-1] ...`, unlike the closing-bracket form. For a multi-impl track (`[PLAN-XXXXX-A]`, `[PLAN-XXXXX-B]` — see `GLOSSARY.md`), apply the same rule one level deeper and use `--title-prefix "[PLAN-XXXXX-<suffix>-"` (e.g. `"[PLAN-00042-A-"`), so the fallback does not also match the sibling track's phases.
+
+For linked plans, read the `<state>` column of `marvin issue tree`'s `phase` lines directly — no `--json` or `jq` needed. The recipe below is the fallback path only (unlinked legacy plans):
+
+```bash
+# Fallback path only (unlinked legacy plans) — check phase completion via --json for jq post-processing:
+# items with state != "CLOSED" are not done
+marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX-" --state all --json \
   | jq '[.[] | select(.state != "CLOSED")]'
 ```
 
-`marvin issue list` always exits 0 and outputs a JSON array (empty array `[]` when no results).
+`marvin issue list` exits 0 with empty output when nothing matches (no results is not an error); it exits 1 on API failure and 2 on missing config. Pass `--json` for a JSON array (empty array `[]` when no results).
 
 ### Moving issues on the board
 

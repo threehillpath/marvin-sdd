@@ -3,9 +3,11 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"threehillpath.com/claude-plan-workflow/tool/internal/cli"
+	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
 )
 
 // TestNamesDeriveType verifies that 'marvin names derive <issue> --type bug --phase N'
@@ -13,8 +15,8 @@ import (
 // the resolved type field.
 func TestNamesDeriveType(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	root := cli.NewRootCmd(&stdout, &stderr)
-	root.SetArgs([]string{"names", "derive", "42", "--type", "bug", "--phase", "3", "--worktree-base", ".worktrees"})
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"names", "derive", "42", "--type", "bug", "--phase", "3", "--worktree-base", ".worktrees", "--json"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("names derive returned error: %v\nstderr: %s", err, stderr.String())
@@ -43,8 +45,8 @@ func TestNamesDeriveType(t *testing.T) {
 // TestNamesDeriveDefaultType verifies that omitting --type defaults to "feature".
 func TestNamesDeriveDefaultType(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	root := cli.NewRootCmd(&stdout, &stderr)
-	root.SetArgs([]string{"names", "derive", "42"})
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"names", "derive", "42", "--json"})
 
 	if err := root.Execute(); err != nil {
 		t.Fatalf("names derive returned error: %v\nstderr: %s", err, stderr.String())
@@ -65,11 +67,91 @@ func TestNamesDeriveDefaultType(t *testing.T) {
 	}
 }
 
+// TestNamesDeriveDefaultPlainText is this phase's TDD entry point: `names derive`
+// without --json must print one key:value line per populated field, in
+// struct-field order, with the nested title_prefix flattened to three lines.
+func TestNamesDeriveDefaultPlainText(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"names", "derive", "42", "--type", "bug", "--phase", "3", "--worktree-base", ".worktrees"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("names derive returned error: %v\nstderr: %s", err, stderr.String())
+	}
+
+	want := "plan_number: plan-00042\n" +
+		"type: bug\n" +
+		"main_branch: bug/PLAN-00042/main\n" +
+		"phase_branch: bug/PLAN-00042/phase-3\n" +
+		"worktree_path: .worktrees/phase-00042-3\n" +
+		"title_prefix_arch: [PLAN-00042-ARCH]\n" +
+		"title_prefix_impl: [PLAN-00042]\n" +
+		"title_prefix_phase: [PLAN-00042-3]\n"
+
+	if stdout.String() != want {
+		t.Errorf("plain-text output mismatch\ngot:\n%s\nwant:\n%s", stdout.String(), want)
+	}
+}
+
+// TestNamesDeriveNoPhasePlainText verifies the plain-text omission path for
+// the invocation with no --phase: phase_branch, worktree_path, and
+// title_prefix_phase must all be absent (not printed as empty values), which
+// is the form impl-plan/start-impl call.
+func TestNamesDeriveNoPhasePlainText(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"names", "derive", "42"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("names derive returned error: %v\nstderr: %s", err, stderr.String())
+	}
+
+	want := "plan_number: plan-00042\n" +
+		"type: feature\n" +
+		"main_branch: feature/PLAN-00042/main\n" +
+		"title_prefix_arch: [PLAN-00042-ARCH]\n" +
+		"title_prefix_impl: [PLAN-00042]\n"
+
+	if stdout.String() != want {
+		t.Errorf("plain-text output mismatch\ngot:\n%s\nwant:\n%s", stdout.String(), want)
+	}
+}
+
+// TestNamesDeriveJSONUnchanged verifies that --json for the same input as
+// TestNamesDeriveDefaultPlainText reproduces the exact pre-Component-5 JSON
+// shape, byte-identical, unaffected by the new plain-text default.
+func TestNamesDeriveJSONUnchanged(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"names", "derive", "42", "--type", "bug", "--phase", "3", "--worktree-base", ".worktrees", "--json"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("names derive --json returned error: %v\nstderr: %s", err, stderr.String())
+	}
+
+	want := `{
+  "plan_number": "plan-00042",
+  "type": "bug",
+  "main_branch": "bug/PLAN-00042/main",
+  "phase_branch": "bug/PLAN-00042/phase-3",
+  "worktree_path": ".worktrees/phase-00042-3",
+  "title_prefix": {
+    "arch": "[PLAN-00042-ARCH]",
+    "impl": "[PLAN-00042]",
+    "phase": "[PLAN-00042-3]"
+  }
+}
+`
+	if stdout.String() != want {
+		t.Errorf("--json output mismatch\ngot:\n%s\nwant:\n%s", stdout.String(), want)
+	}
+}
+
 // TestNamesDeriveInvalidType verifies that an invalid --type value exits 1
 // with a clear error message.
 func TestNamesDeriveInvalidType(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	root := cli.NewRootCmd(&stdout, &stderr)
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
 	root.SetArgs([]string{"names", "derive", "42", "--type", "bogus"})
 
 	err := root.Execute()

@@ -34,7 +34,7 @@ Extract the plan identifier from the issue title:
 marvin parse title "<issue title>"
 ```
 
-Read the `plan_number` field from the JSON output (e.g. `plan-00042`) and use it wherever `<plan>` appears in subsequent steps.
+Read the `plan_number:` line from the output (e.g. `plan-00042`) and use it wherever `<plan>` appears in subsequent steps.
 
 ### 2. Identify relevant source files
 

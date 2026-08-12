@@ -23,11 +23,11 @@ gh issue view $0 --repo <repo> --json number,title
 marvin pr find "[PLAN-XXXXX-N]" --state open
 ```
 
-First fetch the issue title to extract the `[PLAN-XXXXX-N]` ident, then call `marvin pr find` with that ident. The JSON output includes `found`, `number`, `url`, `head`, `base`, and `state`.
+First fetch the issue title to extract the `[PLAN-XXXXX-N]` ident, then call `marvin pr find` with that ident. The output includes `found:`, `number:`, `url:`, `head:`, `base:`, and `state:` lines.
 
 If `found` is `false`, stop: "No open PR found for phase #$0 — has `/implement-phase` opened the PR yet?". If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Capture the PR number, head branch, and base branch directly from the `marvin pr find` output's `head` and `base` fields — no need to reconstruct either name, since the PR already exists and carries its real branch names (this also sidesteps having to know `<type>`, which nothing in this skill resolves).
+Capture the PR number, head branch, and base branch directly from the `marvin pr find` output's `head:` and `base:` lines — no need to reconstruct either name, since the PR already exists and carries its real branch names (this also sidesteps having to know `<type>`, which nothing in this skill resolves).
 
 ### 2. Fetch the phase spec for the reviewer
 
@@ -38,6 +38,29 @@ gh issue view $0 --repo <repo> --json number,title,body
 ```
 
 Extract the impl plan issue number from the phase issue body (referenced as `Implementation plan: #<n>`). The reviewer will use this to look up cross-phase context if needed.
+
+### 2b. Deterministic structural pre-check (skill-prose-only phases)
+
+If the phase issue's **TDD Entry Point** section says "None" (skill prose, no executable surface — no Go/test diff to build or run), semantic review from a sub-agent is the *only* verification this PR would otherwise get. That's a correctness gap: an opus review is judgment, not a guarantee, and skill-prose mistakes are often purely mechanical (transposed arguments, a forgotten trailing character in a string literal, an old invocation left behind at one of several call sites during a migration) — exactly the kind of thing a deterministic grep catches with certainty and a semantic read can miss.
+
+Before spawning the sub-agent, run this pre-check:
+
+1. Fetch the diff: `gh pr diff <pr-number> --repo <repo>`.
+2. From the phase issue body and the impl plan's referenced component sections, extract the **literal, load-bearing patterns the spec itself calls out explicitly** — exact command invocations, exact flag/string literals, and any prose the spec marks as precise or load-bearing (e.g. "no closing bracket", "trailing hyphen", a specific argument order). Do not invent patterns beyond what the spec states in concrete terms — this step verifies literal text, not intent.
+3. For each pattern, grep the diff (or the changed files directly) and record a pass/fail:
+   - **Must appear** — the new invocation/string, expected once per call site the spec names.
+   - **Must NOT appear** — old/stale text the spec explicitly says is being replaced (e.g. the previous command form, a superseded flag value).
+4. Render a short table, e.g.:
+   ```
+   Structural pre-check:
+     [PASS] `marvin issue link-parent` present in skills/impl-plan/SKILL.md
+     [PASS] `marvin issue link-parent` present in skills/phase-split/SKILL.md
+     [PASS] `--title-prefix "[PLAN-XXXXX-"` (trailing hyphen, no closing bracket) present in skills/start-impl/SKILL.md
+     [FAIL] stale `--title-prefix "[PLAN-XXXXX]"` (closing bracket) still present in skills/review-impl/SKILL.md
+   ```
+5. This pre-check is deterministic *input* to the sub-agent's review, not a replacement for it — sequencing, placement, and whether the change actually matches the spec's intent still need judgment. Pass the table to the sub-agent (step 3) as pre-verified ground truth so it doesn't re-derive what grep already settled, and can spend its judgment on what grep can't check. Any `FAIL` is reported to the user in step 5/7 regardless of what the sub-agent's own findings say — a structural fail is never silently absorbed into the sub-agent's verdict.
+
+Skip this step entirely for phases with a real TDD entry point (Go/test diff) — the build and test suite already provide deterministic verification there.
 
 ### 3. Spawn the review sub-agent
 
@@ -56,6 +79,11 @@ Prompt template:
 > **PR to review**: #<pr-number> in repo `<repo>`. Head: `<head-ref>`. Base: `<base-ref>`.
 > **Phase issue (the spec)**: #$0 in repo `<repo>`. Read the body for objective, success criteria, TDD entry point, and any constraints.
 > **Impl plan (parent context)**: #<impl-plan-issue> in repo `<repo>`. Read the relevant component sections only if the phase issue references them.
+> **Pre-verified structural facts** (skill-prose-only phases; omit this block if step 2b was skipped): the following literal patterns were already grep-confirmed present/absent in the diff — treat these as settled, do not re-derive them, and spend your judgment on sequencing/placement/semantic correctness instead:
+> ```
+> <step 2b's pass/fail table, verbatim>
+> ```
+> Any `FAIL` above is a confirmed defect — include it in your findings at `blocking` severity regardless of how the surrounding prose reads; do not downgrade a structural fail based on context.
 >
 > Fetch the inputs you need with these commands (run them yourself):
 >
@@ -84,15 +112,18 @@ Parse the returned JSON. Validate:
 - The shape matches `REVIEW_FINDING_FORMAT.md` (top-level keys: `summary`, `verdict`, `blocking`, `nits`).
 - `verdict` is consistent with the arrays — `approve` requires both empty, `request-changes` requires `blocking` non-empty, `comment` requires `blocking` empty and `nits` non-empty.
 - Every finding has all required fields and a recognized `category`.
+- If step 2b produced any `FAIL` row, at least one `blocking` finding corresponds to it. If the sub-agent's response omits a finding for a confirmed structural `FAIL`, this is a validation failure — the deterministic check is ground truth and cannot be silently dropped by the semantic pass.
 
-If validation fails, summarize the problem and re-spawn the sub-agent once with feedback. After two failures, stop and show the user the raw response.
+If validation fails, summarize the problem and re-spawn the sub-agent once with feedback. After two failures, stop and show the user the raw response — but still report step 2b's table as-is regardless (it does not depend on the sub-agent succeeding).
 
 ### 5. Render the findings for review
 
-Present a human-readable summary to the user:
+Present a human-readable summary to the user. If step 2b ran, show its table first, unconditionally — even if every row passed, even if the sub-agent's own findings already cover the same ground:
 
 ```
 Review of PR #<n> — <title>
+
+<step 2b's structural pre-check table, if it ran>
 
 Verdict: <verdict>
 
@@ -171,6 +202,7 @@ If any inline comment POST fails (e.g. line is outside the diff), fall back to i
 ### 7. Confirm
 
 Report:
+- Structural pre-check result, if step 2b ran (pass/fail count)
 - Review URL (link to the GitHub review)
 - Verdict
 - Blocking count, nit count

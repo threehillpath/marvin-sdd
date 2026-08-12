@@ -46,6 +46,7 @@ These require reading the code, not just running it. Examples:
 - Error paths that swallow or rethrow incorrectly.
 - Resource leaks (unclosed handles, unbounded caches, retained references).
 - Type assertions or casts that hide a real type mismatch.
+- **Silent failure indistinguishable from success** — a project-wide architectural rule (see CLAUDE.md's Workflow design rules): a command/function that treats "target not resolvable" as a legitimate no-op, with no way to tell that apart from a caller resolving the wrong target (e.g. a stale relative path succeeding against the wrong directory), is a finding even when the happy path is otherwise correct. A true no-op must be observably distinct from a caller-side resolution error — a diagnostic on stderr, a distinguishable return value, anything short of matching the success case byte-for-byte.
 
 ### `security` — Common vulnerabilities
 
@@ -71,6 +72,7 @@ Each finding is either `blocking` or `nit`.
 **Blocking** — the PR should not merge as-is. Use for:
 - Any `security` finding.
 - `correctness` findings that change observable behavior incorrectly under a plausible input.
+- `correctness` findings of silent failure indistinguishable from success (see above) — violates the project's explicit architectural rule and defeats verification by exit code alone.
 - `tdd` findings where required tests are missing for new logic.
 - `self-review` findings of categories 2 (missing exports/registrations) and 3 (declaration order) — these break at runtime.
 - `spec-drift` where a success criterion is unmet or an interface diverges without documentation.

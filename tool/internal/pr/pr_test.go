@@ -42,6 +42,69 @@ func TestFindFound(t *testing.T) {
 	}
 }
 
+// prListSubstringFalsePositiveResponse is a canned gh pr list JSON response whose sole PR
+// title contains the ident string as a substring but is NOT the same plan/phase/kind — the
+// false-positive case strings.Contains genuinely allows.
+const prListSubstringFalsePositiveResponse = `[{"number":99,"title":"[PLAN-00043-2] Address review from [PLAN-00042]","url":"https://github.com/owner/repo/pull/99","headRefName":"feature/plan-00043-2","baseRefName":"feature/plan-00043","state":"OPEN"}]`
+
+// TestFindRejectsSubstringFalsePositive verifies that Find does not match a candidate PR
+// whose title merely contains ident as a substring when the candidate's own leading ident
+// differs structurally (different Plan/Phase).
+func TestFindRejectsSubstringFalsePositive(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(prListSubstringFalsePositiveResponse)})
+
+	cfg := buildConfig()
+	result, err := pr.Find(context.Background(), fake, cfg, "[PLAN-00042]", pr.StateAny)
+	if err != nil {
+		t.Fatalf("Find returned error: %v", err)
+	}
+	if result.Found {
+		t.Errorf("expected Found=false for substring false-positive, got Found=true (Number=%d)", result.Number)
+	}
+}
+
+// prListArchResponse is a canned gh pr list JSON response whose sole PR is the arch plan for
+// PLAN-00042 — same Plan number as the impl plan, distinguished only by Kind.
+const prListArchResponse = `[{"number":7,"title":"[PLAN-00042-ARCH] Arch plan work","url":"https://github.com/owner/repo/pull/7","headRefName":"feature/plan-00042-arch","baseRefName":"main","state":"OPEN"}]`
+
+// prListImplResponse is a canned gh pr list JSON response whose sole PR is the impl plan for
+// PLAN-00042 — same Plan number as the arch plan, distinguished only by Kind.
+const prListImplResponse = `[{"number":8,"title":"[PLAN-00042] Impl plan work","url":"https://github.com/owner/repo/pull/8","headRefName":"feature/plan-00042","baseRefName":"main","state":"OPEN"}]`
+
+// TestFindRejectsArchIdentMismatch verifies that Find distinguishes an arch plan from its own
+// impl plan even though both share Plan=42 and Phase=0 — the sole reason Ident carries a Kind
+// field (see Component 2's design rationale in impl plan #57).
+func TestFindRejectsArchIdentMismatch(t *testing.T) {
+	t.Run("impl ident does not match arch PR", func(t *testing.T) {
+		fake := &exectest.FakeRunner{}
+		fake.Enqueue(exectest.FakeResponse{Stdout: []byte(prListArchResponse)})
+
+		cfg := buildConfig()
+		result, err := pr.Find(context.Background(), fake, cfg, "[PLAN-00042]", pr.StateAny)
+		if err != nil {
+			t.Fatalf("Find returned error: %v", err)
+		}
+		if result.Found {
+			t.Errorf("expected Found=false for impl ident against arch PR, got Found=true (Number=%d)", result.Number)
+		}
+	})
+
+	t.Run("arch ident does not match impl PR", func(t *testing.T) {
+		fake := &exectest.FakeRunner{}
+		fake.Enqueue(exectest.FakeResponse{Stdout: []byte(prListImplResponse)})
+
+		cfg := buildConfig()
+		result, err := pr.Find(context.Background(), fake, cfg, "[PLAN-00042-ARCH]", pr.StateAny)
+		if err != nil {
+			t.Fatalf("Find returned error: %v", err)
+		}
+		if result.Found {
+			t.Errorf("expected Found=false for arch ident against impl PR, got Found=true (Number=%d)", result.Number)
+		}
+	})
+}
+
 // TestFindNotFound verifies that Find returns found:false (not an error) when no PR matches.
 func TestFindNotFound(t *testing.T) {
 	fake := &exectest.FakeRunner{}

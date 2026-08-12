@@ -188,7 +188,11 @@ func Tree(ctx context.Context, runner exec.Runner, cfg *config.Config, repo stri
 	// rootRef reaches back to target through its parent chain).
 	add(targetRef)
 
-	statuses, err := board.List(ctx, runner, cfg, "", 0)
+	// 500 rather than the default 100: unlike a direct `board list` call,
+	// Tree's caller has no way to raise this limit if a project's board grows
+	// past it, so nodes beyond the cap would silently render as
+	// board.NotOnBoard instead of their real status.
+	statuses, err := board.List(ctx, runner, cfg, "", 500)
 	if err != nil {
 		return nil, fmt.Errorf("issue tree: %w", err)
 	}

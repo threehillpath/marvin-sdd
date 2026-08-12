@@ -89,7 +89,7 @@ For any domain labels not covered by `--builtins`, ensure each one individually:
 marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 ```
 
-For each approved phase:
+For each approved phase, compose the title and body **together, as one atomic unit, immediately before creating that issue** — do not draft all bodies in a separate pass from titles, and do not hold titles and content as two lists tracked independently. Title/body pairing drift (a body describing a different phase than its own title) has happened before and is easy to introduce silently when title and content are generated in separate passes.
 
 ```bash
 gh issue create --repo <repo> \
@@ -107,6 +107,16 @@ marvin issue link-parent <new-phase-issue> $0
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
 Capture each issue number as you go.
+
+### 3b. Verify title/body pairing
+
+Before moving to step 4, re-fetch every created issue and confirm each one's body actually describes its own title — not an adjacent phase's:
+
+```bash
+gh issue view <issue-number> --repo <repo> --json title,body
+```
+
+For each issue, check that the `## Objective` and `## Components` sections reference the same phase number and component(s) named in the title. If any issue's body describes a different phase, fix it immediately with `gh issue edit <issue-number> --repo <repo> --body-file <file>` before proceeding — do not defer this to a later skill.
 
 ### 4. Post the phases-created comment
 

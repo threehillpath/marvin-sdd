@@ -577,6 +577,9 @@ func newIssueTreeCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comman
 // <title>", one line per node, title last (safe against a literal "|" in a
 // title). Output is empty only when the target issue is not a plan issue at
 // all — a plan issue with no sub-issue links still emits its own single node.
+// The not-a-plan-issue case also writes a stderr diagnostic so a caller that
+// passed the wrong issue number has a signal beyond empty stdout; exit code
+// remains 0 since this is not an operational error.
 func runIssueTree(stdout, stderr io.Writer, cfg *config.Config, number int, jsonOut bool, runner exec.Runner) error {
 	nodes, err := issue.Tree(context.Background(), runner, cfg, cfg.Repo, number)
 	if err != nil {
@@ -584,6 +587,9 @@ func runIssueTree(stdout, stderr io.Writer, cfg *config.Config, number int, json
 	}
 	if nodes == nil {
 		nodes = []issue.Node{}
+	}
+	if len(nodes) == 0 {
+		fmt.Fprintf(stderr, "issue tree: #%d is not a plan issue (title does not parse as a PLAN-XXXXX identifier)\n", number)
 	}
 
 	if !jsonOut {

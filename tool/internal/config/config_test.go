@@ -9,7 +9,7 @@ import (
 )
 
 const yamlFixture = `
-repo: threehillpath/claude-plan-workflow
+repo: threehillpath/marvin-sdd
 project_number: 4
 project_id: PVT_test
 status_field_id: PVTSSF_test
@@ -30,7 +30,7 @@ const legacyMarkdownFixture = `# Skill Set Configuration
 
 | Setting | Value |
 |---|---|
-| GitHub repo | ` + "`threehillpath/claude-plan-workflow`" + ` |
+| GitHub repo | ` + "`threehillpath/marvin-sdd`" + ` |
 | Project number | ` + "`4`" + ` |
 | Project ID | ` + "`PVT_test`" + ` |
 | Status field ID | ` + "`PVTSSF_test`" + ` |
@@ -70,8 +70,8 @@ func TestLoadYAML(t *testing.T) {
 		t.Fatalf("Load returned error: %v", err)
 	}
 
-	if cfg.Repo != "threehillpath/claude-plan-workflow" {
-		t.Errorf("Repo = %q, want threehillpath/claude-plan-workflow", cfg.Repo)
+	if cfg.Repo != "threehillpath/marvin-sdd" {
+		t.Errorf("Repo = %q, want threehillpath/marvin-sdd", cfg.Repo)
 	}
 
 	id, present, err := cfg.StatusOptionID("in_progress")
@@ -95,8 +95,8 @@ func TestLoadLegacyMarkdown(t *testing.T) {
 		t.Fatalf("Load returned error: %v", err)
 	}
 
-	if cfg.Repo != "threehillpath/claude-plan-workflow" {
-		t.Errorf("Repo = %q, want threehillpath/claude-plan-workflow", cfg.Repo)
+	if cfg.Repo != "threehillpath/marvin-sdd" {
+		t.Errorf("Repo = %q, want threehillpath/marvin-sdd", cfg.Repo)
 	}
 
 	id, present, err := cfg.StatusOptionID("in_progress")
@@ -155,7 +155,7 @@ func TestOwner(t *testing.T) {
 func TestWorktreeBaseMissingErrors(t *testing.T) {
 	// YAML without worktree_base → error, not a silent default.
 	noWorktreeBase := `
-repo: threehillpath/claude-plan-workflow
+repo: threehillpath/marvin-sdd
 project_number: 4
 project_id: PVT_test
 status_field_id: PVTSSF_test
@@ -174,7 +174,7 @@ statuses:
 func TestWorktreeBaseCustom(t *testing.T) {
 	// YAML with worktree_base set → uses that value.
 	custom := `
-repo: threehillpath/claude-plan-workflow
+repo: threehillpath/marvin-sdd
 project_number: 4
 project_id: PVT_test
 status_field_id: PVTSSF_test
@@ -217,7 +217,7 @@ func TestWorktreeBaseLegacyMissingErrors(t *testing.T) {
 
 | Setting | Value |
 |---|---|
-| GitHub repo | ` + "`threehillpath/claude-plan-workflow`" + ` |
+| GitHub repo | ` + "`threehillpath/marvin-sdd`" + ` |
 | Project number | ` + "`4`" + ` |
 | Project ID | ` + "`PVT_test`" + ` |
 | Status field ID | ` + "`PVTSSF_test`" + ` |
@@ -268,7 +268,7 @@ func TestCWDWalk(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load from child dir failed: %v", err)
 	}
-	if cfg.Repo != "threehillpath/claude-plan-workflow" {
-		t.Errorf("Repo = %q, want threehillpath/claude-plan-workflow", cfg.Repo)
+	if cfg.Repo != "threehillpath/marvin-sdd" {
+		t.Errorf("Repo = %q, want threehillpath/marvin-sdd", cfg.Repo)
 	}
 }

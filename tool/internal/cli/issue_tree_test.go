@@ -30,7 +30,7 @@ func TestIssueTreePlainText(t *testing.T) {
 	// 3) SubIssues(57): graphql subIssues query -> one phase
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"data":{"node":{"subIssues":{"nodes":[{"number":62,"title":"[PLAN-00041-5] Phase 5","state":"OPEN"}]}}}}`)})
 	// 5) board.List
-	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"items":[{"id":"PVTI_1","title":"Phase 5","status":"In Progress","content":{"number":62,"title":"Phase 5","url":"https://github.com/threehillpath/claude-plan-workflow/issues/62"}}]}`)})
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"items":[{"id":"PVTI_1","title":"Phase 5","status":"In Progress","content":{"number":62,"title":"Phase 5","url":"https://github.com/threehillpath/marvin-sdd/issues/62"}}]}`)})
 
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, fake)

@@ -16,7 +16,7 @@ func TestPRFindPlainTextFound(t *testing.T) {
 	withConfigFixture(t)
 
 	fake := &exectest.FakeRunner{}
-	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`[{"number":68,"title":"[PLAN-00042-3] Some phase","url":"https://github.com/threehillpath/claude-plan-workflow/pull/68","headRefName":"feature/PLAN-00042/phase-3","baseRefName":"feature/PLAN-00042/main","state":"OPEN"}]`)})
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`[{"number":68,"title":"[PLAN-00042-3] Some phase","url":"https://github.com/threehillpath/marvin-sdd/pull/68","headRefName":"feature/PLAN-00042/phase-3","baseRefName":"feature/PLAN-00042/main","state":"OPEN"}]`)})
 
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, fake)
@@ -29,7 +29,7 @@ func TestPRFindPlainTextFound(t *testing.T) {
 	want := "found: true\n" +
 		"number: 68\n" +
 		"title: [PLAN-00042-3] Some phase\n" +
-		"url: https://github.com/threehillpath/claude-plan-workflow/pull/68\n" +
+		"url: https://github.com/threehillpath/marvin-sdd/pull/68\n" +
 		"head: feature/PLAN-00042/phase-3\n" +
 		"base: feature/PLAN-00042/main\n" +
 		"state: OPEN\n"
@@ -67,7 +67,7 @@ func TestPRFindJSONFidelity(t *testing.T) {
 	withConfigFixture(t)
 
 	fake := &exectest.FakeRunner{}
-	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`[{"number":68,"title":"[PLAN-00042-3] Some phase","url":"https://github.com/threehillpath/claude-plan-workflow/pull/68","headRefName":"feature/PLAN-00042/phase-3","baseRefName":"feature/PLAN-00042/main","state":"OPEN"}]`)})
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`[{"number":68,"title":"[PLAN-00042-3] Some phase","url":"https://github.com/threehillpath/marvin-sdd/pull/68","headRefName":"feature/PLAN-00042/phase-3","baseRefName":"feature/PLAN-00042/main","state":"OPEN"}]`)})
 
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, fake)
@@ -81,7 +81,7 @@ func TestPRFindJSONFidelity(t *testing.T) {
   "found": true,
   "number": 68,
   "title": "[PLAN-00042-3] Some phase",
-  "url": "https://github.com/threehillpath/claude-plan-workflow/pull/68",
+  "url": "https://github.com/threehillpath/marvin-sdd/pull/68",
   "head": "feature/PLAN-00042/phase-3",
   "base": "feature/PLAN-00042/main",
   "state": "OPEN"

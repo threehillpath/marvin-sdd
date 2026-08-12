@@ -12,7 +12,7 @@ import (
 )
 
 const configGetFixture = `
-repo: threehillpath/claude-plan-workflow
+repo: threehillpath/marvin-sdd
 project_number: 4
 project_id: PVT_test
 status_field_id: PVTSSF_test

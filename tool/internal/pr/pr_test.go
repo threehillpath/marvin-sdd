@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/clierr"
-	"threehillpath.com/claude-plan-workflow/tool/internal/config"
-	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
-	"threehillpath.com/claude-plan-workflow/tool/internal/pr"
+	"threehillpath.com/marvin-sdd/tool/internal/clierr"
+	"threehillpath.com/marvin-sdd/tool/internal/config"
+	"threehillpath.com/marvin-sdd/tool/internal/exectest"
+	"threehillpath.com/marvin-sdd/tool/internal/pr"
 )
 
 func buildConfig() *config.Config {

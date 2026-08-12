@@ -9,8 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/config"
-	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
+	"threehillpath.com/marvin-sdd/tool/internal/config"
+	"threehillpath.com/marvin-sdd/tool/internal/exec"
 )
 
 // ghLabel is the JSON shape returned by gh label list.

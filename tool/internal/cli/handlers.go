@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/config"
-	"threehillpath.com/claude-plan-workflow/tool/internal/names"
-	"threehillpath.com/claude-plan-workflow/tool/internal/parse"
-	tmplpkg "threehillpath.com/claude-plan-workflow/tool/internal/template"
+	"threehillpath.com/marvin-sdd/tool/internal/config"
+	"threehillpath.com/marvin-sdd/tool/internal/names"
+	"threehillpath.com/marvin-sdd/tool/internal/parse"
+	tmplpkg "threehillpath.com/marvin-sdd/tool/internal/template"
 )
 
 // kv is one line of plain-text object-command output: "Key: Value", printed

@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/cli"
-	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
+	"threehillpath.com/marvin-sdd/tool/internal/cli"
+	"threehillpath.com/marvin-sdd/tool/internal/exectest"
 )
 
 const boardJSONConfigFixture = `
-repo: threehillpath/claude-plan-workflow
+repo: threehillpath/marvin-sdd
 project_number: 4
 project_id: PVT_test
 status_field_id: PVTSSF_test
@@ -23,7 +23,7 @@ statuses:
 
 // boardListPayload is a canned gh project item-list response used to assert
 // board list --json fidelity against an injected FakeRunner.
-const boardListPayload = `{"items":[{"id":"PVTI_1","title":"Phase 1","status":"In Progress","content":{"number":10,"title":"Phase 1","url":"https://github.com/threehillpath/claude-plan-workflow/issues/10"}}]}`
+const boardListPayload = `{"items":[{"id":"PVTI_1","title":"Phase 1","status":"In Progress","content":{"number":10,"title":"Phase 1","url":"https://github.com/threehillpath/marvin-sdd/issues/10"}}]}`
 
 // wantBoardListJSON is the exact JSON `board list --json` produced before the
 // CLI output-layer injection seam (Phase 3, PLAN-00041): a JSON array of
@@ -33,7 +33,7 @@ const wantBoardListJSON = `[
     "number": 10,
     "title": "Phase 1",
     "status": "In Progress",
-    "url": "https://github.com/threehillpath/claude-plan-workflow/issues/10"
+    "url": "https://github.com/threehillpath/marvin-sdd/issues/10"
   }
 ]
 `
@@ -84,7 +84,7 @@ func TestBoardListJSONFidelity(t *testing.T) {
 
 // boardListMultiPayload is a canned gh project item-list response with two
 // items, used to assert board list's pipe-delimited plain-text default.
-const boardListMultiPayload = `{"items":[{"id":"PVTI_1","title":"Phase 1","status":"In Progress","content":{"number":10,"title":"Phase 1","url":"https://github.com/threehillpath/claude-plan-workflow/issues/10"}},{"id":"PVTI_2","title":"Phase 2","status":"In Review","content":{"number":11,"title":"Phase 2","url":"https://github.com/threehillpath/claude-plan-workflow/issues/11"}}]}`
+const boardListMultiPayload = `{"items":[{"id":"PVTI_1","title":"Phase 1","status":"In Progress","content":{"number":10,"title":"Phase 1","url":"https://github.com/threehillpath/marvin-sdd/issues/10"}},{"id":"PVTI_2","title":"Phase 2","status":"In Review","content":{"number":11,"title":"Phase 2","url":"https://github.com/threehillpath/marvin-sdd/issues/11"}}]}`
 
 // TestBoardListPlainText verifies the default (non-JSON) output is
 // pipe-delimited with no header row: <number> | <status> | <title>, one line

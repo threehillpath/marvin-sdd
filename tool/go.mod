@@ -1,4 +1,4 @@
-module threehillpath.com/claude-plan-workflow/tool
+module threehillpath.com/marvin-sdd/tool
 
 go 1.22
 

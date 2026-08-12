@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/names"
+	"threehillpath.com/marvin-sdd/tool/internal/names"
 )
 
 func TestPlanNumber(t *testing.T) {

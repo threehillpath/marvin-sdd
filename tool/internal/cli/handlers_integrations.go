@@ -11,15 +11,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/board"
-	"threehillpath.com/claude-plan-workflow/tool/internal/config"
-	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
-	"threehillpath.com/claude-plan-workflow/tool/internal/findings"
-	"threehillpath.com/claude-plan-workflow/tool/internal/gh"
-	"threehillpath.com/claude-plan-workflow/tool/internal/issue"
-	"threehillpath.com/claude-plan-workflow/tool/internal/label"
-	"threehillpath.com/claude-plan-workflow/tool/internal/pr"
-	"threehillpath.com/claude-plan-workflow/tool/internal/worktree"
+	"threehillpath.com/marvin-sdd/tool/internal/board"
+	"threehillpath.com/marvin-sdd/tool/internal/config"
+	"threehillpath.com/marvin-sdd/tool/internal/exec"
+	"threehillpath.com/marvin-sdd/tool/internal/findings"
+	"threehillpath.com/marvin-sdd/tool/internal/gh"
+	"threehillpath.com/marvin-sdd/tool/internal/issue"
+	"threehillpath.com/marvin-sdd/tool/internal/label"
+	"threehillpath.com/marvin-sdd/tool/internal/pr"
+	"threehillpath.com/marvin-sdd/tool/internal/worktree"
 )
 
 // loadConfig loads plan-workflow config from the current working directory.

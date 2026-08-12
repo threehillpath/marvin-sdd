@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/config"
-	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
-	"threehillpath.com/claude-plan-workflow/tool/internal/issue"
+	"threehillpath.com/marvin-sdd/tool/internal/config"
+	"threehillpath.com/marvin-sdd/tool/internal/exectest"
+	"threehillpath.com/marvin-sdd/tool/internal/issue"
 )
 
 func buildConfig() *config.Config {

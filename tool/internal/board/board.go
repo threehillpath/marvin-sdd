@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"strings"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/config"
-	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
-	"threehillpath.com/claude-plan-workflow/tool/internal/gh"
+	"threehillpath.com/marvin-sdd/tool/internal/config"
+	"threehillpath.com/marvin-sdd/tool/internal/exec"
+	"threehillpath.com/marvin-sdd/tool/internal/gh"
 )
 
 // issueURL builds the canonical GitHub issue URL from the config repo and issue number.

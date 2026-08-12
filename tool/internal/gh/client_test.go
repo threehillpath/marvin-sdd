@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
-	"threehillpath.com/claude-plan-workflow/tool/internal/gh"
+	"threehillpath.com/marvin-sdd/tool/internal/exectest"
+	"threehillpath.com/marvin-sdd/tool/internal/gh"
 )
 
 // TestIssueJSONArgs verifies that IssueJSON builds the correct gh arg vector

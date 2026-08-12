@@ -9,8 +9,8 @@ import (
 	"os"
 	"strings"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/clierr"
-	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
+	"threehillpath.com/marvin-sdd/tool/internal/clierr"
+	"threehillpath.com/marvin-sdd/tool/internal/exec"
 )
 
 // localBranchExists returns true if <branch> is already checked out as a local branch.

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"sort"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/board"
-	"threehillpath.com/claude-plan-workflow/tool/internal/config"
-	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
-	"threehillpath.com/claude-plan-workflow/tool/internal/gh"
-	"threehillpath.com/claude-plan-workflow/tool/internal/parse"
+	"threehillpath.com/marvin-sdd/tool/internal/board"
+	"threehillpath.com/marvin-sdd/tool/internal/config"
+	"threehillpath.com/marvin-sdd/tool/internal/exec"
+	"threehillpath.com/marvin-sdd/tool/internal/gh"
+	"threehillpath.com/marvin-sdd/tool/internal/parse"
 )
 
 // Node is one issue in a plan hierarchy, as returned by Tree.

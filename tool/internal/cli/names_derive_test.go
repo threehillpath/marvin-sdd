@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/cli"
-	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
+	"threehillpath.com/marvin-sdd/tool/internal/cli"
+	"threehillpath.com/marvin-sdd/tool/internal/exectest"
 )
 
 // TestNamesDeriveType verifies that 'marvin names derive <issue> --type bug --phase N'

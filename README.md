@@ -7,14 +7,12 @@ A Claude Code plugin providing a structured architecture-to-implementation workf
 This plugin implements a full planning and development workflow:
 
 ```
-/arch-plan   →   /impl-plan   →   /phase-split   →   /start-impl
-                                                           ↓
-                                         /implement-phase (repeats per phase)
-                                                           ↓
-                                                    /finish-impl
+/arch-plan → /impl-plan → /red-team-plan → /phase-split → /start-impl →
+    [ /implement-phase → (/plan-drift) → /review-phase → merge → /wrap-phase ]  per phase
+    → /finish-impl → /review-impl → merge
 ```
 
-Board management is available at any point via `/move-issue`.
+`/move-issue`, `/finish-phase`, and `/plan-drift` are auxiliaries usable at any point — see each skill's `SKILL.md` for behavior.
 
 ## Skills
 
@@ -23,11 +21,16 @@ Board management is available at any point via `/move-issue`.
 | `/configure-plan-plugin` | Set up `.claude/plan-workflow-config.yml` for a new project (run first) |
 | `/arch-plan <issue>` | Create an architectural plan from a GitHub issue |
 | `/impl-plan <arch-issue>` | Create a technical implementation plan from an arch plan |
-| `/phase-split <impl-issue>` | Break an impl plan into phase issues on the board |
-| `/start-impl <impl-issue>` | Create the implementation branch and confirm phase readiness |
-| `/implement-phase <phase-issue>` | Run the TDD loop autonomously in a worktree, open a PR |
-| `/finish-phase <phase-issue>` | Commit, push, open a PR, and move phase to In Review |
-| `/finish-impl <impl-issue>` | Open a PR from the impl branch to main, move to In Review |
+| `/red-team-plan <impl-issue>` | Critique an impl plan with a fresh-context opus sub-agent before phase-split |
+| `/phase-split <impl-issue>` | Break an implementation plan into phases and create GitHub issues for each |
+| `/start-impl <impl-issue>` | Summarize an implementation plan, confirm phases, and create the implementation branch |
+| `/implement-phase <phase-issue>` | Run the TDD loop autonomously in a worktree, open a PR to the implementation branch |
+| `/plan-drift <phase-issue>` | Audit a phase branch for coverage and scope drift against its spec |
+| `/review-phase <phase-issue>` | Code-review a phase PR with a fresh-context opus sub-agent and post the review to GitHub |
+| `/finish-phase <phase-issue>` | Commit, push, open a PR to the implementation branch, and move phase to In Review |
+| `/wrap-phase <phase-issue> <impl-issue>` | Capture decisions from a merged phase PR, close the phase issue, move to Done, clean up the worktree |
+| `/finish-impl <impl-issue>` | Open a PR from the implementation branch to main and move the impl plan to In Review |
+| `/review-impl <impl-issue>` | Comprehensive code-review of the impl PR (trunk branch → main) after `/finish-impl` opens it |
 | `/move-issue <issue> <status>` | Move any issue to a board column |
 
 ## Setup

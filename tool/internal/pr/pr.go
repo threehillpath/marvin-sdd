@@ -7,11 +7,11 @@ import (
 	"regexp"
 	"strings"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/clierr"
-	"threehillpath.com/claude-plan-workflow/tool/internal/config"
-	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
-	"threehillpath.com/claude-plan-workflow/tool/internal/gh"
-	"threehillpath.com/claude-plan-workflow/tool/internal/parse"
+	"threehillpath.com/marvin-sdd/tool/internal/clierr"
+	"threehillpath.com/marvin-sdd/tool/internal/config"
+	"threehillpath.com/marvin-sdd/tool/internal/exec"
+	"threehillpath.com/marvin-sdd/tool/internal/gh"
+	"threehillpath.com/marvin-sdd/tool/internal/parse"
 )
 
 // State filters PR search by lifecycle state.

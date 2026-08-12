@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
+	"threehillpath.com/marvin-sdd/tool/internal/exec"
 )
 
 // Client wraps an exec.Runner and provides typed gh CLI operations.

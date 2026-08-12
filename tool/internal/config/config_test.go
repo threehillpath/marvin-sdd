@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/config"
+	"threehillpath.com/marvin-sdd/tool/internal/config"
 )
 
 const yamlFixture = `

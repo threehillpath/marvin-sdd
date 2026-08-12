@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
+	"threehillpath.com/marvin-sdd/tool/internal/exec"
 )
 
 // NewRootCmd constructs the root Cobra command with all subcommand groups registered.

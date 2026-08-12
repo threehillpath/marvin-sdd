@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/cli"
-	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
+	"threehillpath.com/marvin-sdd/tool/internal/cli"
+	"threehillpath.com/marvin-sdd/tool/internal/exectest"
 )
 
 // TestParsePhaseListReadsInjectedStdin verifies that `parse phase-list` reads

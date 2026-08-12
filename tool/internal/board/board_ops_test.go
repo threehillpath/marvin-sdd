@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/board"
-	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
+	"threehillpath.com/marvin-sdd/tool/internal/board"
+	"threehillpath.com/marvin-sdd/tool/internal/exectest"
 )
 
 // TestAddItem verifies that AddItem calls gh project item-add and returns the item ID.

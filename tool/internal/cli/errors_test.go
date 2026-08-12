@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/cli"
+	"threehillpath.com/marvin-sdd/tool/internal/cli"
 )
 
 // TestCLIErrorExitCode verifies that when the run helper encounters a CLIError{Code:2},

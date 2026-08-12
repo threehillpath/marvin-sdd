@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/config"
-	"threehillpath.com/claude-plan-workflow/tool/internal/exec"
-	"threehillpath.com/claude-plan-workflow/tool/internal/gh"
+	"threehillpath.com/marvin-sdd/tool/internal/config"
+	"threehillpath.com/marvin-sdd/tool/internal/exec"
+	"threehillpath.com/marvin-sdd/tool/internal/gh"
 )
 
 // Item is a simplified view of a GitHub issue returned by List.

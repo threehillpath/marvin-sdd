@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/findings"
+	"threehillpath.com/marvin-sdd/tool/internal/findings"
 )
 
 // TestCachePath verifies the path formula.

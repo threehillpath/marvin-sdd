@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/board"
-	"threehillpath.com/claude-plan-workflow/tool/internal/config"
-	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
+	"threehillpath.com/marvin-sdd/tool/internal/board"
+	"threehillpath.com/marvin-sdd/tool/internal/config"
+	"threehillpath.com/marvin-sdd/tool/internal/exectest"
 )
 
 // buildConfig returns a minimal Config with a done option ID and in_progress option ID.

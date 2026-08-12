@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"threehillpath.com/claude-plan-workflow/tool/internal/exectest"
-	"threehillpath.com/claude-plan-workflow/tool/internal/issue"
+	"threehillpath.com/marvin-sdd/tool/internal/exectest"
+	"threehillpath.com/marvin-sdd/tool/internal/issue"
 )
 
 // issueRefResponse builds a canned `gh issue view --json id,number,title,state` response.

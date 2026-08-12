@@ -32,7 +32,7 @@ Extract the plan identifier and phase number from the issue title:
 marvin parse title "<issue title>"
 ```
 
-Read the `plan_number` field (e.g. `plan-00042`) and `phase` field (e.g. `3`) from the JSON output. Use `plan_number` wherever `<plan>` appears in subsequent steps. The phase identifier for cache naming is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`). Also read the `plan` integer field (e.g. `2`) — needed for the `names derive` call below.
+Read the `plan_number:` line (e.g. `plan-00042`) and `phase:` line (e.g. `3`) from the output. Use `plan_number` wherever `<plan>` appears in subsequent steps. The phase identifier for cache naming is formed as `phase-XXXXX-N` (e.g. `phase-00042-3`). Also read the `plan:` line (e.g. `2`) — needed for the `names derive` call below.
 
 Resolve `<type>`: fetch the impl plan issue's labels and check for `bug` or `enhancement` — per `../SHARED/LABELS.md`, the impl plan issue carries forward the source issue's type label. If `bug` is present, `<type>` is `bug`; otherwise (including when neither label is present) `<type>` is `feature`.
 
@@ -46,7 +46,7 @@ Resolve the trunk branch name and worktree path:
 marvin names derive <plan> --type <type> --phase <phase>
 ```
 
-Read the `main_branch` and `worktree_path` fields from the JSON output. Use `<worktree_path>` wherever the phase worktree path appears in subsequent steps, and `<main_branch>` wherever the trunk branch name appears (worktree-mode only — PR-mode gets its base branch from `marvin pr find` instead, see step 2).
+Read the `main_branch:` and `worktree_path:` lines from the output. Use `<worktree_path>` wherever the phase worktree path appears in subsequent steps, and `<main_branch>` wherever the trunk branch name appears (worktree-mode only — PR-mode gets its base branch from `marvin pr find` instead, see step 2).
 
 ### 2. Determine the source of truth for the diff
 
@@ -56,9 +56,9 @@ Check whether a phase PR exists:
 marvin pr find "[PLAN-XXXXX-N]" --state open
 ```
 
-Branch off the result (`found` field in the JSON):
+Branch off the result (`found:` line in the output):
 
-- **`found: true`** — record the `number` from the JSON. The head branch is `<type>/PLAN-XXXXX/phase-N` (from step 1's parse output and resolved type) and the base branch is the `base` field already included in the `marvin pr find` result — no extra call needed. The sub-agent will use `gh pr diff <pr-number>`.
+- **`found: true`** — record the `number:` line from the output. The head branch is `<type>/PLAN-XXXXX/phase-N` (from step 1's parse output and resolved type) and the base branch is the `base:` line already included in the `marvin pr find` result — no extra call needed. The sub-agent will use `gh pr diff <pr-number>`.
 - **`found: false`** — the phase work lives in the local worktree at `<worktree_path>`. Verify the worktree exists:
   ```bash
   test -d <worktree_path> && echo present || echo missing

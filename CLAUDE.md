@@ -7,13 +7,15 @@ A Claude Code plugin defining a structured architecture-to-implementation workfl
 ## Repository structure
 
 ```
-.claude-plugin/plugin.json     ← Plugin metadata
+.claude-plugin/plugin.json     ← Plugin metadata (name, version, description)
+hooks/hooks.json               ← SessionStart hook: builds marvin if missing/stale (marketplace installs)
 .github/
   ISSUE_TEMPLATE/              ← Native GitHub issue forms for human-filed source issues
     feature.yml                ← Feature request form (applies `enhancement` label)
     bug.yml                    ← Bug report form (applies `bug` label)
     config.yml                 ← Issue chooser config (blank_issues_enabled, contact links)
 tool/                          ← Go module for the marvin CLI
+  build.sh                     ← Shared build step: compiles cmd/marvin to a given output path, skipping if up to date
   cmd/marvin/main.go           ← Entry point; compiled to bin/marvin at install time
   internal/
     board/                     ← GitHub Projects v2 board operations (add, move, list, status)
@@ -55,7 +57,11 @@ skills/
 
 ## The marvin tool
 
-`marvin` is compiled from `tool/` by `deploy.sh` and installed to `${PLUGIN_DIR}/bin/marvin`. Skills call it for all deterministic operations — board moves, label management, config access, name derivation, PR lookup, worktree lifecycle, findings cache — so that none of that logic needs to be re-synthesized from shell in skill prose.
+`marvin` is compiled from `tool/` by `tool/build.sh`, which writes the binary to a caller-supplied output path and skips the build when that binary is already newer than every file under `tool/`. Skills call it for all deterministic operations — board moves, label management, config access, name derivation, PR lookup, worktree lifecycle, findings cache — so that none of that logic needs to be re-synthesized from shell in skill prose.
+
+Two callers invoke `tool/build.sh`, covering the two install paths:
+- **`deploy.sh`** (local-directory install) — hard-fails first if `go` is absent, then builds into `${PLUGIN_DIR}/bin/marvin`.
+- **`hooks/hooks.json`** (marketplace install) — a `SessionStart` hook that builds into `${CLAUDE_PLUGIN_ROOT}/bin/marvin` on every session start, degrading quietly (stderr diagnostic, exit 0) if `go` is missing or `tool/` isn't present in that install, rather than blocking the session.
 
 Subcommand groups: `config`, `names`, `parse`, `template`, `board`, `issue`, `label`, `pr`, `findings`, `worktree`, `version`.
 

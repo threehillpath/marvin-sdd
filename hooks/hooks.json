@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/tool/build.sh ${CLAUDE_PLUGIN_ROOT}/tool ${CLAUDE_PLUGIN_ROOT}/bin/marvin"
+          }
+        ]
+      }
+    ]
+  }
+}

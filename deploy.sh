@@ -39,6 +39,7 @@ rsync -a --delete \
   --exclude='.claude/' \
   --exclude='.claude-plugin/marketplace.json' \
   --exclude='tool/' \
+  --exclude='.worktrees/' \
   "${SCRIPT_DIR}/" "${PLUGIN_DIR}/"
 
 # ── Compile marvin ───────────────────────────────────────────────────────────

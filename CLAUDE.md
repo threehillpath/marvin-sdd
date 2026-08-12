@@ -97,6 +97,7 @@ Skills read `.claude/plan-workflow-config.yml` (preferred) or `.claude/plan-work
 - **TDD is mandatory** across the workflow; the exemption is narrow (rendered controls only). Full rule and litmus test in `skills/impl-plan/SUPPLEMENTS/TDD.md`.
 - **Phases are independently mergeable** — each phase has its own branch and PR to the impl branch; the impl branch PRs to main.
 - **Board state is authoritative** — every skill that changes intent also moves the issue. State machine in `skills/SHARED/GLOSSARY.md`.
+- **Errors must not fail silently** — a command that cannot complete its intended effect must return a non-zero exit code or emit a stderr diagnostic. The only exception is a genuine no-op (the target is already in the desired state), and even that must be observably distinct from a caller resolving the wrong target (e.g. a stale relative path) — never silently identical to one. Exceptions to this rule must be explicit and deliberate, not a byproduct of convenient error handling.
 
 ## Requirements (for consuming projects)
 

@@ -43,9 +43,10 @@ rsync -a --delete \
   "${SCRIPT_DIR}/" "${PLUGIN_DIR}/"
 
 # ── Compile marvin ───────────────────────────────────────────────────────────
-# Build after rsync so --delete cannot remove the binary.
-echo "  Building marvin..."
-(cd "${SCRIPT_DIR}/tool" && go build -o "${PLUGIN_DIR}/bin/marvin" ./cmd/marvin)
+# Build after rsync so --delete cannot remove the binary. Shared with the
+# plugin's SessionStart hook (hooks/hooks.json) via tool/build.sh so the
+# build step stays in one place.
+"${SCRIPT_DIR}/tool/build.sh" "${SCRIPT_DIR}/tool" "${PLUGIN_DIR}/bin/marvin"
 
 # Write the installed marketplace manifest (not sourced from the repo)
 cat > "${MARKETPLACE_DIR}/.claude-plugin/marketplace.json" <<MANIFEST

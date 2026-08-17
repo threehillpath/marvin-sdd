@@ -107,7 +107,7 @@ If the `phase` nodes list from `issue tree` is empty, fall back to:
 marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX-" --state all
 ```
 
-(trailing hyphen, no closing bracket — substitute the real plan number, e.g. `"[PLAN-00042-"`). If that also returns nothing, note the absence in `phases.md`'s header rather than emitting an empty table. If no `arch` node is present, skip `arch-plan.md` entirely and note its absence in `phases.md`'s header — do not fail either case.
+(trailing hyphen, no closing bracket — substitute the real plan number, e.g. `"[PLAN-00042-"`). For a multi-impl track (`[PLAN-XXXXX-A]`, `[PLAN-XXXXX-B]` — see `../SHARED/GLOSSARY.md`), apply the same rule one level deeper and use `--title-prefix "[PLAN-XXXXX-<suffix>-"` (e.g. `"[PLAN-00042-A-"`), so the fallback does not also match the sibling track's phases. Treat the rows this fallback returns exactly as `phase` nodes for the rest of this step — run `marvin parse title` on each title and sort by the parsed ordinal the same way as above. If that also returns nothing, note the absence in `phases.md`'s header rather than emitting an empty table. If no `arch` node is present, skip `arch-plan.md` entirely and note its absence in `phases.md`'s header — do not fail either case.
 
 The story slug is the plan identifier `<plan>` captured in step 1. Directory: `docs/stories/<plan>/`.
 
@@ -129,7 +129,13 @@ and **Read it first if it does** — the Write tool refuses to overwrite a path 
 - `docs/stories/<plan>/impl-plan.md`: header (`# <title>` / `Source: <url>`) followed by the impl plan body verbatim.
 - `docs/stories/<plan>/phases.md`: an index table (`| Phase | Issue | Title |`) followed by each phase's full body under a `## [PLAN-XXXXX-N] <Title>` heading, in the parsed-ordinal order established above.
 
-Stage only the files this step writes — never the whole directory:
+Before staging, verify the files this step just wrote actually exist — a failed `git add` on a missing pathspec exits non-zero and stages **nothing at all** (not even the paths that do exist), which `git diff --cached --quiet` would then read as "nothing to commit," indistinguishable from a legitimate no-op:
+
+```bash
+test -f docs/stories/<plan>/impl-plan.md && test -f docs/stories/<plan>/phases.md || { echo "story files missing — aborting" >&2; exit 1; }
+```
+
+(only check `arch-plan.md` too if an arch node was found). Stage only the files this step writes — never the whole directory:
 
 ```bash
 git add docs/stories/<plan>/arch-plan.md docs/stories/<plan>/impl-plan.md docs/stories/<plan>/phases.md
@@ -147,7 +153,7 @@ git log origin/<main_branch>..HEAD --oneline
 git push origin <main_branch>
 ```
 
-Any non-zero exit from `git commit` or `git push` stops here and surfaces the error — do not proceed to PR creation with the docs uncommitted or unpushed. If `git log origin/<main_branch>..HEAD` shows commits this run did not just make, report them to the user rather than pushing silently.
+Any non-zero exit from `git add`, `git commit`, `git log`, or `git push` stops here and surfaces the error — do not proceed to PR creation with the docs uncommitted or unpushed. A failed `git add` must never fall through to the no-op branch, whose message is identical to a legitimate re-run. If `git log origin/<main_branch>..HEAD` shows commits this run did not just make, report them to the user rather than pushing silently.
 
 ### 5. Create PR
 

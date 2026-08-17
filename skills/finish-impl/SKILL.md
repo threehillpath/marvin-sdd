@@ -2,7 +2,7 @@
 name: finish-impl
 description: Open a PR from the implementation branch to main and move the impl plan to In Review
 argument-hint: <impl-plan-issue-number>
-allowed-tools: Bash, Read
+allowed-tools: Bash, Read, Write
 model: sonnet
 ---
 
@@ -56,7 +56,7 @@ git pull origin <main_branch>
 git status
 ```
 
-If there are uncommitted changes, stop and ask. The impl branch should be clean — all work arrives via merged phase PRs.
+If there are uncommitted changes **other than untracked or modified files under `docs/stories/<plan>/`** (leftovers from an interrupted run of this skill, which the steps below regenerate), stop and ask. Otherwise the impl branch should be clean — all work arrives via merged phase PRs.
 
 ### 3. Summarize what is being shipped
 
@@ -78,12 +78,78 @@ Phases:
   [PLAN-XXXXX-2] <title>
   ...
 
+Will also commit and push `docs/stories/<plan>/` to `<main_branch>` before opening the PR.
+
 This will open a PR: <main_branch> → main. Proceed?
 ```
 
 Ask for confirmation before creating the PR.
 
-### 4. Create PR
+### 4. Assemble and commit the story record
+
+```bash
+marvin issue tree $0 --json
+```
+
+If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first." If it exits 1, stop and surface the error — a failed hierarchy walk is not the same as an empty one; the graceful-degradation handling below applies only to a successful call that returns an empty or partial result.
+
+Parse the returned JSON array of nodes (each with `kind`, `number`, `title`, `state`, `status`). Identify the one `arch` node (if any), the `impl` node (matches `$0`), and zero or more `phase` nodes. For each `phase` node, determine its ordinal via:
+
+```bash
+marvin parse title "<node title>"
+```
+
+Read the `phase:` line from the output and sort the phase nodes by this **parsed ordinal** — not `issue tree`'s own issue-number sort order, which only coincides with phase order within a single `phase-split` run. `marvin issue tree` is authoritative for the phase list here — step 1's `marvin parse phase-list` result is used only for that step's own summary display and is not consulted in this step.
+
+If the `phase` nodes list from `issue tree` is empty, fall back to:
+
+```bash
+marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX-" --state all
+```
+
+(trailing hyphen, no closing bracket — substitute the real plan number, e.g. `"[PLAN-00042-"`). If that also returns nothing, note the absence in `phases.md`'s header rather than emitting an empty table. If no `arch` node is present, skip `arch-plan.md` entirely and note its absence in `phases.md`'s header — do not fail either case.
+
+The story slug is the plan identifier `<plan>` captured in step 1. Directory: `docs/stories/<plan>/`.
+
+Fetch each node's body:
+
+```bash
+gh issue view <node-number> --repo <repo> --json number,title,body,url
+```
+
+Before writing each target path, check whether it already exists:
+
+```bash
+ls docs/stories/<plan>/ 2>/dev/null
+```
+
+and **Read it first if it does** — the Write tool refuses to overwrite a path it has not read this session:
+
+- `docs/stories/<plan>/arch-plan.md`: header (`# <title>` / `Source: <url>`) followed by the arch plan body verbatim. Omitted entirely if no arch node was found.
+- `docs/stories/<plan>/impl-plan.md`: header (`# <title>` / `Source: <url>`) followed by the impl plan body verbatim.
+- `docs/stories/<plan>/phases.md`: an index table (`| Phase | Issue | Title |`) followed by each phase's full body under a `## [PLAN-XXXXX-N] <Title>` heading, in the parsed-ordinal order established above.
+
+Stage only the files this step writes — never the whole directory:
+
+```bash
+git add docs/stories/<plan>/arch-plan.md docs/stories/<plan>/impl-plan.md docs/stories/<plan>/phases.md
+```
+
+(omit `arch-plan.md` from the `git add` if no arch node was found). Commit, gating on `git diff --cached --quiet` (not the commit's exit code) to distinguish a genuine no-op from a real failure; report what's about to be published before pushing; push unconditionally, outside the no-op check:
+
+```bash
+if git diff --cached --quiet; then
+  echo "docs/stories/<plan>/ already up to date — no-op"
+else
+  git commit -m "docs: add docs/stories/<plan>/ arch/impl/phase records for [PLAN-XXXXX] <title>"
+fi
+git log origin/<main_branch>..HEAD --oneline
+git push origin <main_branch>
+```
+
+Any non-zero exit from `git commit` or `git push` stops here and surfaces the error — do not proceed to PR creation with the docs uncommitted or unpushed. If `git log origin/<main_branch>..HEAD` shows commits this run did not just make, report them to the user rather than pushing silently.
+
+### 5. Create PR
 
 Read `../SHARED/PR_TEMPLATE.md` and use the **Implementation PR** template. Include `Closes #$0` to auto-close the impl plan issue on merge.
 
@@ -94,7 +160,7 @@ gh pr create --repo <repo> \
   --body "<PR body>"
 ```
 
-### 5. Move impl plan to In Review
+### 6. Move impl plan to In Review
 
 ```bash
 marvin board move $0 in-review
@@ -102,7 +168,7 @@ marvin board move $0 in-review
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-### 6. Clear the findings cache
+### 7. Clear the findings cache
 
 Now that the impl PR is open, clear the plan's findings cache — any accumulated review, drift, and red-team findings are superseded by the impl-level review that `/review-impl` will produce:
 
@@ -112,8 +178,8 @@ marvin findings clear <plan>
 
 Where `<plan>` is the plan identifier from step 1 (e.g. `plan-00042`). This removes `.claude/cache/<plan>/` entirely. If the directory is already absent, this is a no-op.
 
-### 7. Confirm
+### 8. Confirm
 
-Report: PR URL, impl plan issue #$0 moved to In Review, findings cache cleared.
+Report: PR URL, `docs/stories/<plan>/` commit (or no-op) and push status, impl plan issue #$0 moved to In Review, findings cache cleared.
 
 **Next step**: `/review-impl $0` to review the impl PR and post findings directly on it.

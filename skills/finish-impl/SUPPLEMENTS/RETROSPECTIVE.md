@@ -6,7 +6,7 @@ You are synthesizing a durable retrospective for a completed implementation stor
 
 You will be given, inlined in your prompt:
 
-1. Zero or more **wrap-up comments** — one per phase, each the body of a `wrap-phase`-authored comment on the impl plan issue, identified by the prefix `## Phase wrap-up: [PLAN-XXXXX-`. Each covers one phase's decisions, scope changes, deferred items, and corrections (see `../../wrap-phase/SUPPLEMENTS/COMMENT_TEMPLATE.md` for their template).
+1. Zero or more **wrap-up comments** — one per phase, each the body of a `wrap-phase`-authored comment on the impl plan issue, identified by the prefix `## Phase wrap-up: [PLAN-XXXXX-`. Each covers one phase's decisions, scope changes, deferred items, and corrections (their template is `wrap-phase`'s `COMMENT_TEMPLATE.md`).
 2. At most one **red-team critique comment** — the body of a `red-team-plan`-authored comment on the impl plan issue, identified by the prefix `## Plan Red-Team — verdict:`. May be absent (it's optional). Covers blocking findings and concerns raised against the plan before implementation began.
 
 The orchestrator has already filtered these (deduped by ident, most recent kept) before inlining them in your prompt — treat every comment you are given as the input set, in full.
@@ -15,7 +15,7 @@ The orchestrator has already filtered these (deduped by ident, most recent kept)
 
 - Read every comment in full before writing anything.
 - Group your output **by theme or topic**, not by source comment. A single decision, correction, or deferred item mentioned across multiple phases should be synthesized into one entry, not repeated once per phase.
-- Cite which phase (or the red-team critique) each point came from, using its `[PLAN-XXXXX-N]` ident inline in the prose (e.g. "In `[PLAN-00055-1]`, the team chose to..."). This is the traceability mechanism — there are no footnotes or links back to GitHub.
+- Cite which phase (or the red-team critique) each point came from, using its `[PLAN-XXXXX-N]` ident inline in the prose (e.g. "In `[PLAN-XXXXX-1]`, the team chose to..."). This is the traceability mechanism — there are no footnotes or links back to GitHub.
 - Write narrative prose — full sentences, not a re-listing of the source bullets. A reader should be able to tell this was synthesized by someone who read everything, not extracted mechanically.
 - **Do not copy a source comment's own `###`-level sub-headings verbatim into your output.** The source wrap-up comments use `### Decisions`, `### Scope changes`, `### Deferred / watch items`, and `### Corrections (N)` as their own internal structure — your output must not reproduce those exact strings anywhere in its body text. Your five `##`-level headings (below) are a different, higher level of structure than theirs, and your prose under each should not restate their bullet lists as-is.
 - Be honest and specific. If a phase's wrap-up says a decision was made for a specific reason, carry that reason into your synthesis — don't flatten it to a generic statement.
@@ -50,6 +50,8 @@ Return **only** the retrospective markdown body — no surrounding prose, no cod
 
 ## Named fixture
 
+**This section is for the implementer only — it is not part of the sub-agent's prompt.** When inlining this rubric per `finish-impl` step 5, inline only the **Inputs**, **Synthesis instructions**, and **Output format** sections above and stop before this heading. Using the fixture's `[PLAN-XXXXX-N]` placeholder idents against a real story would collide with that story's own real idents if this section were ever inlined alongside real wrap-up comments.
+
 Use this fixture to dry-run the rubric before wiring it into the live `finish-impl` step. Write the result to the scratch path `/tmp/retro-fixture.md` — **never** to `docs/stories/<plan>/retrospective.md`, which is the real story's permanent record and is gated by `finish-impl`'s skip-if-exists check.
 
 **Fixture input — two synthetic wrap-up comments, no red-team comment:**
@@ -57,7 +59,7 @@ Use this fixture to dry-run the rubric before wiring it into the live `finish-im
 Comment 1:
 
 ```markdown
-## Phase wrap-up: [PLAN-00055-1] Fixture Phase One
+## Phase wrap-up: [PLAN-XXXXX-1] Fixture Phase One
 
 Merged via #999.
 
@@ -69,7 +71,7 @@ Merged via #999.
 Comment 2:
 
 ```markdown
-## Phase wrap-up: [PLAN-00055-2] Fixture Phase Two
+## Phase wrap-up: [PLAN-XXXXX-2] Fixture Phase Two
 
 Merged via #1000.
 
@@ -82,6 +84,6 @@ Merged via #1000.
 
 - Contains the literal string `FIXTURE-CORRECTION-A` (from Comment 1's correction).
 - Contains the literal string `FIXTURE-DECISION-B` (from Comment 2's decision).
-- Cites both `[PLAN-00055-1]` and `[PLAN-00055-2]` by ident somewhere in the prose.
+- Cites both `[PLAN-XXXXX-1]` and `[PLAN-XXXXX-2]` by ident somewhere in the prose.
 - Omits `## Plan critique` entirely (no red-team comment was supplied).
 - Contains none of the four source sub-headings verbatim: `### Decisions`, `### Scope changes`, `### Deferred / watch items`, `### Corrections (1)` (or any `### Corrections (N)`).

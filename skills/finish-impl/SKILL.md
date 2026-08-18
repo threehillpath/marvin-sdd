@@ -167,20 +167,23 @@ If the number of matched wrap-up comments is fewer than the number of phase node
 Check whether `docs/stories/<plan>/retrospective.md` already exists:
 
 ```bash
-ls docs/stories/<plan>/ 2>/dev/null
+test -f docs/stories/<plan>/retrospective.md
 ```
 
-If it does, **skip regeneration and report it as already-present** rather than re-synthesizing — the sub-agent's prose output is not deterministic between runs, so re-running would churn the durable record with different wording for no reason. **To force a rewrite, delete `docs/stories/<plan>/retrospective.md` and re-run `finish-impl`** — this is the documented escape hatch; there is no flag or prompt for it.
+If it does (exit 0), **skip regeneration and report it as already-present** rather than re-synthesizing — the sub-agent's prose output is not deterministic between runs, so re-running would churn the durable record with different wording for no reason. **To force a rewrite, delete `docs/stories/<plan>/retrospective.md` and re-run `finish-impl`** — this is the documented escape hatch; there is no flag or prompt for it. Then continue to the staging and push below regardless.
 
-Otherwise, spawn an **Agent** with:
+Otherwise (exit non-zero), spawn an **Agent** with:
 
 - `subagent_type: "general-purpose"`
 - `model: "sonnet"`
 - No worktree isolation
 
-Read `SUPPLEMENTS/RETROSPECTIVE.md` and inline its rubric, along with the filtered comment bodies, directly in the sub-agent's prompt. The sub-agent returns the `retrospective.md` markdown directly — no code fence, no surrounding prose. Write it with the **Write** tool (no preceding Read needed on this path — the existence check above already established the file is absent).
+Read `SUPPLEMENTS/RETROSPECTIVE.md` and inline its rubric — the **Inputs**, **Synthesis instructions**, and **Output format** sections only, never the **Named fixture** section — along with the filtered comment bodies, directly in the sub-agent's prompt. The sub-agent returns the `retrospective.md` markdown directly — no code fence, no surrounding prose. Write it with the **Write** tool (no preceding Read needed on this path — the existence check above already established the file is absent).
+
+Then — on **both** paths, whether the retrospective was just written or skipped as already-present — verify the file exists before staging (a failed `git add` on a missing pathspec exits non-zero and stages nothing, which `git diff --cached --quiet` would then read as "nothing to commit," indistinguishable from a legitimate no-op), then stage, commit if there is anything staged, and push:
 
 ```bash
+test -f docs/stories/<plan>/retrospective.md || { echo "retrospective.md missing — aborting" >&2; exit 1; }
 git add docs/stories/<plan>/retrospective.md
 if git diff --cached --quiet; then
   echo "retrospective.md already up to date — no-op"
@@ -191,7 +194,7 @@ git log origin/<main_branch>..HEAD --oneline
 git push origin <main_branch>
 ```
 
-Any non-zero exit from `git commit` or `git push` stops here and surfaces the error. If `git log origin/<main_branch>..HEAD` shows commits this run did not just make, report them to the user rather than pushing silently. The `git push` runs **unconditionally**, outside the no-op `if`/`else` — a push with nothing new to send is itself a harmless no-op, and this is what lets a prior run's failed push get retried on the next run even when nothing new gets staged or committed that time.
+Any non-zero exit from `git add`, `git commit`, `git log`, or `git push` stops here and surfaces the error. A failed `git add` must never fall through to the no-op branch, whose message is identical to a legitimate skip. If `git log origin/<main_branch>..HEAD` shows commits this run did not just make, report them to the user rather than pushing silently. The `git push` runs **unconditionally**, outside the no-op `if`/`else` — a push with nothing new to send is itself a harmless no-op, and this is what lets a prior run's failed push get retried on the next run even when nothing new gets staged or committed that time.
 
 ### 6. Create PR
 

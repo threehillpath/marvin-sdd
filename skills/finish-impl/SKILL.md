@@ -2,7 +2,7 @@
 name: finish-impl
 description: Open a PR from the implementation branch to main and move the impl plan to In Review
 argument-hint: <impl-plan-issue-number>
-allowed-tools: Bash, Read, Write
+allowed-tools: Bash, Read, Write, Agent
 model: sonnet
 ---
 
@@ -155,7 +155,48 @@ git push origin <main_branch>
 
 Any non-zero exit from `git add`, `git commit`, `git log`, or `git push` stops here and surfaces the error — do not proceed to PR creation with the docs uncommitted or unpushed. A failed `git add` must never fall through to the no-op branch, whose message is identical to a legitimate re-run. If `git log origin/<main_branch>..HEAD` shows commits this run did not just make, report them to the user rather than pushing silently.
 
-### 5. Create PR
+### 5. Synthesize and commit the retrospective
+
+Filter the impl plan issue's comments — already fetched in step 1 (`gh issue view $0 --json …,comments`), no new `gh` call needed:
+
+- **Wrap-up comments**: bodies starting with `## Phase wrap-up: [PLAN-XXXXX-`. When two or more matched comments share the same `[PLAN-XXXXX-N]` ident (a phase re-wrapped), keep only the most recent by comment timestamp.
+- **Red-team critique**: the body starting with `## Plan Red-Team — verdict:`. Keep only the most recent if `red-team-plan` was re-run.
+
+If the number of matched wrap-up comments is fewer than the number of phase nodes resolved in step 4 (or, if step 4's fallback was used, fewer than that fallback returned), report the shortfall to the user before synthesizing — don't proceed silently on a partial set. A missing red-team comment is expected (it's optional) and is not reported as a shortfall.
+
+Check whether `docs/stories/<plan>/retrospective.md` already exists:
+
+```bash
+test -f docs/stories/<plan>/retrospective.md
+```
+
+If it does (exit 0), **skip regeneration and report it as already-present** rather than re-synthesizing — the sub-agent's prose output is not deterministic between runs, so re-running would churn the durable record with different wording for no reason. **To force a rewrite, delete `docs/stories/<plan>/retrospective.md` and re-run `finish-impl`** — this is the documented escape hatch; there is no flag or prompt for it. Then continue to the staging and push below regardless.
+
+Otherwise (exit non-zero), spawn an **Agent** with:
+
+- `subagent_type: "general-purpose"`
+- `model: "sonnet"`
+- No worktree isolation
+
+Read `SUPPLEMENTS/RETROSPECTIVE.md` and inline its rubric — the **Inputs**, **Synthesis instructions**, and **Output format** sections only, never the **Named fixture** section — along with the filtered comment bodies, directly in the sub-agent's prompt. The sub-agent returns the `retrospective.md` markdown directly — no code fence, no surrounding prose. Write it with the **Write** tool (no preceding Read needed on this path — the existence check above already established the file is absent).
+
+Then — on **both** paths, whether the retrospective was just written or skipped as already-present — verify the file exists before staging (a failed `git add` on a missing pathspec exits non-zero and stages nothing, which `git diff --cached --quiet` would then read as "nothing to commit," indistinguishable from a legitimate no-op), then stage, commit if there is anything staged, and push:
+
+```bash
+test -f docs/stories/<plan>/retrospective.md || { echo "retrospective.md missing — aborting" >&2; exit 1; }
+git add docs/stories/<plan>/retrospective.md
+if git diff --cached --quiet; then
+  echo "retrospective.md already up to date — no-op"
+else
+  git commit -m "docs: add retrospective for [PLAN-XXXXX] <title>"
+fi
+git log origin/<main_branch>..HEAD --oneline
+git push origin <main_branch>
+```
+
+Any non-zero exit from `git add`, `git commit`, `git log`, or `git push` stops here and surfaces the error. A failed `git add` must never fall through to the no-op branch, whose message is identical to a legitimate skip. If `git log origin/<main_branch>..HEAD` shows commits this run did not just make, report them to the user rather than pushing silently. The `git push` runs **unconditionally**, outside the no-op `if`/`else` — a push with nothing new to send is itself a harmless no-op, and this is what lets a prior run's failed push get retried on the next run even when nothing new gets staged or committed that time.
+
+### 6. Create PR
 
 Read `../SHARED/PR_TEMPLATE.md` and use the **Implementation PR** template. Include `Closes #$0` to auto-close the impl plan issue on merge.
 
@@ -166,7 +207,7 @@ gh pr create --repo <repo> \
   --body "<PR body>"
 ```
 
-### 6. Move impl plan to In Review
+### 7. Move impl plan to In Review
 
 ```bash
 marvin board move $0 in-review
@@ -174,7 +215,7 @@ marvin board move $0 in-review
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-### 7. Clear the findings cache
+### 8. Clear the findings cache
 
 Now that the impl PR is open, clear the plan's findings cache — any accumulated review, drift, and red-team findings are superseded by the impl-level review that `/review-impl` will produce:
 
@@ -184,8 +225,8 @@ marvin findings clear <plan>
 
 Where `<plan>` is the plan identifier from step 1 (e.g. `plan-00042`). This removes `.claude/cache/<plan>/` entirely. If the directory is already absent, this is a no-op.
 
-### 8. Confirm
+### 9. Confirm
 
-Report: PR URL, `docs/stories/<plan>/` commit (or no-op) and push status, impl plan issue #$0 moved to In Review, findings cache cleared.
+Report: PR URL, `docs/stories/<plan>/` commit (or no-op) and push status, `retrospective.md` commit (or no-op/skip) and push status, impl plan issue #$0 moved to In Review, findings cache cleared.
 
 **Next step**: `/review-impl $0` to review the impl PR and post findings directly on it.

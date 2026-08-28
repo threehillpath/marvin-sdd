@@ -67,7 +67,9 @@ func worktreeAlreadyAdded(ctx context.Context, runner exec.Runner, path, branch 
 //   - path is already a worktree for branch: no-op success (idempotent).
 //   - Local branch already exists for a different worktree: returns CLIError{Code:1}.
 //   - Remote exists, local does not: fetches the remote branch, then adds the worktree.
-//   - Neither local nor remote: creates the branch from baseBranch, pushes to origin,
+//   - Neither local nor remote: fetches baseBranch from origin, creates the new
+//     branch from origin/baseBranch (so a just-merged prior phase's PR is
+//     included even if the local baseBranch ref is stale), pushes to origin,
 //     then adds the worktree.
 func Add(ctx context.Context, runner exec.Runner, path, branch, baseBranch string) error {
 	// Check local branch.
@@ -103,8 +105,22 @@ func Add(ctx context.Context, runner exec.Runner, path, branch, baseBranch strin
 			return fmt.Errorf("worktree add: git fetch exited %d: %s", code, stderr)
 		}
 	} else {
-		// Create local branch from baseBranch.
-		_, stderr, code, err := runner.Run(ctx, "git", "branch", branch, baseBranch)
+		// Fetch baseBranch from origin first: baseBranch is typically the
+		// implementation branch, and a prior phase's PR may have just been
+		// merged into it on GitHub. Without this, a stale local ref would
+		// silently drop the previous phase's merged work from the new phase
+		// branch. Branching from origin/baseBranch (not the local ref)
+		// guarantees the new branch reflects the latest merged state.
+		_, stderr, code, err := runner.Run(ctx, "git", "fetch", "origin", baseBranch)
+		if err != nil {
+			return fmt.Errorf("worktree add: git fetch base: %w", err)
+		}
+		if code != 0 {
+			return fmt.Errorf("worktree add: git fetch base exited %d: %s", code, stderr)
+		}
+
+		// Create local branch from the freshly-fetched base.
+		_, stderr, code, err = runner.Run(ctx, "git", "branch", branch, "origin/"+baseBranch)
 		if err != nil {
 			return fmt.Errorf("worktree add: git branch: %w", err)
 		}

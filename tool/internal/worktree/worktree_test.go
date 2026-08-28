@@ -71,15 +71,17 @@ func TestAddIdempotentNoop(t *testing.T) {
 }
 
 // TestAddNeitherLocalNorRemoteProceedsToWorktreeAdd verifies that when neither
-// the local nor remote branch exists, Add issues git branch, git push, and
-// git worktree add — in that order.
+// the local nor remote branch exists, Add issues git fetch (of baseBranch),
+// git branch, git push, and git worktree add — in that order.
 func TestAddNeitherLocalNorRemoteProceedsToWorktreeAdd(t *testing.T) {
 	fake := &exectest.FakeRunner{}
 	// git branch --list → empty (no local branch)
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
 	// git ls-remote → empty (no remote branch)
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
-	// git branch <branch> <baseBranch> succeeds
+	// git fetch origin <baseBranch> succeeds
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
+	// git branch <branch> origin/<baseBranch> succeeds
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
 	// git push -u origin <branch> succeeds
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
@@ -100,6 +102,60 @@ func TestAddNeitherLocalNorRemoteProceedsToWorktreeAdd(t *testing.T) {
 	}
 	if !worktreeAddFound {
 		t.Errorf("expected git worktree add to be called; calls: %v", fake.Calls)
+	}
+}
+
+// TestAddNeitherLocalNorRemoteFetchesBaseBeforeBranching verifies the fix for
+// the stale-base-branch bug: Add must fetch baseBranch from origin, and create
+// the new branch from origin/<baseBranch> (not the possibly-stale local ref),
+// so a just-merged prior phase's PR is always included in the next phase.
+func TestAddNeitherLocalNorRemoteFetchesBaseBeforeBranching(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	// git branch --list → empty (no local branch)
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
+	// git ls-remote → empty (no remote branch)
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
+	// git fetch origin <baseBranch> succeeds
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
+	// git branch <branch> origin/<baseBranch> succeeds
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
+	// git push -u origin <branch> succeeds
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
+	// git worktree add <path> <branch> succeeds
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
+
+	err := worktree.Add(context.Background(), fake, "/tmp/wt/phase-3", "feature/plan-00002-3", "feature/plan-00002")
+	if err != nil {
+		t.Fatalf("Add returned error: %v", err)
+	}
+
+	var fetchIdx, branchIdx = -1, -1
+	for i, c := range fake.Calls {
+		if c.Name != "git" || len(c.Args) < 2 {
+			continue
+		}
+		switch c.Args[0] {
+		case "fetch":
+			if c.Args[1] == "origin" && len(c.Args) >= 3 && c.Args[2] == "feature/plan-00002" {
+				fetchIdx = i
+			}
+		case "branch":
+			if c.Args[1] != "--list" {
+				branchIdx = i
+				if len(c.Args) < 3 || c.Args[2] != "origin/feature/plan-00002" {
+					t.Errorf("expected git branch to use origin/feature/plan-00002 as source, got: %v", c.Args)
+				}
+			}
+		}
+	}
+	if fetchIdx == -1 {
+		t.Fatalf("expected git fetch origin feature/plan-00002 to be called; calls: %v", fake.Calls)
+	}
+	if branchIdx == -1 {
+		t.Fatalf("expected git branch create to be called; calls: %v", fake.Calls)
+	}
+	if fetchIdx > branchIdx {
+		t.Errorf("expected git fetch to happen before git branch create; fetchIdx=%d branchIdx=%d", fetchIdx, branchIdx)
 	}
 }
 

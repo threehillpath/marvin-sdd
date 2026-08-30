@@ -488,7 +488,7 @@ func newWorktreePruneCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Co
 func newWorktreeResolveCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	return &cobra.Command{
 		Use:   "resolve <path>",
-		Short: "Print path as an absolute path, anchored against the main repo root",
+		Short: "Print a repo-relative path as absolute; rejects absolute input, path traversal, or paths outside this process's cwd/descendants",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resolved, err := worktree.Resolve(context.Background(), runner, args[0])

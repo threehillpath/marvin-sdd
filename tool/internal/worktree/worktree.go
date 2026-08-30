@@ -6,6 +6,7 @@ package worktree
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -33,19 +34,68 @@ func RepoRoot(ctx context.Context, runner exec.Runner) (string, error) {
 	return filepath.Dir(commonDir), nil
 }
 
-// Resolve returns path as an absolute path: unchanged if already absolute
-// (zero runner calls), otherwise joined against RepoRoot — never against the
-// calling process's CWD, which may not be the main repo root when invoked
-// from inside a linked worktree.
+// Resolve turns a repository-relative path into an absolute one, deterministically
+// and entirely from calls Resolve makes itself (git, then the OS) — never by
+// trusting a path an external caller has already resolved. path must be
+// relative to the repository root; an absolute path is rejected outright
+// rather than trusted verbatim, since a caller-supplied absolute path is
+// exactly the kind of unverified input that could otherwise point anywhere
+// on disk. path must also not escape the repository root via `..`
+// traversal.
+//
+// The resulting absolute path is further constrained to this process's
+// execution scope: it must be the calling process's own working directory,
+// or a descendant of it. This lets a process running at an ancestor
+// position (typically the main repo root) operate on any worktree beneath
+// it — the ordinary "orchestrator cleans up a phase worktree" case — while
+// refusing to resolve into a sibling worktree (one linked worktree has no
+// business touching another's files) or "up" into an ancestor directory
+// (which could be the main checkout itself, or a directory further up the
+// tree). Determinism follows from this: given the same git and filesystem
+// state, Resolve always computes the same result, and it never depends on
+// a value handed to it that it has not itself verified.
 func Resolve(ctx context.Context, runner exec.Runner, path string) (string, error) {
 	if filepath.IsAbs(path) {
-		return path, nil
+		return "", fmt.Errorf("worktree: resolve: path must be relative to the repository root, got absolute path %q", path)
 	}
+	cleaned := filepath.Clean(path)
+	if cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("worktree: resolve: path %q escapes the repository root", path)
+	}
+
 	root, err := RepoRoot(ctx, runner)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(root, path), nil
+	resolved := filepath.Join(root, cleaned)
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("worktree: resolve: determine working directory: %w", err)
+	}
+	if !withinExecutionScope(cwd, resolved) {
+		return "", fmt.Errorf("worktree: resolve: %q is outside this process's execution scope (working directory %q is neither %q itself nor an ancestor of it)", resolved, cwd, resolved)
+	}
+	return resolved, nil
+}
+
+// withinExecutionScope reports whether target is cwd itself or a descendant
+// of cwd. This is deliberately one-directional: a process running from an
+// ancestor position (cwd above target) may reach down into target, but a
+// process running from inside target may never resolve back "up" past its
+// own cwd, and two paths that share neither relationship (siblings) are
+// always rejected.
+func withinExecutionScope(cwd, target string) bool {
+	cwd = filepath.Clean(cwd)
+	target = filepath.Clean(target)
+	if cwd == target {
+		return true
+	}
+	rel, err := filepath.Rel(cwd, target)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // localBranchExists returns true if <branch> is already checked out as a local branch.

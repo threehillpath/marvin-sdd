@@ -83,10 +83,10 @@ func worktreeAlreadyAdded(ctx context.Context, runner exec.Runner, path, branch 
 	var inTarget bool
 	for _, line := range strings.Split(string(stdout), "\n") {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "worktree ") {
-			inTarget = strings.TrimPrefix(line, "worktree ") == path
-		} else if inTarget && strings.HasPrefix(line, "branch ") {
-			if strings.TrimPrefix(line, "branch ") == targetRef {
+		if wtPath, ok := strings.CutPrefix(line, "worktree "); ok {
+			inTarget = wtPath == path
+		} else if branchRef, ok := strings.CutPrefix(line, "branch "); inTarget && ok {
+			if branchRef == targetRef {
 				return true, nil
 			}
 		}
@@ -204,7 +204,7 @@ func isRegisteredWorktree(ctx context.Context, runner exec.Runner, resolved stri
 	}
 	for _, line := range strings.Split(string(stdout), "\n") {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "worktree ") && strings.TrimPrefix(line, "worktree ") == resolved {
+		if wtPath, ok := strings.CutPrefix(line, "worktree "); ok && wtPath == resolved {
 			return true, nil
 		}
 	}

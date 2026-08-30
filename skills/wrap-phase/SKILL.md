@@ -108,7 +108,7 @@ marvin worktree remove <worktree_path>
 marvin worktree prune
 ```
 
-If the path does not exist (manually removed earlier), skip silently.
+If the path is not registered with git (e.g. manually removed earlier), `marvin worktree remove` is a no-op — skip silently. A manually-deleted-but-still-registered ("prunable") worktree is not a no-op: `marvin worktree remove` cleans it up via `git worktree remove --force`.
 
 Do **not** delete the phase branch (`<type>/PLAN-XXXXX/phase-N`) — it remains on the remote as the merge source and is useful for archaeology.
 

@@ -385,17 +385,17 @@ func runPRBase(stdout, stderr io.Writer, branch string, jsonOut bool, runner exe
 // ── findings ─────────────────────────────────────────────────────────────────
 
 // newFindingsCmd returns the findings subcommand group.
-func newFindingsCmd(stdout, stderr io.Writer) *cobra.Command {
+func newFindingsCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	findingsCmd := &cobra.Command{
 		Use:   "findings",
 		Short: "Manage plan-scoped JSON findings cache",
 	}
-	findingsCmd.AddCommand(newFindingsCacheCmd(stdout, stderr))
-	findingsCmd.AddCommand(newFindingsClearCmd(stdout, stderr))
+	findingsCmd.AddCommand(newFindingsCacheCmd(stdout, stderr, runner))
+	findingsCmd.AddCommand(newFindingsClearCmd(stdout, stderr, runner))
 	return findingsCmd
 }
 
-func newFindingsCacheCmd(stdout, stderr io.Writer) *cobra.Command {
+func newFindingsCacheCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	return &cobra.Command{
 		Use:   "cache <plan-number> <kind> <name>",
 		Short: "Validate and write JSON from stdin to the findings cache",
@@ -405,7 +405,7 @@ func newFindingsCacheCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return &CLIError{Code: 1, Msg: fmt.Sprintf("reading stdin: %v", err)}
 			}
-			if err := findings.Cache(args[0], args[1], args[2], payload); err != nil {
+			if err := findings.Cache(context.Background(), runner, args[0], args[1], args[2], payload); err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
 			path := findings.CachePath(args[0], args[1], args[2])
@@ -415,13 +415,13 @@ func newFindingsCacheCmd(stdout, stderr io.Writer) *cobra.Command {
 	}
 }
 
-func newFindingsClearCmd(stdout, stderr io.Writer) *cobra.Command {
+func newFindingsClearCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	return &cobra.Command{
 		Use:   "clear <plan-number>",
 		Short: "Remove all cached findings for a plan",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := findings.Clear(args[0]); err != nil {
+			if err := findings.Clear(context.Background(), runner, args[0]); err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
 			return nil
@@ -440,6 +440,7 @@ func newWorktreeCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command
 	wtCmd.AddCommand(newWorktreeAddCmd(stdout, stderr, runner))
 	wtCmd.AddCommand(newWorktreeRemoveCmd(stdout, stderr, runner))
 	wtCmd.AddCommand(newWorktreePruneCmd(stdout, stderr, runner))
+	wtCmd.AddCommand(newWorktreeResolveCmd(stdout, stderr, runner))
 	return wtCmd
 }
 
@@ -479,6 +480,22 @@ func newWorktreePruneCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Co
 			if err := worktree.Prune(context.Background(), runner); err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
+			return nil
+		},
+	}
+}
+
+func newWorktreeResolveCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
+	return &cobra.Command{
+		Use:   "resolve <path>",
+		Short: "Print a repo-relative path as absolute; rejects absolute input, path traversal, or paths outside this process's cwd/descendants",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resolved, err := worktree.Resolve(context.Background(), runner, args[0])
+			if err != nil {
+				return &CLIError{Code: 1, Msg: err.Error()}
+			}
+			fmt.Fprintln(stdout, resolved)
 			return nil
 		},
 	}

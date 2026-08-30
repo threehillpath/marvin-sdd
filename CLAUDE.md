@@ -112,6 +112,7 @@ Skills read `.claude/plan-workflow-config.yml` (preferred) or `.claude/plan-work
 
 **Runtime** (needed when using skills):
 - `gh` CLI authenticated with repo and project access
+- git ≥ 2.31 (needed for `git rev-parse --path-format=absolute`, used by worktree path resolution)
 - GitHub Projects v2 board (classic projects not supported)
 - `jq` (optional) for post-processing `marvin --json` output in custom skill prose (marvin's list/object commands default to plain text)
 - `glow` (optional) for rendered markdown previews in terminal

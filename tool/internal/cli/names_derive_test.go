@@ -147,6 +147,79 @@ func TestNamesDeriveJSONUnchanged(t *testing.T) {
 	}
 }
 
+// TestNamesDeriveTaskJSON verifies that 'marvin names derive <n> --task
+// --type bug --json' emits exactly the five-key task-shaped field set,
+// pretty-printed, with all PLAN-shaped fields absent.
+func TestNamesDeriveTaskJSON(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"names", "derive", "91", "--task", "--type", "bug", "--json"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("names derive --task returned error: %v\nstderr: %s", err, stderr.String())
+	}
+
+	want := `{
+  "task_number": "TASK-00091",
+  "type": "bug",
+  "task_branch": "bug/TASK-00091",
+  "worktree_path": ".worktrees/task-00091",
+  "title_prefix": {
+    "task": "[TASK-00091]"
+  }
+}
+`
+	if stdout.String() != want {
+		t.Errorf("--task --json output mismatch\ngot:\n%s\nwant:\n%s", stdout.String(), want)
+	}
+}
+
+// TestNamesDeriveTaskPlainText verifies the plain-text mirror of the --task
+// --json field set: the same five keys, in the same order, with every
+// PLAN-shaped line omitted.
+func TestNamesDeriveTaskPlainText(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"names", "derive", "91", "--task", "--type", "bug", "--worktree-base", ".worktrees"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("names derive --task returned error: %v\nstderr: %s", err, stderr.String())
+	}
+
+	want := "task_number: TASK-00091\n" +
+		"type: bug\n" +
+		"task_branch: bug/TASK-00091\n" +
+		"worktree_path: .worktrees/task-00091\n" +
+		"title_prefix_task: [TASK-00091]\n"
+
+	if stdout.String() != want {
+		t.Errorf("--task plain-text output mismatch\ngot:\n%s\nwant:\n%s", stdout.String(), want)
+	}
+}
+
+// TestNamesDeriveTaskPhaseConflict verifies that --task combined with a
+// non-zero --phase is rejected with a Code 1 error naming both flags.
+func TestNamesDeriveTaskPhaseConflict(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"names", "derive", "91", "--task", "--phase", "2"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected error for --task with --phase, got nil")
+	}
+	ce, ok := err.(*cli.CLIError)
+	if !ok {
+		t.Fatalf("expected *cli.CLIError, got %T: %v", err, err)
+	}
+	if ce.Code != 1 {
+		t.Errorf("expected exit code 1, got %d", ce.Code)
+	}
+	if !strings.Contains(ce.Msg, "--task") || !strings.Contains(ce.Msg, "--phase") {
+		t.Errorf("expected error message to name both --task and --phase, got %q", ce.Msg)
+	}
+}
+
 // TestNamesDeriveInvalidType verifies that an invalid --type value exits 1
 // with a clear error message.
 func TestNamesDeriveInvalidType(t *testing.T) {

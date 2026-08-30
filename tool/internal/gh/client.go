@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"threehillpath.com/marvin-sdd/tool/internal/exec"
@@ -414,6 +415,41 @@ func (c *Client) ParentIssue(ctx context.Context, repo string, number int) (SubI
 		return SubIssueRef{}, false, nil
 	}
 	return SubIssueRef{Number: p.Number, Title: p.Title, State: p.State}, true, nil
+}
+
+// IssueCreate runs `gh issue create --repo <repo> --title <title> --body
+// <body> --label <l1> --label <l2> ...` (one --label flag per label) and
+// parses the resulting issue number and URL from stdout. gh issue create has
+// no --json flag; on success stdout is the bare issue URL (e.g.
+// "https://github.com/o/r/issues/123\n"). No shell is involved (exec.Runner
+// execs gh directly), so the multi-paragraph body needs no escaping. A
+// non-zero exit surfaces as a non-nil error with gh's stderr preserved —
+// never a silent (0, "", nil).
+func (c *Client) IssueCreate(ctx context.Context, repo, title, body string, labels []string) (int, string, error) {
+	args := []string{"issue", "create", "--repo", repo, "--title", title, "--body", body}
+	for _, l := range labels {
+		args = append(args, "--label", l)
+	}
+	stdout, stderr, code, err := c.runner.Run(ctx, "gh", args...)
+	if err != nil {
+		return 0, "", fmt.Errorf("gh issue create: %w", err)
+	}
+	if code != 0 {
+		return 0, "", fmt.Errorf("gh issue create exited %d: %s", code, stderr)
+	}
+	url := strings.TrimSpace(string(stdout))
+	if url == "" {
+		return 0, "", fmt.Errorf("gh issue create: empty response")
+	}
+	idx := strings.LastIndex(url, "/")
+	if idx == -1 || idx == len(url)-1 {
+		return 0, "", fmt.Errorf("gh issue create: unable to parse issue number from response %q", url)
+	}
+	number, convErr := strconv.Atoi(url[idx+1:])
+	if convErr != nil {
+		return 0, "", fmt.Errorf("gh issue create: unable to parse issue number from response %q: %w", url, convErr)
+	}
+	return number, url, nil
 }
 
 // PRListItem represents a single pull request from gh pr list output.

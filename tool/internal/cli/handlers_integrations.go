@@ -512,7 +512,84 @@ func newIssueCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	issueCmd.AddCommand(newIssueListCmd(stdout, stderr, runner))
 	issueCmd.AddCommand(newIssueTreeCmd(stdout, stderr, runner))
 	issueCmd.AddCommand(newIssueLinkParentCmd(stdout, stderr, runner))
+	issueCmd.AddCommand(newIssueCreateCmd(stdout, stderr, runner))
 	return issueCmd
+}
+
+// issueCreateOutput is the JSON shape for issue create.
+type issueCreateOutput struct {
+	Number int    `json:"number"`
+	URL    string `json:"url"`
+}
+
+func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
+	var title, body, bodyFile, labelsFlag string
+	var jsonOut bool
+
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a new GitHub issue (--body or --body-file, mutually exclusive)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			return runIssueCreate(stdout, stderr, cfg, title, body, bodyFile, labelsFlag, jsonOut, runner)
+		},
+	}
+	cmd.Flags().StringVar(&title, "title", "", "Issue title (required)")
+	cmd.Flags().StringVar(&body, "body", "", "Issue body (mutually exclusive with --body-file)")
+	cmd.Flags().StringVar(&bodyFile, "body-file", "", "Path to a file containing the issue body (mutually exclusive with --body)")
+	cmd.Flags().StringVar(&labelsFlag, "label", "", "Comma-separated label names")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Output JSON instead of plain text")
+	return cmd
+}
+
+// runIssueCreate validates --title/--body/--body-file, resolves the body
+// (reading --body-file's contents when given), creates the issue, and
+// prints the result. jsonOut selects JSON output (--json); by default,
+// plain-text mode prints the issue number on one line then the URL on the
+// next.
+func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, title, body, bodyFile, labelsFlag string, jsonOut bool, runner exec.Runner) error {
+	if title == "" {
+		return &CLIError{Code: 1, Msg: "issue create requires --title"}
+	}
+	if body != "" && bodyFile != "" {
+		return &CLIError{Code: 1, Msg: "issue create: --body and --body-file are mutually exclusive"}
+	}
+	if body == "" && bodyFile == "" {
+		return &CLIError{Code: 1, Msg: "issue create requires --body or --body-file"}
+	}
+
+	resolvedBody := body
+	if bodyFile != "" {
+		data, err := os.ReadFile(bodyFile)
+		if err != nil {
+			return &CLIError{Code: 1, Msg: fmt.Sprintf("issue create: reading --body-file %q: %v", bodyFile, err)}
+		}
+		resolvedBody = string(data)
+	}
+
+	var labels []string
+	if labelsFlag != "" {
+		labels = strings.Split(labelsFlag, ",")
+	}
+
+	number, url, err := issue.Create(context.Background(), runner, cfg, title, resolvedBody, labels)
+	if err != nil {
+		return &CLIError{Code: 1, Msg: err.Error()}
+	}
+
+	if !jsonOut {
+		fmt.Fprintln(stdout, number)
+		fmt.Fprintln(stdout, url)
+		return nil
+	}
+
+	enc := json.NewEncoder(stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(issueCreateOutput{Number: number, URL: url})
 }
 
 func newIssueListCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {

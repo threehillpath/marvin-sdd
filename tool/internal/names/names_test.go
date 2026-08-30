@@ -157,6 +157,25 @@ func TestDeriveNoSuffix(t *testing.T) {
 	}
 }
 
+// TestTaskNaming is this phase's TDD entry point: TaskNumber/TaskBranch/
+// TaskWorktreePath/TitlePrefix(Task, ...) must produce the documented shapes,
+// with TASK-XXXXX uppercase in the branch and title prefix, lowercase
+// (task-XXXXX) only in the worktree path.
+func TestTaskNaming(t *testing.T) {
+	if got, want := names.TaskNumber(91), "TASK-00091"; got != want {
+		t.Errorf("TaskNumber(91) = %q, want %q", got, want)
+	}
+	if got, want := names.TaskBranch("bug", 91), "bug/TASK-00091"; got != want {
+		t.Errorf("TaskBranch(bug, 91) = %q, want %q", got, want)
+	}
+	if got, want := names.TaskWorktreePath(".worktrees", 91), ".worktrees/task-00091"; got != want {
+		t.Errorf("TaskWorktreePath(.worktrees, 91) = %q, want %q", got, want)
+	}
+	if got, want := names.TitlePrefix(names.Task, 91, "", 0), "[TASK-00091]"; got != want {
+		t.Errorf("TitlePrefix(Task, 91, \"\", 0) = %q, want %q", got, want)
+	}
+}
+
 // TestDeriveSuffix verifies the -A/-B case-flip: branch lowercased, title prefix uppercased.
 func TestDeriveSuffix(t *testing.T) {
 	issue, suffix, phase := 42, "a", 2

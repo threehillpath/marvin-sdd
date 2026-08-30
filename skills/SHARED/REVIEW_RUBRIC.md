@@ -28,7 +28,7 @@ Re-run the self-review checks against the diff. The implementer was supposed to 
 
 ### `spec-drift` — Divergence from the spec
 
-Compare the diff to the phase issue's success criteria (for `review-phase`) or to the impl plan's component sections (for `review-impl`). Findings:
+Compare the diff to the phase issue's success criteria (for `review-phase`) or to the impl plan's component sections (for `review-impl`) — or, for `quick-task`, the Task issue's Success Criteria section read together with the source (requirement) issue's Problem Statement and Scope — the source issue defines the original ask, the Task issue's Success Criteria section operationalizes it into checkable outcomes; compare the diff against both. Findings:
 
 - A success criterion is not satisfied by the diff.
 - The diff implements behavior the spec did not call for, with no Notes-section explanation.

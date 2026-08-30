@@ -1,6 +1,6 @@
 # PR Body Templates
 
-These templates are referenced by `implement-phase` (LOOP.md), `finish-phase`, and `finish-impl`. Use the matching template for the level of PR being opened.
+These templates are referenced by `implement-phase` (LOOP.md), `finish-phase`, `finish-impl`, and `quick-task` (LOOP.md). Use the matching template for the level of PR being opened.
 
 ## Phase PR (phase branch → implementation branch)
 
@@ -30,6 +30,35 @@ If correction commits are pushed to this PR after it is opened (to address revie
 
 - **<What changed>**: <Why it was wrong> → <What the correct approach is and why>.>
 ```
+
+## Task PR (task branch → main)
+
+```markdown
+## Summary
+
+<2-4 bullet points describing what this Task delivers. Focus on behavior, not file changes.>
+
+## Task
+
+Closes #<task-issue-number> — [TASK-XXXXX] <Task Title>
+
+## Test plan
+
+<Bulleted checklist of what to verify before merging. Include the TDD entry point test.>
+
+- [ ] <verification step>
+- [ ] <verification step>
+
+## Notes
+
+<Optional: anything a reviewer needs to know — migration steps, env var changes, known limitations.
+
+If correction commits are pushed to this PR after it is opened (to address review feedback or self-caught issues), append an entry here for each correction in the form:
+
+- **<What changed>**: <Why it was wrong> → <What the correct approach is and why>.>
+```
+
+A Task PR always targets `main` — a Task has no phase or implementation-plan hierarchy, so unlike the Phase PR template above, it carries no "Phase:"/"Implementation plan:" metadata lines.
 
 ## Implementation PR (implementation branch → main)
 

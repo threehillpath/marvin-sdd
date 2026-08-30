@@ -7,6 +7,7 @@
 | Architecture plan | `plan:arch` |
 | Implementation plan | `plan:impl` |
 | Phase | `plan:phase` |
+| Task (single-cycle, no phase hierarchy) | `plan:task` |
 
 These labels are ensured automatically at issue creation time by each plan-creating skill via `marvin label ensure --builtins`. Manual creation should not be necessary; if a label is missing, run:
 ```bash

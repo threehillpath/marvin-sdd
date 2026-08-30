@@ -34,6 +34,12 @@ Prefer phases within one impl plan over multiple impl plans whenever possible.
 | Trunk branch | `<type>/PLAN-XXXXX/main` | `feature/PLAN-00042/main` |
 | Phase branch | `<type>/PLAN-XXXXX/phase-N` | `feature/PLAN-00042/phase-3` |
 | Phase worktree path (relative to repo root) | `<worktree_base>/phase-XXXXX-N` | `.worktrees/phase-00042-3` |
+| Task number | `TASK-XXXXX` | `TASK-00091` |
+| Task issue title | `[TASK-XXXXX] <title>` | `[TASK-00091] Fix login redirect` |
+| Task branch | `<type>/TASK-XXXXX` | `bug/TASK-00091` |
+| Task worktree path (relative to repo root) | `<worktree_base>/task-XXXXX` | `.worktrees/task-00091` |
+
+A Task has no arch/impl/phase hierarchy — its `XXXXX` is keyed directly on the source (requirement) issue number, the same way `PLAN-XXXXX` is keyed on its own source issue, but under the separate `TASK-` prefix rather than `PLAN-`. `TASK-XXXXX` is uppercase in branch/title contexts and lowercase (`task-XXXXX`) in worktree paths, mirroring the `PLAN-XXXXX`/`phase-XXXXX-N` case-flip convention above.
 
 `worktree_base` is the configured worktree root from `.claude/plan-workflow-config.yml` (default: `.worktrees`). `marvin names derive <phase-issue>` returns this path **relative to the repo root** (`worktree_path:` in its output), not absolute — use `marvin worktree resolve <worktree_path>` to turn it into an absolute path. Worktree paths stay flat (`.worktrees/phase-XXXXX-N`), independent of the branch hierarchy above.
 
@@ -60,6 +66,8 @@ Backlog → Ready → In Progress → In Review → Done
 
 `move-issue` can override any transition for manual recovery. Domain and status labels (e.g. `status:upcoming`) are independent of board state — the labels reflect issue intent at creation; the board reflects current workflow position.
 
+A Task issue follows this same state machine, but `quick-task` (a skill to be built in Phase 5, not this phase) is the sole driver of all of a Task issue's board transitions — unlike the phased pipeline above, no separate `start-impl`/`finish-phase`/`wrap-phase` skills participate.
+
 ## Concepts referenced by multiple skills
 
 These terms are defined in the skill that owns them; this list points to the source of truth.
@@ -68,8 +76,8 @@ These terms are defined in the skill that owns them; this list points to the sou
 |---|---|
 | TDD entry point | `impl-plan/SUPPLEMENTS/TDD.md` |
 | Rendered-controls exemption | `impl-plan/SUPPLEMENTS/TDD.md` |
-| Self-review checklist | `implement-phase/SUPPLEMENTS/LOOP.md` §4 |
-| Notes section / corrections record | `implement-phase/SUPPLEMENTS/LOOP.md` §6 and `SHARED/PR_TEMPLATE.md` |
+| Self-review checklist | `implement-phase/SUPPLEMENTS/LOOP.md` §4 (phases) and `quick-task/SUPPLEMENTS/LOOP.md` §4 (Tasks) |
+| Notes section / corrections record | `implement-phase/SUPPLEMENTS/LOOP.md` §6 (phases) and `quick-task/SUPPLEMENTS/LOOP.md` §6 (Tasks), plus `SHARED/PR_TEMPLATE.md` |
 | Phase wrap-up classification | `wrap-phase/SUPPLEMENTS/CLASSIFY.md` |
 | Phasing principles | `phase-split/SUPPLEMENTS/PHASING.md` |
 | Code-review rubric | `SHARED/REVIEW_RUBRIC.md` |

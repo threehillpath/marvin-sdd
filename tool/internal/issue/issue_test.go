@@ -64,6 +64,41 @@ func TestListTitlePrefixFilter(t *testing.T) {
 	}
 }
 
+// TestCreatePassesRepoThrough verifies that Create resolves cfg.Repo and
+// passes it to the underlying gh call, returning the (number, url) pair
+// unchanged.
+func TestCreatePassesRepoThrough(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("https://github.com/owner/repo/issues/77\n")})
+
+	cfg := buildConfig()
+	number, url, err := issue.Create(context.Background(), fake, cfg, "title", "body", []string{"bug"})
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+	if number != 77 {
+		t.Errorf("number = %d, want 77", number)
+	}
+	if url != "https://github.com/owner/repo/issues/77" {
+		t.Errorf("url = %q, want %q", url, "https://github.com/owner/repo/issues/77")
+	}
+
+	if len(fake.Calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(fake.Calls))
+	}
+	args := fake.Calls[0].Args
+	repoIdx := -1
+	for i, a := range args {
+		if a == "--repo" {
+			repoIdx = i
+			break
+		}
+	}
+	if repoIdx == -1 || repoIdx+1 >= len(args) || args[repoIdx+1] != cfg.Repo {
+		t.Errorf("args = %v, want --repo %q", args, cfg.Repo)
+	}
+}
+
 // TestListEmptyResult verifies that an empty gh response returns an empty slice.
 func TestListEmptyResult(t *testing.T) {
 	fake := &exectest.FakeRunner{}

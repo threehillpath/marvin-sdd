@@ -47,3 +47,14 @@ func List(ctx context.Context, runner exec.Runner, cfg *config.Config, label, ti
 	}
 	return result, nil
 }
+
+// Create creates a new GitHub issue in the project repo and returns its
+// number and URL. labels may be empty.
+func Create(ctx context.Context, runner exec.Runner, cfg *config.Config, title, body string, labels []string) (int, string, error) {
+	client := gh.New(runner)
+	number, url, err := client.IssueCreate(ctx, cfg.Repo, title, body, labels)
+	if err != nil {
+		return 0, "", fmt.Errorf("issue create: %w", err)
+	}
+	return number, url, nil
+}

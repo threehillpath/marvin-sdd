@@ -205,6 +205,7 @@ var builtinLabels = map[string][2]string{
 	"plan:arch":          {"Architecture plans", "0075ca"},
 	"plan:impl":          {"Implementation plan", "0075ca"},
 	"plan:phase":         {"Phase / implementation unit", "0075ca"},
+	"plan:task":          {"Single-cycle task or bug (no phase hierarchy)", "5319e7"},
 	"status:upcoming":    {"Issue is newly created and awaiting work", "ededed"},
 	"status:backlog":     {"Issue is in the backlog", "e4e669"},
 	"status:in-progress": {"Issue is in progress", "fbca04"},

@@ -440,6 +440,7 @@ func newWorktreeCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command
 	wtCmd.AddCommand(newWorktreeAddCmd(stdout, stderr, runner))
 	wtCmd.AddCommand(newWorktreeRemoveCmd(stdout, stderr, runner))
 	wtCmd.AddCommand(newWorktreePruneCmd(stdout, stderr, runner))
+	wtCmd.AddCommand(newWorktreeResolveCmd(stdout, stderr, runner))
 	return wtCmd
 }
 
@@ -479,6 +480,22 @@ func newWorktreePruneCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Co
 			if err := worktree.Prune(context.Background(), runner); err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
+			return nil
+		},
+	}
+}
+
+func newWorktreeResolveCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
+	return &cobra.Command{
+		Use:   "resolve <path>",
+		Short: "Print path as an absolute path, anchored against the main repo root",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resolved, err := worktree.Resolve(context.Background(), runner, args[0])
+			if err != nil {
+				return &CLIError{Code: 1, Msg: err.Error()}
+			}
+			fmt.Fprintln(stdout, resolved)
 			return nil
 		},
 	}

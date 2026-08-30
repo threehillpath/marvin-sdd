@@ -2,6 +2,8 @@ package worktree_test
 
 import (
 	"context"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -9,6 +11,51 @@ import (
 	"threehillpath.com/marvin-sdd/tool/internal/exectest"
 	"threehillpath.com/marvin-sdd/tool/internal/worktree"
 )
+
+// TestRepoRootFromGitCommonDir verifies that Resolve (via the unexported
+// repoRoot helper) issues exactly `git rev-parse --path-format=absolute
+// --git-common-dir` and joins a relative path against filepath.Dir of the
+// reply, never against the calling process's CWD.
+func TestRepoRootFromGitCommonDir(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("/repo/.git\n")})
+
+	got, err := worktree.Resolve(context.Background(), fake, "phase-3")
+	if err != nil {
+		t.Fatalf("Resolve returned error: %v", err)
+	}
+
+	if len(fake.Calls) != 1 {
+		t.Fatalf("expected 1 call, got %d: %v", len(fake.Calls), fake.Calls)
+	}
+	c := fake.Calls[0]
+	wantArgs := []string{"rev-parse", "--path-format=absolute", "--git-common-dir"}
+	if c.Name != "git" || !reflect.DeepEqual(c.Args, wantArgs) {
+		t.Fatalf("unexpected call: %v %v", c.Name, c.Args)
+	}
+
+	want := filepath.Join("/repo", "phase-3")
+	if got != want {
+		t.Errorf("Resolve(%q) = %q, want %q", "phase-3", got, want)
+	}
+}
+
+// TestResolveAbsoluteShortCircuit verifies that Resolve returns an already-
+// absolute path unchanged, issuing zero runner calls.
+func TestResolveAbsoluteShortCircuit(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+
+	got, err := worktree.Resolve(context.Background(), fake, "/tmp/wt/phase-3")
+	if err != nil {
+		t.Fatalf("Resolve returned error: %v", err)
+	}
+	if got != "/tmp/wt/phase-3" {
+		t.Errorf("Resolve = %q, want unchanged absolute path", got)
+	}
+	if len(fake.Calls) != 0 {
+		t.Errorf("expected 0 calls for an absolute path, got %d: %v", len(fake.Calls), fake.Calls)
+	}
+}
 
 // TestAddLocalBranchExistsReturnsError verifies that Add exits with CLIError{Code:1}
 // (no git worktree add issued) when the local branch exists for a different path.
@@ -209,38 +256,150 @@ func TestAddRemoteExistsLocalDoesNotProceedsToWorktreeAdd(t *testing.T) {
 	}
 }
 
-// TestRemoveCalls git worktree remove --force on an existing path.
-func TestRemoveCalls(t *testing.T) {
-	// Create a real temp dir so the os.Stat existence check passes.
-	dir := t.TempDir()
-
+// TestAddIdempotencyCheckUsesResolvedPath verifies that Add resolves a
+// relative path before comparing it in worktreeAlreadyAdded — the check must
+// compare against the same resolved (absolute) value that the actual
+// git worktree add call would use, not the raw CWD-relative input.
+func TestAddIdempotencyCheckUsesResolvedPath(t *testing.T) {
 	fake := &exectest.FakeRunner{}
+	// git rev-parse --path-format=absolute --git-common-dir
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("/repo/.git\n")})
+	// git branch --list → branch exists locally.
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("  feature/plan-00002-3\n")})
+	// git worktree list --porcelain → registered at the RESOLVED absolute path.
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(
+		"worktree /repo/.worktrees/phase-3\nHEAD abc123\nbranch refs/heads/feature/plan-00002-3\n\n",
+	)})
+
+	err := worktree.Add(context.Background(), fake, ".worktrees/phase-3", "feature/plan-00002-3", "feature/plan-00002")
+	if err != nil {
+		t.Fatalf("Add should be a no-op when the resolved path is already registered, got: %v", err)
+	}
+	if len(fake.Calls) != 3 {
+		t.Fatalf("expected 3 calls, got %d: %v", len(fake.Calls), fake.Calls)
+	}
+}
+
+// TestAddCreationCallUsesResolvedPath verifies that Add's actual
+// `git worktree add` call is passed the same resolved (absolute) path used
+// by the idempotency check, not the raw CWD-relative input — the prior bug
+// this phase fixes had the two halves resolving against different roots.
+func TestAddCreationCallUsesResolvedPath(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	// git rev-parse --path-format=absolute --git-common-dir
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("/repo/.git\n")})
+	// git branch --list → empty (no local branch)
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
+	// git ls-remote → empty (no remote branch)
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
+	// git fetch origin <baseBranch> succeeds
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
+	// git branch <branch> origin/<baseBranch> succeeds
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
+	// git push -u origin <branch> succeeds
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
+	// git worktree add <resolved-path> <branch> succeeds
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
 
-	if err := worktree.Remove(context.Background(), fake, dir); err != nil {
+	err := worktree.Add(context.Background(), fake, ".worktrees/phase-3", "feature/plan-00002-3", "feature/plan-00002")
+	if err != nil {
+		t.Fatalf("Add returned error: %v", err)
+	}
+
+	var addCall *exectest.Call
+	for i, c := range fake.Calls {
+		if c.Name == "git" && len(c.Args) >= 2 && c.Args[0] == "worktree" && c.Args[1] == "add" {
+			addCall = &fake.Calls[i]
+		}
+	}
+	if addCall == nil {
+		t.Fatalf("expected git worktree add to be called; calls: %v", fake.Calls)
+	}
+	want := filepath.Join("/repo", ".worktrees/phase-3")
+	if addCall.Args[2] != want {
+		t.Errorf("git worktree add called with path %q, want resolved path %q", addCall.Args[2], want)
+	}
+}
+
+// TestRemoveCalls verifies that Remove, for a path registered as a worktree,
+// issues `git worktree list --porcelain` (the source-of-truth check) followed
+// by `git worktree remove --force <resolved-path>`.
+func TestRemoveCalls(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	// git worktree list --porcelain → path is registered.
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(
+		"worktree /tmp/wt/phase-3\nHEAD abc123\nbranch refs/heads/feature/plan-00002-3\n\n",
+	)})
+	// git worktree remove --force succeeds.
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
+
+	if err := worktree.Remove(context.Background(), fake, "/tmp/wt/phase-3"); err != nil {
 		t.Fatalf("Remove returned error: %v", err)
 	}
 
+	if len(fake.Calls) != 2 {
+		t.Fatalf("expected 2 calls, got %d: %v", len(fake.Calls), fake.Calls)
+	}
+	listCall := fake.Calls[0]
+	if listCall.Name != "git" || !reflect.DeepEqual(listCall.Args, []string{"worktree", "list", "--porcelain"}) {
+		t.Errorf("unexpected first call: %v %v", listCall.Name, listCall.Args)
+	}
+	removeCall := fake.Calls[1]
+	if removeCall.Name != "git" || removeCall.Args[0] != "worktree" || removeCall.Args[1] != "remove" || removeCall.Args[2] != "--force" || removeCall.Args[3] != "/tmp/wt/phase-3" {
+		t.Errorf("unexpected second call: %v %v", removeCall.Name, removeCall.Args)
+	}
+}
+
+// TestRemoveSkipsIfPathMissing verifies that Remove returns nil, issuing only
+// the `git worktree list --porcelain` check (no `git worktree remove` call),
+// when the path is not registered as a worktree with git — the new
+// registration-based no-op semantics (replacing the old os.Stat check).
+func TestRemoveSkipsIfPathMissing(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	// git worktree list --porcelain → no worktree registered at this path.
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(
+		"worktree /tmp/wt/other-path\nHEAD abc123\nbranch refs/heads/feature/plan-00002-3\n\n",
+	)})
+
+	if err := worktree.Remove(context.Background(), fake, "/nonexistent/path/phase-00042-3"); err != nil {
+		t.Fatalf("Remove returned error for unregistered path: %v", err)
+	}
+
 	if len(fake.Calls) != 1 {
-		t.Fatalf("expected 1 call, got %d", len(fake.Calls))
+		t.Fatalf("expected exactly 1 call (list only), got %d: %v", len(fake.Calls), fake.Calls)
 	}
 	c := fake.Calls[0]
-	if c.Name != "git" || c.Args[0] != "worktree" || c.Args[1] != "remove" || c.Args[2] != "--force" {
+	if c.Name != "git" || !reflect.DeepEqual(c.Args, []string{"worktree", "list", "--porcelain"}) {
 		t.Errorf("unexpected call: %v %v", c.Name, c.Args)
 	}
 }
 
-// TestRemoveSkipsIfPathMissing verifies that Remove returns nil without calling
-// git when the worktree path has already been removed.
-func TestRemoveSkipsIfPathMissing(t *testing.T) {
+// TestRemoveResolvesRelativePath verifies that Remove resolves a relative
+// path against repoRoot before checking registration and before calling
+// git worktree remove — the resolved (absolute) path must be what's compared
+// against git's own porcelain output and what's passed to the remove call.
+func TestRemoveResolvesRelativePath(t *testing.T) {
 	fake := &exectest.FakeRunner{}
+	// git rev-parse --path-format=absolute --git-common-dir
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("/repo/.git\n")})
+	// git worktree list --porcelain → registered at the resolved absolute path.
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(
+		"worktree /repo/.worktrees/phase-3\nHEAD abc123\nbranch refs/heads/feature/plan-00002-3\n\n",
+	)})
+	// git worktree remove --force succeeds.
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("")})
 
-	if err := worktree.Remove(context.Background(), fake, "/nonexistent/path/phase-00042-3"); err != nil {
-		t.Fatalf("Remove returned error for missing path: %v", err)
+	if err := worktree.Remove(context.Background(), fake, ".worktrees/phase-3"); err != nil {
+		t.Fatalf("Remove returned error: %v", err)
 	}
 
-	if len(fake.Calls) != 0 {
-		t.Errorf("expected no git calls for missing path, got %d", len(fake.Calls))
+	if len(fake.Calls) != 3 {
+		t.Fatalf("expected 3 calls, got %d: %v", len(fake.Calls), fake.Calls)
+	}
+	removeCall := fake.Calls[2]
+	wantPath := filepath.Join("/repo", ".worktrees/phase-3")
+	if removeCall.Args[3] != wantPath {
+		t.Errorf("git worktree remove called with %q, want %q", removeCall.Args[3], wantPath)
 	}
 }
 

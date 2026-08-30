@@ -6,12 +6,44 @@ package worktree
 import (
 	"context"
 	"fmt"
-	"os"
+	"path/filepath"
 	"strings"
 
 	"threehillpath.com/marvin-sdd/tool/internal/clierr"
 	"threehillpath.com/marvin-sdd/tool/internal/exec"
 )
+
+// repoRoot returns the main repository's root, correct whether invoked from
+// the main checkout or a linked worktree of it. It relies on
+// `--git-common-dir`, which always points at the main repo's .git directory
+// (never a linked worktree's private administrative area), so its parent is
+// the main root regardless of which worktree the process is running from.
+func repoRoot(ctx context.Context, runner exec.Runner) (string, error) {
+	stdout, stderr, code, err := runner.Run(ctx, "git", "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return "", fmt.Errorf("worktree: git rev-parse --git-common-dir: %w", err)
+	}
+	if code != 0 {
+		return "", fmt.Errorf("worktree: git rev-parse --git-common-dir exited %d: %s", code, stderr)
+	}
+	commonDir := strings.TrimSpace(string(stdout))
+	return filepath.Dir(commonDir), nil
+}
+
+// Resolve returns path as an absolute path: unchanged if already absolute
+// (zero runner calls), otherwise joined against repoRoot — never against the
+// calling process's CWD, which may not be the main repo root when invoked
+// from inside a linked worktree.
+func Resolve(ctx context.Context, runner exec.Runner, path string) (string, error) {
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+	root, err := repoRoot(ctx, runner)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, path), nil
+}
 
 // localBranchExists returns true if <branch> is already checked out as a local branch.
 func localBranchExists(ctx context.Context, runner exec.Runner, branch string) (bool, error) {
@@ -72,6 +104,14 @@ func worktreeAlreadyAdded(ctx context.Context, runner exec.Runner, path, branch 
 //     included even if the local baseBranch ref is stale), pushes to origin,
 //     then adds the worktree.
 func Add(ctx context.Context, runner exec.Runner, path, branch, baseBranch string) error {
+	// Resolve path once, up front. Both the idempotency check below and the
+	// actual `git worktree add` call at the end must use this same resolved
+	// value — a prior bug had them resolving against different roots.
+	resolved, err := Resolve(ctx, runner, path)
+	if err != nil {
+		return err
+	}
+
 	// Check local branch.
 	local, err := localBranchExists(ctx, runner, branch)
 	if err != nil {
@@ -79,7 +119,7 @@ func Add(ctx context.Context, runner exec.Runner, path, branch, baseBranch strin
 	}
 	if local {
 		// Idempotent: same path already checked out to same branch → no-op.
-		already, err := worktreeAlreadyAdded(ctx, runner, path, branch)
+		already, err := worktreeAlreadyAdded(ctx, runner, resolved, branch)
 		if err != nil {
 			return err
 		}
@@ -138,8 +178,8 @@ func Add(ctx context.Context, runner exec.Runner, path, branch, baseBranch strin
 		}
 	}
 
-	// Add the worktree.
-	_, stderr, code, err := runner.Run(ctx, "git", "worktree", "add", path, branch)
+	// Add the worktree, using the same resolved path as the idempotency check above.
+	_, stderr, code, err := runner.Run(ctx, "git", "worktree", "add", resolved, branch)
 	if err != nil {
 		return fmt.Errorf("worktree add: git worktree add: %w", err)
 	}
@@ -149,13 +189,48 @@ func Add(ctx context.Context, runner exec.Runner, path, branch, baseBranch strin
 	return nil
 }
 
-// Remove removes the worktree at path via git worktree remove --force.
-// If path does not exist it returns nil (the worktree was already cleaned up).
+// isRegisteredWorktree returns true when resolved (an absolute path) appears
+// as a `worktree <path>` line in `git worktree list --porcelain` output —
+// i.e. whether git still knows about this worktree at all, regardless of
+// whether the directory itself still exists on disk (a manually-deleted but
+// still-registered "prunable" worktree is registered).
+func isRegisteredWorktree(ctx context.Context, runner exec.Runner, resolved string) (bool, error) {
+	stdout, stderr, code, err := runner.Run(ctx, "git", "worktree", "list", "--porcelain")
+	if err != nil {
+		return false, fmt.Errorf("worktree: list: %w", err)
+	}
+	if code != 0 {
+		return false, fmt.Errorf("worktree: git worktree list exited %d: %s", code, stderr)
+	}
+	for _, line := range strings.Split(string(stdout), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "worktree ") && strings.TrimPrefix(line, "worktree ") == resolved {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// Remove removes the worktree at path via git worktree remove --force, using
+// git's own bookkeeping (git worktree list --porcelain) as the sole source of
+// truth for whether there is anything to remove: not registered → no-op;
+// registered → git worktree remove --force, which already correctly handles
+// a manually-deleted-but-still-registered ("prunable") worktree. path is
+// resolved via Resolve before either check, so a CWD-relative path is
+// anchored against the main repo root rather than the calling process's CWD.
 func Remove(ctx context.Context, runner exec.Runner, path string) error {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	resolved, err := Resolve(ctx, runner, path)
+	if err != nil {
+		return err
+	}
+	registered, err := isRegisteredWorktree(ctx, runner, resolved)
+	if err != nil {
+		return err
+	}
+	if !registered {
 		return nil
 	}
-	_, stderr, code, err := runner.Run(ctx, "git", "worktree", "remove", "--force", path)
+	_, stderr, code, err := runner.Run(ctx, "git", "worktree", "remove", "--force", resolved)
 	if err != nil {
 		return fmt.Errorf("worktree remove: %w", err)
 	}

@@ -92,13 +92,18 @@ For any domain labels not covered by `--builtins`, ensure each one individually:
 marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 ```
 
-Then create the issue:
+`impl-plan` has no `Write` tool. Write the approved, rendered body to a scratch file via a `Bash` heredoc:
 
 ```bash
-gh issue create --repo <repo> \
-  --title "[PLAN-XXXXX] <Title>" \
-  --body "<approved content>" \
-  --label "plan:impl,status:upcoming,<domain-labels>"
+cat > /tmp/impl-plan-body.md <<'EOF'
+<approved content>
+EOF
+```
+
+Then create the issue, capturing the returned number and URL:
+
+```bash
+marvin issue create --title "[PLAN-XXXXX] <Title>" --body-file /tmp/impl-plan-body.md --label "plan:impl,status:upcoming,<domain-labels>"
 ```
 
 ### 6. Link to arch plan

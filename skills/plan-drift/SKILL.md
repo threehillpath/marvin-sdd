@@ -46,7 +46,13 @@ Resolve the trunk branch name and worktree path:
 marvin names derive <plan> --type <type> --phase <phase>
 ```
 
-Read the `main_branch:` and `worktree_path:` lines from the output. Use `<worktree_path>` wherever the phase worktree path appears in subsequent steps, and `<main_branch>` wherever the trunk branch name appears (worktree-mode only — PR-mode gets its base branch from `marvin pr find` instead, see step 2).
+Read the `main_branch:` and `worktree_path:` lines from the output. `worktree_path` is relative to the repo root, not absolute — resolve it before using it in any `test`, `git -C`, or file-read command:
+
+```bash
+marvin worktree resolve <worktree_path>
+```
+
+This anchors against the main repo root regardless of this skill's own CWD (safe even when invoked from inside another linked worktree). Use the result as `<absolute_worktree_path>` wherever the phase worktree path appears in subsequent steps, and `<main_branch>` wherever the trunk branch name appears (worktree-mode only — PR-mode gets its base branch from `marvin pr find` instead, see step 2).
 
 ### 2. Determine the source of truth for the diff
 
@@ -59,12 +65,12 @@ marvin pr find "[PLAN-XXXXX-N]" --state open
 Branch off the result (`found:` line in the output):
 
 - **`found: true`** — record the `number:` line from the output. The head branch is `<type>/PLAN-XXXXX/phase-N` (from step 1's parse output and resolved type) and the base branch is the `base:` line already included in the `marvin pr find` result — no extra call needed. The sub-agent will use `gh pr diff <pr-number>`.
-- **`found: false`** — the phase work lives in the local worktree at `<worktree_path>`. Verify the worktree exists:
+- **`found: false`** — the phase work lives in the local worktree at `<absolute_worktree_path>`. Verify the worktree exists:
   ```bash
-  test -d <worktree_path> && echo present || echo missing
+  test -d <absolute_worktree_path> && echo present || echo missing
   ```
-  - If present, the sub-agent will use `git -C <worktree_path> diff <main_branch>...HEAD` against the trunk branch.
-  - If missing, stop: "No open PR for phase #$0 and no worktree at `<worktree_path>`. Run `/implement-phase $0` first, or push the phase branch and re-run."
+  - If present, the sub-agent will use `git -C <absolute_worktree_path> diff <main_branch>...HEAD` against the trunk branch.
+  - If missing, stop: "No open PR for phase #$0 and no worktree at `<absolute_worktree_path>`. Run `/implement-phase $0` first, or push the phase branch and re-run."
 
 If multiple PRs match, ask the user which to audit.
 
@@ -107,14 +113,14 @@ Prompt template (PR-mode variant):
 
 Prompt template (worktree-mode variant — only the PR block changes):
 
-> **Working tree under audit**: `<absolute-path-to-worktree>` (branch `<type>/PLAN-XXXXX/phase-N`, based on `<main_branch>`). There is no PR yet, so there is no Notes section to consult — any divergence is a candidate finding.
+> **Working tree under audit**: `<absolute_worktree_path>` (resolved via `marvin worktree resolve` in step 1; branch `<type>/PLAN-XXXXX/phase-N`, based on `<main_branch>`). There is no PR yet, so there is no Notes section to consult — any divergence is a candidate finding.
 >
 > Fetch the diff with:
 >
 > ```
-> git -C <absolute-path-to-worktree> diff <main_branch>...HEAD
-> git -C <absolute-path-to-worktree> diff --name-only <main_branch>...HEAD
-> git -C <absolute-path-to-worktree> log <main_branch>..HEAD --oneline
+> git -C <absolute_worktree_path> diff <main_branch>...HEAD
+> git -C <absolute_worktree_path> diff --name-only <main_branch>...HEAD
+> git -C <absolute_worktree_path> log <main_branch>..HEAD --oneline
 > ```
 >
 > Read source files inside the worktree path when you need surrounding context.

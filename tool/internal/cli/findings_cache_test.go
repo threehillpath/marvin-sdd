@@ -45,8 +45,11 @@ func TestFindingsCacheReadsInjectedStdin(t *testing.T) {
 
 	injected := strings.NewReader(`{"verdict":"comment"}`)
 
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(filepath.Join(dir, ".git") + "\n")})
+
 	var stdout, stderr bytes.Buffer
-	root := cli.NewRootCmd(injected, &stdout, &stderr, &exectest.FakeRunner{})
+	root := cli.NewRootCmd(injected, &stdout, &stderr, fake)
 	root.SetArgs([]string{"findings", "cache", "plan-00042", "review", "phase-3"})
 
 	if err := root.Execute(); err != nil {

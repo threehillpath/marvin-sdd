@@ -13,12 +13,15 @@ import (
 	"threehillpath.com/marvin-sdd/tool/internal/exec"
 )
 
-// repoRoot returns the main repository's root, correct whether invoked from
+// RepoRoot returns the main repository's root, correct whether invoked from
 // the main checkout or a linked worktree of it. It relies on
 // `--git-common-dir`, which always points at the main repo's .git directory
 // (never a linked worktree's private administrative area), so its parent is
 // the main root regardless of which worktree the process is running from.
-func repoRoot(ctx context.Context, runner exec.Runner) (string, error) {
+// Exported so other packages (e.g. findings) can anchor their own
+// CWD-relative paths against the same root, rather than the calling
+// process's CWD.
+func RepoRoot(ctx context.Context, runner exec.Runner) (string, error) {
 	stdout, stderr, code, err := runner.Run(ctx, "git", "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {
 		return "", fmt.Errorf("worktree: git rev-parse --git-common-dir: %w", err)
@@ -31,14 +34,14 @@ func repoRoot(ctx context.Context, runner exec.Runner) (string, error) {
 }
 
 // Resolve returns path as an absolute path: unchanged if already absolute
-// (zero runner calls), otherwise joined against repoRoot — never against the
+// (zero runner calls), otherwise joined against RepoRoot — never against the
 // calling process's CWD, which may not be the main repo root when invoked
 // from inside a linked worktree.
 func Resolve(ctx context.Context, runner exec.Runner, path string) (string, error) {
 	if filepath.IsAbs(path) {
 		return path, nil
 	}
-	root, err := repoRoot(ctx, runner)
+	root, err := RepoRoot(ctx, runner)
 	if err != nil {
 		return "", err
 	}

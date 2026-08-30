@@ -38,7 +38,7 @@ management, name derivation, config access, and plan-template rendering.`,
 	root.AddCommand(newBoardCmd(stdout, stderr, runner))
 	root.AddCommand(newLabelCmd(stdout, stderr, runner))
 	root.AddCommand(newPRCmd(stdout, stderr, runner))
-	root.AddCommand(newFindingsCmd(stdout, stderr))
+	root.AddCommand(newFindingsCmd(stdout, stderr, runner))
 	root.AddCommand(newWorktreeCmd(stdout, stderr, runner))
 	root.AddCommand(newIssueCmd(stdout, stderr, runner))
 

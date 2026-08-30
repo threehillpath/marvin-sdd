@@ -35,7 +35,7 @@ Prefer phases within one impl plan over multiple impl plans whenever possible.
 | Phase branch | `<type>/PLAN-XXXXX/phase-N` | `feature/PLAN-00042/phase-3` |
 | Phase worktree path (relative to repo root) | `<worktree_base>/phase-XXXXX-N` | `.worktrees/phase-00042-3` |
 
-`worktree_base` is the configured worktree root from `.claude/plan-workflow-config.yml` (default: `.worktrees`). Use `marvin names derive <phase-issue>` to resolve the absolute path. Worktree paths stay flat (`.worktrees/phase-XXXXX-N`), independent of the branch hierarchy above.
+`worktree_base` is the configured worktree root from `.claude/plan-workflow-config.yml` (default: `.worktrees`). `marvin names derive <phase-issue>` returns this path **relative to the repo root** (`worktree_path:` in its output), not absolute — use `marvin worktree resolve <worktree_path>` to turn it into an absolute path, anchored against the main repo root regardless of the calling process's CWD (safe to call from inside a linked worktree). Worktree paths stay flat (`.worktrees/phase-XXXXX-N`), independent of the branch hierarchy above.
 
 `<type>` is `feature` or `bug`, derived from the source issue's `bug`/`enhancement` label (default `feature` when neither is present), resolved via `marvin names derive --type`.
 

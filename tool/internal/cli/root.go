@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -57,16 +58,36 @@ func Execute() {
 	}
 }
 
+// versionString is the single source of truth for marvin's version, referenced
+// by both the plain-text banner and the --json output so the two can never drift.
+const versionString = "v0.2.0"
+
+// versionOutput is the --json payload shape for the version subcommand.
+type versionOutput struct {
+	Version string `json:"version"`
+}
+
 // newVersionCmd returns the version subcommand.
 func newVersionCmd(stdout io.Writer) *cobra.Command {
-	return &cobra.Command{
+	var jsonOut bool
+
+	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print marvin version",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(stdout, "marvin v0.2.0 (plan-workflow deterministic CLI)")
-			return nil
+			if !jsonOut {
+				fmt.Fprintln(stdout, "marvin "+versionString+" (plan-workflow deterministic CLI)")
+				return nil
+			}
+
+			enc := json.NewEncoder(stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(versionOutput{Version: versionString})
 		},
 	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Output JSON instead of plain text")
+
+	return cmd
 }
 
 // newConfigCmd returns the config subcommand group.

@@ -66,7 +66,7 @@ Backlog → Ready → In Progress → In Review → Done
 
 `move-issue` can override any transition for manual recovery. Domain and status labels (e.g. `status:upcoming`) are independent of board state — the labels reflect issue intent at creation; the board reflects current workflow position.
 
-A Task issue follows this same state machine, but `quick-task` (a skill to be built in Phase 5, not this phase) is the sole driver of all of a Task issue's board transitions — unlike the phased pipeline above, no separate `start-impl`/`finish-phase`/`wrap-phase` skills participate.
+A Task issue follows this same state machine, but `quick-task` is the sole driver of all of a Task issue's board transitions — unlike the phased pipeline above, no separate `start-impl`/`finish-phase`/`wrap-phase` skills participate.
 
 ## Concepts referenced by multiple skills
 

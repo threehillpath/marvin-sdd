@@ -52,7 +52,7 @@ Read the `main_branch:` and `worktree_path:` lines from the output. `worktree_pa
 marvin worktree resolve <worktree_path>
 ```
 
-This anchors against the main repo root regardless of this skill's own CWD (safe even when invoked from inside another linked worktree). Use the result as `<absolute_worktree_path>` wherever the phase worktree path appears in subsequent steps, and `<main_branch>` wherever the trunk branch name appears (worktree-mode only — PR-mode gets its base branch from `marvin pr find` instead, see step 2).
+Run this from the main repo root — `marvin worktree resolve` rejects a target that is not the calling process's own CWD or a descendant of it, so invoking it from inside a different linked worktree will fail. See `../SHARED/GLOSSARY.md` for the execution-scope rule. Use the result as `<absolute_worktree_path>` wherever the phase worktree path appears in subsequent steps, and `<main_branch>` wherever the trunk branch name appears (worktree-mode only — PR-mode gets its base branch from `marvin pr find` instead, see step 2).
 
 ### 2. Determine the source of truth for the diff
 

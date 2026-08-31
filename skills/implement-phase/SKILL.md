@@ -88,7 +88,7 @@ After confirming with the user, then re-add the worktree.
 marvin worktree resolve <worktree_path>
 ```
 
-This anchors against the main repo root regardless of the orchestrator's own CWD (safe even when the orchestrator itself is running from inside another linked worktree). Use this resolved absolute path as `<absolute_worktree_path>` in step 4.
+Run this from the main repo root — `marvin worktree resolve` rejects a target that is not the calling process's own CWD or a descendant of it, so invoking it from inside a different linked worktree will fail. See `../SHARED/GLOSSARY.md` for the execution-scope rule. Use this resolved absolute path as `<absolute_worktree_path>` in step 4.
 
 ### 3. Move phase to In Progress
 

@@ -63,7 +63,7 @@ func newVersionCmd(stdout io.Writer) *cobra.Command {
 		Use:   "version",
 		Short: "Print marvin version",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(stdout, "marvin v0.1.0 (plan-workflow deterministic CLI)")
+			fmt.Fprintln(stdout, "marvin v0.2.0 (plan-workflow deterministic CLI)")
 			return nil
 		},
 	}

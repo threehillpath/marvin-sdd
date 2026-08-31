@@ -1,0 +1,98 @@
+# Internal schema for bot-created quick-task issues.
+# TASK-XXXXX derivation: see skills/SHARED/GLOSSARY.md
+# Label rules: see skills/SHARED/LABELS.md
+
+type: quick-task
+
+# Title prefix pattern. XXXXX = zero-padded GitHub source issue number (see GLOSSARY.md).
+title_prefix: "[TASK-XXXXX] <Title>"
+
+# Labels applied at issue creation. See SHARED/LABELS.md for definitions and create commands.
+default_labels:
+  - plan:task
+  - status:upcoming
+
+# Ordered header fields rendered as bold key-value pairs below the issue title.
+metadata:
+  - Source Issue
+  - Task Number
+  - Author
+  - Status
+  - Date
+
+# Ordered list of sections. Fields:
+#   id         — stable identifier referenced by validation.required_sections
+#   heading    — exact heading text rendered in the issue body
+#   required   — whether the section must appear in a valid plan
+#   repeatable — whether the section may appear more than once
+#   numbered   — when true on a repeatable section, each instance is prefixed ## 1., ## 2., …
+#   guidance   — how-to-fill prose co-located with the section definition
+sections:
+  - id: problem_statement
+    heading: Problem Statement
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      One paragraph: what need is being addressed and why it matters now.
+      Drawn from the source (requirement) issue.
+
+  - id: scope
+    heading: Scope
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      **Includes** bullet list of what is in this Task's scope.
+      **Excludes** bullet list of what is explicitly out of scope.
+
+  - id: technical_analysis
+    heading: Technical Analysis
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      What the change touches: files, functions, data paths. What approach
+      is being taken and why — the *how*, since a Task has no separate
+      architecture/implementation plan to carry that context.
+
+  - id: tdd_entry_point
+    heading: TDD Entry Point
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      First test to write before any implementation.
+      Format:
+        What: <one sentence on the observable behavior being asserted>
+        Where: <test file path pattern>
+        Passes when: <observable outcome>
+
+  - id: implementation_notes
+    heading: Implementation Notes
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      Anything an implementer needs beyond the Technical Analysis: known
+      edge cases, sequencing, follow-ups intentionally deferred.
+
+  - id: success_criteria
+    heading: Success Criteria
+    required: true
+    repeatable: false
+    numbered: false
+    guidance: >
+      Checkbox list of measurable requirements for this Task. Format:
+      - [ ] <measurable requirement>
+
+validation:
+  required_sections:
+    - problem_statement
+    - scope
+    - technical_analysis
+    - tdd_entry_point
+    - implementation_notes
+    - success_criteria
+  rules:
+    - "Success Criteria items must match `- [ ] ` checkbox format"

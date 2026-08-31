@@ -91,11 +91,18 @@ marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 
 For each approved phase, compose the title and body **together, as one atomic unit, immediately before creating that issue** — do not draft all bodies in a separate pass from titles, and do not hold titles and content as two lists tracked independently. Title/body pairing drift (a body describing a different phase than its own title) has happened before and is easy to introduce silently when title and content are generated in separate passes.
 
+`phase-split` has no `Write` tool. For each phase, write its approved, rendered body to a scratch file via a `Bash` heredoc:
+
 ```bash
-gh issue create --repo <repo> \
-  --title "[PLAN-XXXXX-N] <Phase Title>" \
-  --body "<phase content>" \
-  --label "plan:phase,status:upcoming,<domain-labels>"
+cat > /tmp/phase-split-body-N.md <<'EOF'
+<phase content>
+EOF
+```
+
+Then create the issue, capturing the returned number and URL:
+
+```bash
+marvin issue create --title "[PLAN-XXXXX-N] <Phase Title>" --body-file /tmp/phase-split-body-N.md --label "plan:phase,status:upcoming,<domain-labels>"
 ```
 
 Immediately after each phase issue is created, set a real GitHub-native sub-issue link so `marvin issue tree` can resolve this plan's hierarchy without relying on title matching:

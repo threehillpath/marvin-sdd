@@ -32,7 +32,7 @@ tool/                          ← Go module for the marvin CLI
     parse/                     ← Identifier parsing (issue titles → plan numbers)
     pr/                        ← PR discovery and target resolution
     template/                  ← Plan-template render from YAML schemas
-    worktree/                  ← Worktree lifecycle (create, delete, exists)
+    worktree/                  ← Worktree lifecycle (create, remove, prune, repo-root path resolution)
 skills/
   SHARED/                      ← Files referenced by multiple skills
     CONFIG.md                  ← Template for per-project config
@@ -40,7 +40,7 @@ skills/
     LABELS.md                  ← Label rules
     PR_TEMPLATE.md             ← PR body templates
     RENDERING.md               ← Markdown output guidance
-    REVIEW_RUBRIC.md           ← Code-review rubric for review-phase / review-impl
+    REVIEW_RUBRIC.md           ← Code-review rubric for review-phase / review-impl / quick-task
     REVIEW_FINDING_FORMAT.md   ← Findings JSON schema (review output contract)
     PLAN_RED_TEAM_RUBRIC.md    ← Plan-critique rubric for red-team-plan
     PLAN_RED_TEAM_FORMAT.md    ← Findings JSON schema (plan-critique output contract)
@@ -50,6 +50,7 @@ skills/
       arch-plan.yml            ← Schema for arch plan issues (sections, validation)
       impl-plan.yml            ← Schema for implementation plan issues
       impl-phase.yml           ← Schema for phase issues
+      quick-task.yml           ← Schema for single-cycle Task issues
   <skill-name>/
     SKILL.md                   ← Authoritative skill prompt
     SUPPLEMENTS/               ← Templates and deeper guidance
@@ -77,13 +78,16 @@ arch-plan → impl-plan → red-team-plan → phase-split → start-impl →
 
 `move-issue`, `finish-phase`, and `plan-drift` are auxiliaries usable at any point — `plan-drift` is most valuable mid-phase or before opening a PR, but can run any time. See each skill's `SKILL.md` for behavior.
 
+`quick-task` is a standalone single-cycle pipeline for a bug or small task filed as a source issue: it bypasses the arch-plan → impl-plan → phase-split hierarchy entirely, driving a Task issue from filed requirement to merged PR (and all of that issue's own board transitions) in one skill invocation, with the same TDD and review rigor as the phased pipeline above.
+
 ### Spec-checking subagents
 
-Three skills spawn fresh-context sub-agents that apply a shared rubric and return structured findings JSON:
+Four skills spawn fresh-context sub-agents that apply a shared rubric and return structured findings JSON:
 
 - **`red-team-plan`** — opus sub-agent critiques the impl plan against `skills/SHARED/PLAN_RED_TEAM_RUBRIC.md`, returns findings as `skills/SHARED/PLAN_RED_TEAM_FORMAT.md`. Catches hidden assumptions, missing dependencies, weak TDD entry points, and unfalsifiable success criteria *before* phase-split, where errors compound.
 - **`plan-drift`** — sonnet sub-agent audits a phase branch against its spec using `skills/SHARED/PLAN_DRIFT_RUBRIC.md`, returns findings as `skills/SHARED/PLAN_DRIFT_FORMAT.md`. Tracks two things: per-criterion coverage and out-of-scope/interface-divergence containment. Complements but does not replace `review-phase`.
 - **`review-phase` / `review-impl`** — opus sub-agent (extended thinking) applies `skills/SHARED/REVIEW_RUBRIC.md` and returns findings as `skills/SHARED/REVIEW_FINDING_FORMAT.md`.
+- **`quick-task`** — opus sub-agent review step, reusing the same `skills/SHARED/REVIEW_RUBRIC.md` (extended with a Task-specific spec-drift clause) and `skills/SHARED/REVIEW_FINDING_FORMAT.md` as `review-phase`/`review-impl`.
 
 Each findings JSON is the stable contract a future auto-fix loop will consume — these skills produce it, future skills will act on it.
 
@@ -112,6 +116,7 @@ Skills read `.claude/plan-workflow-config.yml` (preferred) or `.claude/plan-work
 
 **Runtime** (needed when using skills):
 - `gh` CLI authenticated with repo and project access
+- git ≥ 2.31 (needed for `git rev-parse --path-format=absolute`, used by worktree path resolution)
 - GitHub Projects v2 board (classic projects not supported)
 - `jq` (optional) for post-processing `marvin --json` output in custom skill prose (marvin's list/object commands default to plain text)
 - `glow` (optional) for rendered markdown previews in terminal

@@ -82,7 +82,13 @@ marvin worktree prune
 
 After confirming with the user, then re-add the worktree.
 
-Pass the absolute `worktree_path` to the sub-agent in step 4.
+`worktree_path` as derived in step 2 is relative to the repo root, not absolute. Resolve it to an absolute path before passing it to the sub-agent in step 4:
+
+```bash
+marvin worktree resolve <worktree_path>
+```
+
+Run this from the main repo root — `marvin worktree resolve` rejects a target that is not the calling process's own CWD or a descendant of it, so invoking it from inside a different linked worktree will fail. See `../SHARED/GLOSSARY.md` for the execution-scope rule. Use this resolved absolute path as `<absolute_worktree_path>` in step 4.
 
 ### 3. Move phase to In Progress
 
@@ -102,7 +108,7 @@ Spawn a **general-purpose** agent **without** `isolation: "worktree"` (the workt
 2. Impl plan issue number (and `gh issue view` command for it). The sub-agent fetches the full component specs and design notes itself.
 3. **Paths only** for the relevant source files identified in step 1 — the sub-agent reads them inside the worktree.
 4. Branch names: phase branch `<type>/PLAN-XXXXX/phase-N`, trunk branch `<type>/PLAN-XXXXX/main`.
-5. Absolute worktree path: `<worktree_path>` (derived in step 2).
+5. Absolute worktree path: `<absolute_worktree_path>` (resolved in step 2b via `marvin worktree resolve`).
 6. Repo: `<repo>`.
 7. Test commands from `.claude/plan-workflow-config.yml`.
 8. Full instructions from `SUPPLEMENTS/LOOP.md` (paste this verbatim — it is the agent's primary procedural guide).

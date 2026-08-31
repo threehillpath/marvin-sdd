@@ -21,7 +21,7 @@ func TestVersionJSON(t *testing.T) {
 		t.Fatalf("version --json returned error: %v\nstderr: %s", err, stderr.String())
 	}
 
-	want := "{\n  \"version\": \"v0.1.0\"\n}\n"
+	want := "{\n  \"version\": \"v0.2.0\"\n}\n"
 	if stdout.String() != want {
 		t.Errorf("--json output mismatch\ngot:\n%s\nwant:\n%s", stdout.String(), want)
 	}
@@ -38,7 +38,7 @@ func TestVersionPlainTextUnchanged(t *testing.T) {
 		t.Fatalf("version returned error: %v\nstderr: %s", err, stderr.String())
 	}
 
-	want := "marvin v0.1.0 (plan-workflow deterministic CLI)\n"
+	want := "marvin v0.2.0 (plan-workflow deterministic CLI)\n"
 	if stdout.String() != want {
 		t.Errorf("plain-text output mismatch\ngot:\n%s\nwant:\n%s", stdout.String(), want)
 	}

@@ -8,19 +8,42 @@ import (
 	"strings"
 )
 
-// Kind distinguishes the three plan issue types.
+// Kind distinguishes the four work-item kinds.
 type Kind int
 
 const (
 	Arch  Kind = iota // architecture plan
 	Impl              // implementation plan
 	Phase             // phase issue
+	Task              // single-cycle task/bug (source-issue-keyed, no plan hierarchy)
 )
 
 // PlanNumber formats a GitHub issue number as a zero-padded 5-digit plan number.
 // Example: 42 → "PLAN-00042"
 func PlanNumber(issue int) string {
 	return fmt.Sprintf("PLAN-%05d", issue)
+}
+
+// TaskNumber formats a GitHub issue number as a zero-padded 5-digit task
+// number, keyed on the source issue number (the same convention PlanNumber
+// uses for Arch/Impl/Phase — composable before any tracking issue exists).
+// Example: 91 → "TASK-00091"
+func TaskNumber(issue int) string {
+	return fmt.Sprintf("TASK-%05d", issue)
+}
+
+// TaskBranch returns "<type>/TASK-XXXXX" — uppercase, unlike TaskWorktreePath.
+// typ is "feature" or "bug"; an empty typ defaults to "feature" (via ResolveType).
+// Example: "bug", 91 → "bug/TASK-00091"
+func TaskBranch(typ string, issue int) string {
+	return fmt.Sprintf("%s/%s", ResolveType(typ), TaskNumber(issue))
+}
+
+// TaskWorktreePath returns "<worktree_base>/task-XXXXX" — lowercase, unlike
+// the branch and title-prefix forms.
+// Example: ".worktrees", 91 → ".worktrees/task-00091"
+func TaskWorktreePath(base string, issue int) string {
+	return fmt.Sprintf("%s/task-%05d", base, issue)
 }
 
 // PlanID returns the lowercase, path-safe plan identifier used in branch names,
@@ -107,6 +130,8 @@ func TitlePrefix(kind Kind, issue int, suffix string, phase int) string {
 			return fmt.Sprintf("[PLAN-%s-%d]", num, phase)
 		}
 		return fmt.Sprintf("[PLAN-%s-%s-%d]", num, strings.ToUpper(suffix), phase)
+	case Task:
+		return fmt.Sprintf("[TASK-%s]", num)
 	default:
 		return fmt.Sprintf("[PLAN-%s]", num)
 	}

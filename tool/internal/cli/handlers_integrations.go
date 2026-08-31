@@ -205,6 +205,7 @@ var builtinLabels = map[string][2]string{
 	"plan:arch":          {"Architecture plans", "0075ca"},
 	"plan:impl":          {"Implementation plan", "0075ca"},
 	"plan:phase":         {"Phase / implementation unit", "0075ca"},
+	"plan:task":          {"Single-cycle task or bug (no phase hierarchy)", "5319e7"},
 	"status:upcoming":    {"Issue is newly created and awaiting work", "ededed"},
 	"status:backlog":     {"Issue is in the backlog", "e4e669"},
 	"status:in-progress": {"Issue is in progress", "fbca04"},
@@ -385,17 +386,17 @@ func runPRBase(stdout, stderr io.Writer, branch string, jsonOut bool, runner exe
 // ── findings ─────────────────────────────────────────────────────────────────
 
 // newFindingsCmd returns the findings subcommand group.
-func newFindingsCmd(stdout, stderr io.Writer) *cobra.Command {
+func newFindingsCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	findingsCmd := &cobra.Command{
 		Use:   "findings",
 		Short: "Manage plan-scoped JSON findings cache",
 	}
-	findingsCmd.AddCommand(newFindingsCacheCmd(stdout, stderr))
-	findingsCmd.AddCommand(newFindingsClearCmd(stdout, stderr))
+	findingsCmd.AddCommand(newFindingsCacheCmd(stdout, stderr, runner))
+	findingsCmd.AddCommand(newFindingsClearCmd(stdout, stderr, runner))
 	return findingsCmd
 }
 
-func newFindingsCacheCmd(stdout, stderr io.Writer) *cobra.Command {
+func newFindingsCacheCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	return &cobra.Command{
 		Use:   "cache <plan-number> <kind> <name>",
 		Short: "Validate and write JSON from stdin to the findings cache",
@@ -405,7 +406,7 @@ func newFindingsCacheCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return &CLIError{Code: 1, Msg: fmt.Sprintf("reading stdin: %v", err)}
 			}
-			if err := findings.Cache(args[0], args[1], args[2], payload); err != nil {
+			if err := findings.Cache(context.Background(), runner, args[0], args[1], args[2], payload); err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
 			path := findings.CachePath(args[0], args[1], args[2])
@@ -415,13 +416,13 @@ func newFindingsCacheCmd(stdout, stderr io.Writer) *cobra.Command {
 	}
 }
 
-func newFindingsClearCmd(stdout, stderr io.Writer) *cobra.Command {
+func newFindingsClearCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	return &cobra.Command{
 		Use:   "clear <plan-number>",
 		Short: "Remove all cached findings for a plan",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := findings.Clear(args[0]); err != nil {
+			if err := findings.Clear(context.Background(), runner, args[0]); err != nil {
 				return &CLIError{Code: 1, Msg: err.Error()}
 			}
 			return nil
@@ -440,6 +441,7 @@ func newWorktreeCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command
 	wtCmd.AddCommand(newWorktreeAddCmd(stdout, stderr, runner))
 	wtCmd.AddCommand(newWorktreeRemoveCmd(stdout, stderr, runner))
 	wtCmd.AddCommand(newWorktreePruneCmd(stdout, stderr, runner))
+	wtCmd.AddCommand(newWorktreeResolveCmd(stdout, stderr, runner))
 	return wtCmd
 }
 
@@ -484,6 +486,22 @@ func newWorktreePruneCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Co
 	}
 }
 
+func newWorktreeResolveCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
+	return &cobra.Command{
+		Use:   "resolve <path>",
+		Short: "Print a repo-relative path as absolute; rejects absolute input, path traversal, or paths outside this process's cwd/descendants",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			resolved, err := worktree.Resolve(context.Background(), runner, args[0])
+			if err != nil {
+				return &CLIError{Code: 1, Msg: err.Error()}
+			}
+			fmt.Fprintln(stdout, resolved)
+			return nil
+		},
+	}
+}
+
 // ── issue ─────────────────────────────────────────────────────────────────────
 
 // newIssueCmd returns the issue subcommand group.
@@ -495,7 +513,84 @@ func newIssueCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	issueCmd.AddCommand(newIssueListCmd(stdout, stderr, runner))
 	issueCmd.AddCommand(newIssueTreeCmd(stdout, stderr, runner))
 	issueCmd.AddCommand(newIssueLinkParentCmd(stdout, stderr, runner))
+	issueCmd.AddCommand(newIssueCreateCmd(stdout, stderr, runner))
 	return issueCmd
+}
+
+// issueCreateOutput is the JSON shape for issue create.
+type issueCreateOutput struct {
+	Number int    `json:"number"`
+	URL    string `json:"url"`
+}
+
+func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
+	var title, body, bodyFile, labelsFlag string
+	var jsonOut bool
+
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a new GitHub issue (--body or --body-file, mutually exclusive)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			return runIssueCreate(stdout, stderr, cfg, title, body, bodyFile, labelsFlag, jsonOut, runner)
+		},
+	}
+	cmd.Flags().StringVar(&title, "title", "", "Issue title (required)")
+	cmd.Flags().StringVar(&body, "body", "", "Issue body (mutually exclusive with --body-file)")
+	cmd.Flags().StringVar(&bodyFile, "body-file", "", "Path to a file containing the issue body (mutually exclusive with --body)")
+	cmd.Flags().StringVar(&labelsFlag, "label", "", "Comma-separated label names")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "Output JSON instead of plain text")
+	return cmd
+}
+
+// runIssueCreate validates --title/--body/--body-file, resolves the body
+// (reading --body-file's contents when given), creates the issue, and
+// prints the result. jsonOut selects JSON output (--json); by default,
+// plain-text mode prints the issue number on one line then the URL on the
+// next.
+func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, title, body, bodyFile, labelsFlag string, jsonOut bool, runner exec.Runner) error {
+	if title == "" {
+		return &CLIError{Code: 1, Msg: "issue create requires --title"}
+	}
+	if body != "" && bodyFile != "" {
+		return &CLIError{Code: 1, Msg: "issue create: --body and --body-file are mutually exclusive"}
+	}
+	if body == "" && bodyFile == "" {
+		return &CLIError{Code: 1, Msg: "issue create requires --body or --body-file"}
+	}
+
+	resolvedBody := body
+	if bodyFile != "" {
+		data, err := os.ReadFile(bodyFile)
+		if err != nil {
+			return &CLIError{Code: 1, Msg: fmt.Sprintf("issue create: reading --body-file %q: %v", bodyFile, err)}
+		}
+		resolvedBody = string(data)
+	}
+
+	var labels []string
+	if labelsFlag != "" {
+		labels = strings.Split(labelsFlag, ",")
+	}
+
+	number, url, err := issue.Create(context.Background(), runner, cfg, title, resolvedBody, labels)
+	if err != nil {
+		return &CLIError{Code: 1, Msg: err.Error()}
+	}
+
+	if !jsonOut {
+		fmt.Fprintln(stdout, number)
+		fmt.Fprintln(stdout, url)
+		return nil
+	}
+
+	enc := json.NewEncoder(stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(issueCreateOutput{Number: number, URL: url})
 }
 
 func newIssueListCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {

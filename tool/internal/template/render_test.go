@@ -190,6 +190,95 @@ func TestSkeletonEmitsMetadataAndHeadings(t *testing.T) {
 	}
 }
 
+// TestQuickTaskSkeletonHeadingsInOrder verifies that quick-task's skeleton
+// output includes all six required section headings in the schema's order.
+func TestQuickTaskSkeletonHeadingsInOrder(t *testing.T) {
+	sd := schemaDir(t)
+	schemaPath := filepath.Join(sd, "quick-task.yml")
+
+	out, err := tmpl.Skeleton(schemaPath)
+	if err != nil {
+		t.Fatalf("Skeleton returned error: %v", err)
+	}
+
+	headings := []string{
+		"## Problem Statement",
+		"## Scope",
+		"## Technical Analysis",
+		"## TDD Entry Point",
+		"## Implementation Notes",
+		"## Success Criteria",
+	}
+
+	lastIdx := -1
+	for _, h := range headings {
+		idx := strings.Index(out, h)
+		if idx == -1 {
+			t.Fatalf("missing heading %q in skeleton output:\n%s", h, out)
+		}
+		if idx <= lastIdx {
+			t.Fatalf("heading %q out of order in skeleton output:\n%s", h, out)
+		}
+		lastIdx = idx
+	}
+}
+
+// TestQuickTaskRenderMissingTDDEntryPoint verifies that Render fails
+// validation when the required tdd_entry_point section is omitted.
+func TestQuickTaskRenderMissingTDDEntryPoint(t *testing.T) {
+	sd := schemaDir(t)
+	schemaPath := filepath.Join(sd, "quick-task.yml")
+
+	meta := []tmpl.KV{
+		{Key: "Source Issue", Value: "#91"},
+		{Key: "Task Number", Value: "TASK-00091"},
+		{Key: "Author", Value: "Test"},
+		{Key: "Status", Value: "Upcoming"},
+		{Key: "Date", Value: "2026-01-01"},
+	}
+	sections := map[string][]string{
+		"problem_statement":    {"The problem"},
+		"scope":                {"**Includes:** x"},
+		"technical_analysis":   {"Analysis"},
+		"implementation_notes": {"Notes"},
+		"success_criteria":     {"- [ ] Done"},
+		// tdd_entry_point intentionally omitted
+	}
+
+	_, err := tmpl.Render(schemaPath, meta, sections)
+	if err == nil {
+		t.Error("expected error for missing required tdd_entry_point section, got nil")
+	}
+}
+
+// TestQuickTaskRenderMissingTechnicalAnalysis verifies that Render fails
+// validation when the required technical_analysis section is omitted.
+func TestQuickTaskRenderMissingTechnicalAnalysis(t *testing.T) {
+	sd := schemaDir(t)
+	schemaPath := filepath.Join(sd, "quick-task.yml")
+
+	meta := []tmpl.KV{
+		{Key: "Source Issue", Value: "#91"},
+		{Key: "Task Number", Value: "TASK-00091"},
+		{Key: "Author", Value: "Test"},
+		{Key: "Status", Value: "Upcoming"},
+		{Key: "Date", Value: "2026-01-01"},
+	}
+	sections := map[string][]string{
+		"problem_statement":    {"The problem"},
+		"scope":                {"**Includes:** x"},
+		"tdd_entry_point":      {"What: ...\nWhere: ...\nPasses when: ..."},
+		"implementation_notes": {"Notes"},
+		"success_criteria":     {"- [ ] Done"},
+		// technical_analysis intentionally omitted
+	}
+
+	_, err := tmpl.Render(schemaPath, meta, sections)
+	if err == nil {
+		t.Error("expected error for missing required technical_analysis section, got nil")
+	}
+}
+
 // TestRenderRequiredSectionMissing verifies that omitting a required section returns an error.
 func TestRenderRequiredSectionMissing(t *testing.T) {
 	sd := schemaDir(t)

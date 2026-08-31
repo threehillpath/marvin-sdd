@@ -39,7 +39,7 @@ management, name derivation, config access, and plan-template rendering.`,
 	root.AddCommand(newBoardCmd(stdout, stderr, runner))
 	root.AddCommand(newLabelCmd(stdout, stderr, runner))
 	root.AddCommand(newPRCmd(stdout, stderr, runner))
-	root.AddCommand(newFindingsCmd(stdout, stderr))
+	root.AddCommand(newFindingsCmd(stdout, stderr, runner))
 	root.AddCommand(newWorktreeCmd(stdout, stderr, runner))
 	root.AddCommand(newIssueCmd(stdout, stderr, runner))
 
@@ -60,7 +60,7 @@ func Execute() {
 
 // versionString is the single source of truth for marvin's version, referenced
 // by both the plain-text banner and the --json output so the two can never drift.
-const versionString = "v0.1.0"
+const versionString = "v0.2.0"
 
 // versionOutput is the --json payload shape for the version subcommand.
 type versionOutput struct {
@@ -119,20 +119,21 @@ func newNamesCmd(stdout, stderr io.Writer) *cobra.Command {
 
 	var typ, suffix, worktreeBase string
 	var phase int
-	var jsonOut bool
+	var task, jsonOut bool
 
 	deriveCmd := &cobra.Command{
 		Use:   "derive <issue>",
 		Short: "Derive all names for an issue number",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runNamesDerive(stdout, stderr, args[0], typ, suffix, worktreeBase, phase, jsonOut)
+			return runNamesDerive(stdout, stderr, args[0], typ, suffix, worktreeBase, phase, task, jsonOut)
 		},
 	}
 	deriveCmd.Flags().StringVar(&typ, "type", "feature", "Branch type: feature or bug")
 	deriveCmd.Flags().StringVar(&suffix, "suffix", "", "Multi-impl suffix (e.g. a, b)")
 	deriveCmd.Flags().IntVar(&phase, "phase", 0, "Phase number (0 = no phase)")
-	deriveCmd.Flags().StringVar(&worktreeBase, "worktree-base", "", "Worktree base directory (overrides config value; required when --phase is set and no config is present)")
+	deriveCmd.Flags().StringVar(&worktreeBase, "worktree-base", "", "Worktree base directory (overrides config value; required when --phase is set or --task is passed and no config is present)")
+	deriveCmd.Flags().BoolVar(&task, "task", false, "Derive task-shaped names instead of plan-shaped names (mutually exclusive with --phase)")
 	deriveCmd.Flags().BoolVar(&jsonOut, "json", false, "Output JSON instead of plain text")
 
 	names.AddCommand(deriveCmd)

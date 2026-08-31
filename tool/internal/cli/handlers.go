@@ -79,20 +79,27 @@ func runConfigGet(stdout, stderr io.Writer, key string) error {
 	return nil
 }
 
-// namesOutput is the JSON shape emitted by names derive.
+// namesOutput is the JSON shape emitted by names derive. The PLAN-shaped
+// fields (PlanNumber, MainBranch, PhaseBranch, WorktreePath) and the
+// task-shaped fields (TaskNumber, TaskBranch) are mutually exclusive: the
+// --task path populates only the latter, the normal path only the former,
+// so both sets carry omitempty.
 type namesOutput struct {
-	PlanNumber   string      `json:"plan_number"`
+	PlanNumber   string      `json:"plan_number,omitempty"`
+	TaskNumber   string      `json:"task_number,omitempty"`
 	Type         string      `json:"type"`
-	MainBranch   string      `json:"main_branch"`
+	MainBranch   string      `json:"main_branch,omitempty"`
 	PhaseBranch  string      `json:"phase_branch,omitempty"`
+	TaskBranch   string      `json:"task_branch,omitempty"`
 	WorktreePath string      `json:"worktree_path,omitempty"`
 	TitlePrefix  titlePrefix `json:"title_prefix"`
 }
 
 type titlePrefix struct {
-	Arch  string `json:"arch"`
-	Impl  string `json:"impl"`
+	Arch  string `json:"arch,omitempty"`
+	Impl  string `json:"impl,omitempty"`
 	Phase string `json:"phase,omitempty"`
+	Task  string `json:"task,omitempty"`
 }
 
 // resolveWorktreeBase returns the worktree base to use.
@@ -116,10 +123,12 @@ func resolveWorktreeBase(flagVal string) (string, error) {
 // typ is "feature" or "bug"; empty defaults to "feature" (defaulting logic
 // lives in names.ResolveType). A non-empty typ that isn't "feature" or "bug"
 // is rejected here, at the CLI layer where user input first arrives.
+// task selects the task-shaped output (--task): task_number, type,
+// task_branch, worktree_path, title_prefix.task — a five-key set that is
+// mutually exclusive with the PLAN-shaped fields and with --phase.
 // jsonOut selects JSON output (--json); by default, output is plain text:
-// one key:value line per populated field, with title_prefix flattened to
-// three lines.
-func runNamesDerive(stdout, stderr io.Writer, issueStr, typ, suffix, worktreeBaseFlag string, phase int, jsonOut bool) error {
+// one key:value line per populated field, with title_prefix flattened.
+func runNamesDerive(stdout, stderr io.Writer, issueStr, typ, suffix, worktreeBaseFlag string, phase int, task, jsonOut bool) error {
 	issue, err := strconv.Atoi(issueStr)
 	if err != nil {
 		return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", issueStr, err)}
@@ -129,13 +138,47 @@ func runNamesDerive(stdout, stderr io.Writer, issueStr, typ, suffix, worktreeBas
 		return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid --type %q: must be \"feature\" or \"bug\"", typ)}
 	}
 
+	if task && phase > 0 {
+		return &CLIError{Code: 1, Msg: "--task and --phase are mutually exclusive: a task issue is single-cycle and has no phases"}
+	}
+
 	var base string
-	if phase > 0 {
+	if phase > 0 || task {
 		var berr error
 		base, berr = resolveWorktreeBase(worktreeBaseFlag)
 		if berr != nil {
 			return berr
 		}
+	}
+
+	if task {
+		out := namesOutput{
+			TaskNumber:   names.TaskNumber(issue),
+			Type:         names.ResolveType(typ),
+			TaskBranch:   names.TaskBranch(typ, issue),
+			WorktreePath: names.TaskWorktreePath(base, issue),
+			TitlePrefix: titlePrefix{
+				Task: names.TitlePrefix(names.Task, issue, "", 0),
+			},
+		}
+
+		if !jsonOut {
+			writeKV(stdout, []kv{
+				{Key: "task_number", Value: out.TaskNumber},
+				{Key: "type", Value: out.Type},
+				{Key: "task_branch", Value: out.TaskBranch},
+				{Key: "worktree_path", Value: out.WorktreePath},
+				{Key: "title_prefix_task", Value: out.TitlePrefix.Task},
+			})
+			return nil
+		}
+
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(out); err != nil {
+			return &CLIError{Code: 1, Msg: fmt.Sprintf("encoding output: %v", err)}
+		}
+		return nil
 	}
 
 	out := namesOutput{

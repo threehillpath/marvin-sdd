@@ -472,6 +472,54 @@ func TestPRListArgs(t *testing.T) {
 	}
 }
 
+// TestIssueCreateArgs verifies that IssueCreate builds the exact gh arg
+// vector (one --label flag per label) and that a stdout response of a bare
+// issue URL parses to both the trailing number and the trimmed URL itself.
+func TestIssueCreateArgs(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("https://github.com/o/r/issues/123\n")})
+
+	number, url, err := gh.New(fake).IssueCreate(context.Background(), "o/r", "title", "body", []string{"bug", "urgent"})
+	if err != nil {
+		t.Fatalf("IssueCreate returned error: %v", err)
+	}
+	if number != 123 {
+		t.Errorf("number = %d, want 123", number)
+	}
+	if url != "https://github.com/o/r/issues/123" {
+		t.Errorf("url = %q, want %q", url, "https://github.com/o/r/issues/123")
+	}
+
+	if len(fake.Calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(fake.Calls))
+	}
+	wantArgs := []string{"issue", "create", "--repo", "o/r", "--title", "title", "--body", "body", "--label", "bug", "--label", "urgent"}
+	args := fake.Calls[0].Args
+	if len(args) != len(wantArgs) {
+		t.Fatalf("args = %v, want %v", args, wantArgs)
+	}
+	for i, a := range args {
+		if a != wantArgs[i] {
+			t.Errorf("arg[%d] = %q, want %q", i, a, wantArgs[i])
+		}
+	}
+}
+
+// TestIssueCreateNonZeroExitReturnsError verifies that a non-zero exit from
+// gh surfaces as a non-nil error, never a silent (0, "", nil).
+func TestIssueCreateNonZeroExitReturnsError(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stderr: []byte("gh: validation failed"), ExitCode: 1})
+
+	number, url, err := gh.New(fake).IssueCreate(context.Background(), "o/r", "title", "body", nil)
+	if err == nil {
+		t.Fatal("expected error for non-zero exit, got nil")
+	}
+	if number != 0 || url != "" {
+		t.Errorf("expected (0, \"\") on error, got (%d, %q)", number, url)
+	}
+}
+
 // TestPRListDefaults verifies that a zero limit and empty state fall back to 100/"open".
 func TestPRListDefaults(t *testing.T) {
 	fake := &exectest.FakeRunner{}

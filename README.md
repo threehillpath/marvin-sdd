@@ -29,7 +29,7 @@ This plugin implements a full planning and development workflow:
 | `/review-phase <phase-issue>` | Code-review a phase PR with a fresh-context opus sub-agent and post the review to GitHub |
 | `/finish-phase <phase-issue>` | Commit, push, open a PR to the implementation branch, and move phase to In Review |
 | `/wrap-phase <phase-issue> <impl-issue>` | Capture decisions from a merged phase PR, close the phase issue, move to Done, clean up the worktree |
-| `/finish-impl <impl-issue>` | Open a PR from the implementation branch to main and move the impl plan to In Review |
+| `/finish-impl <impl-issue>` | Assemble and commit `docs/stories/<plan>/` to the trunk branch, open a PR from the implementation branch to main, and move the impl plan to In Review |
 | `/review-impl <impl-issue>` | Comprehensive code-review of the impl PR (trunk branch → main) after `/finish-impl` opens it |
 | `/move-issue <issue> <status>` | Move any issue to a board column |
 

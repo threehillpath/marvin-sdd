@@ -54,6 +54,9 @@ skills/
   <skill-name>/
     SKILL.md                   ← Authoritative skill prompt
     SUPPLEMENTS/               ← Templates and deeper guidance
+docs/
+  stories/                     ← Durable per-story records, assembled and committed by finish-impl
+    <plan>/                    ← arch-plan.md, impl-plan.md, phases.md, retrospective.md
 ```
 
 ## The marvin tool

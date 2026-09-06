@@ -57,6 +57,9 @@ skills/
 docs/
   stories/                     ← Durable per-story records, assembled and committed by finish-impl
     <plan>/                    ← arch-plan.md, impl-plan.md, phases.md, retrospective.md
+      activity/                 ← One verbatim per-phase wrap-up record per phase: <plan>-N.md
+                                   (deep-dive "what happened and why," never lumped across phases —
+                                   contrast retrospective.md's thematic synthesis across phases)
 ```
 
 ## The marvin tool

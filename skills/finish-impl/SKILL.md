@@ -1,6 +1,6 @@
 ---
 name: finish-impl
-description: Open a PR from the implementation branch to main and move the impl plan to In Review
+description: Assemble and commit docs/stories/<plan>/ to the trunk branch, open a PR from the implementation branch to main, and move the impl plan to In Review
 argument-hint: <impl-plan-issue-number>
 allowed-tools: Bash, Read, Write, Agent
 model: sonnet
@@ -56,7 +56,7 @@ git pull origin <main_branch>
 git status
 ```
 
-If there are uncommitted changes **other than untracked or modified files under `docs/stories/<plan>/`** (leftovers from an interrupted run of this skill, which the steps below regenerate), stop and ask. Otherwise the impl branch should be clean — all work arrives via merged phase PRs.
+If there are uncommitted changes **other than untracked or modified files under `docs/stories/<plan>/`** (leftovers from an interrupted run of this skill; step 4 regenerates its three files unconditionally, while step 5 keeps an existing `retrospective.md` as-is — delete it first if a prior run may have left it incomplete), stop and ask. Otherwise the impl branch should be clean — all work arrives via merged phase PRs.
 
 ### 3. Summarize what is being shipped
 
@@ -120,10 +120,12 @@ gh issue view <node-number> --repo <repo> --json number,title,body,url
 Before writing each target path, check whether it already exists:
 
 ```bash
-ls docs/stories/<plan>/ 2>/dev/null
+test -f docs/stories/<plan>/arch-plan.md
+test -f docs/stories/<plan>/impl-plan.md
+test -f docs/stories/<plan>/phases.md
 ```
 
-and **Read it first if it does** — the Write tool refuses to overwrite a path it has not read this session:
+and **Read a path first if it exists** — the Write tool refuses to overwrite a path it has not read this session:
 
 - `docs/stories/<plan>/arch-plan.md`: header (`# <title>` / `Source: <url>`) followed by the arch plan body verbatim. Omitted entirely if no arch node was found.
 - `docs/stories/<plan>/impl-plan.md`: header (`# <title>` / `Source: <url>`) followed by the impl plan body verbatim.
@@ -141,9 +143,10 @@ test -f docs/stories/<plan>/impl-plan.md && test -f docs/stories/<plan>/phases.m
 git add docs/stories/<plan>/arch-plan.md docs/stories/<plan>/impl-plan.md docs/stories/<plan>/phases.md
 ```
 
-(omit `arch-plan.md` from the `git add` if no arch node was found). Commit, gating on `git diff --cached --quiet` (not the commit's exit code) to distinguish a genuine no-op from a real failure; report what's about to be published before pushing; push unconditionally, outside the no-op check:
+(omit `arch-plan.md` from the `git add` if no arch node was found). Commit, gating on `git diff --cached --quiet` (not the commit's exit code) to distinguish a genuine no-op from a real failure; report what's about to be published before pushing; push unconditionally, outside the no-op check. `<main_branch>` here is the story trunk branch captured in step 2, never the literal `main` — pushing to `main` would bypass the impl PR:
 
 ```bash
+set -e
 if git diff --cached --quiet; then
   echo "docs/stories/<plan>/ already up to date — no-op"
 else
@@ -160,7 +163,7 @@ Any non-zero exit from `git add`, `git commit`, `git log`, or `git push` stops h
 Filter the impl plan issue's comments — already fetched in step 1 (`gh issue view $0 --json …,comments`), no new `gh` call needed:
 
 - **Wrap-up comments**: bodies starting with `## Phase wrap-up: [PLAN-XXXXX-`. When two or more matched comments share the same `[PLAN-XXXXX-N]` ident (a phase re-wrapped), keep only the most recent by comment timestamp.
-- **Red-team critique**: the body starting with `## Plan Red-Team — verdict:`. Keep only the most recent if `red-team-plan` was re-run.
+- **Red-team critique**: bodies starting with `## Plan Red-Team` and containing `— verdict:` on that first line (a re-run renders it as `## Plan Red-Team (round N) — verdict: <verdict>`). Keep only the most recent by comment timestamp if `red-team-plan` was re-run.
 
 If the number of matched wrap-up comments is fewer than the number of phase nodes resolved in step 4 (or, if step 4's fallback was used, fewer than that fallback returned), report the shortfall to the user before synthesizing — don't proceed silently on a partial set. A missing red-team comment is expected (it's optional) and is not reported as a shortfall.
 
@@ -180,9 +183,10 @@ Otherwise (exit non-zero), spawn an **Agent** with:
 
 Read `SUPPLEMENTS/RETROSPECTIVE.md` and inline its rubric — the **Inputs**, **Synthesis instructions**, and **Output format** sections only, never the **Named fixture** section — along with the filtered comment bodies, directly in the sub-agent's prompt. The sub-agent returns the `retrospective.md` markdown directly — no code fence, no surrounding prose. Write it with the **Write** tool (no preceding Read needed on this path — the existence check above already established the file is absent).
 
-Then — on **both** paths, whether the retrospective was just written or skipped as already-present — verify the file exists before staging (a failed `git add` on a missing pathspec exits non-zero and stages nothing, which `git diff --cached --quiet` would then read as "nothing to commit," indistinguishable from a legitimate no-op), then stage, commit if there is anything staged, and push:
+Then — on **both** paths, whether the retrospective was just written or skipped as already-present — verify the file exists before staging (a failed `git add` on a missing pathspec exits non-zero and stages nothing, which `git diff --cached --quiet` would then read as "nothing to commit," indistinguishable from a legitimate no-op), then stage, commit if there is anything staged, and push. `<main_branch>` here is the story trunk branch captured in step 2, never the literal `main` — pushing to `main` would bypass the impl PR:
 
 ```bash
+set -e
 test -f docs/stories/<plan>/retrospective.md || { echo "retrospective.md missing — aborting" >&2; exit 1; }
 git add docs/stories/<plan>/retrospective.md
 if git diff --cached --quiet; then

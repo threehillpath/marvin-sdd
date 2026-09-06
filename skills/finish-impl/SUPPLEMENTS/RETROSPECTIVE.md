@@ -7,7 +7,7 @@ You are synthesizing a durable retrospective for a completed implementation stor
 You will be given, inlined in your prompt:
 
 1. Zero or more **wrap-up comments** — one per phase, each the body of a `wrap-phase`-authored comment on the impl plan issue, identified by the prefix `## Phase wrap-up: [PLAN-XXXXX-`. Each covers one phase's decisions, scope changes, deferred items, and corrections (their template is `wrap-phase`'s `COMMENT_TEMPLATE.md`).
-2. At most one **red-team critique comment** — the body of a `red-team-plan`-authored comment on the impl plan issue, identified by the prefix `## Plan Red-Team — verdict:`. May be absent (it's optional). Covers blocking findings and concerns raised against the plan before implementation began.
+2. At most one **red-team critique comment** — the body of a `red-team-plan`-authored comment on the impl plan issue, identified by a body starting with `## Plan Red-Team` and containing `— verdict:` on that first line (a re-run renders it as `## Plan Red-Team (round N) — verdict: <verdict>`). May be absent (it's optional). Covers blocking findings and concerns raised against the plan before implementation began.
 
 The orchestrator has already filtered these (deduped by ident, most recent kept) before inlining them in your prompt — treat every comment you are given as the input set, in full.
 

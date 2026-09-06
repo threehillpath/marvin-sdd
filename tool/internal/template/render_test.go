@@ -1,44 +1,28 @@
 package template_test
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	tmpl "threehillpath.com/marvin-sdd/tool/internal/template"
 )
 
-// findSchemaDir walks up from the test file's location to find the skills/SHARED/templates dir.
-// Tests run from the package directory, so we look relative to the module root.
-func schemaDir(t *testing.T) string {
+// schema loads a built-in schema's YAML bytes by name, failing the test if
+// it isn't embedded.
+func schema(t *testing.T, name string) []byte {
 	t.Helper()
-	// Walk up from cwd to find skills/SHARED/templates
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
+	data, ok := tmpl.DefaultSchema(name)
+	if !ok {
+		t.Fatalf("no built-in schema embedded for %q", name)
 	}
-	for {
-		candidate := filepath.Join(dir, "skills", "SHARED", "templates")
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-	t.Fatal("could not find skills/SHARED/templates directory")
-	return ""
+	return data
 }
 
 // TestImplPlanNumberedSections asserts that two component sections and one
 // verification_steps section produce ## 1. / ## 2. / ## 3. headings
 // with the metadata block above them.
 func TestImplPlanNumberedSections(t *testing.T) {
-	sd := schemaDir(t)
-	schemaPath := filepath.Join(sd, "impl-plan.yml")
+	schemaYAML := schema(t, "impl-plan")
 
 	meta := []tmpl.KV{
 		{Key: "Objective", Value: "Build something"},
@@ -56,7 +40,7 @@ func TestImplPlanNumberedSections(t *testing.T) {
 		"success_criteria":  {"- [ ] Passes"},
 	}
 
-	out, err := tmpl.Render(schemaPath, meta, sections)
+	out, err := tmpl.Render(schemaYAML, meta, sections)
 	if err != nil {
 		t.Fatalf("Render returned error: %v", err)
 	}
@@ -96,8 +80,7 @@ func TestImplPlanNumberedSections(t *testing.T) {
 // TestImplPhaseOptionalTDDEntryPoint verifies that omitting the optional
 // tdd_entry_point section in impl-phase produces no heading for it and exits 0.
 func TestImplPhaseOptionalTDDEntryPoint(t *testing.T) {
-	sd := schemaDir(t)
-	schemaPath := filepath.Join(sd, "impl-phase.yml")
+	schemaYAML := schema(t, "impl-phase")
 
 	meta := []tmpl.KV{
 		{Key: "Implementation Plan", Value: "#15"},
@@ -113,7 +96,7 @@ func TestImplPhaseOptionalTDDEntryPoint(t *testing.T) {
 		// tdd_entry_point intentionally omitted
 	}
 
-	out, err := tmpl.Render(schemaPath, meta, sections)
+	out, err := tmpl.Render(schemaYAML, meta, sections)
 	if err != nil {
 		t.Fatalf("Render returned error (expected 0): %v", err)
 	}
@@ -129,8 +112,7 @@ func TestImplPhaseOptionalTDDEntryPoint(t *testing.T) {
 // TestArchPlanMetadataKey verifies that rendering an arch-plan with a "Date" metadata
 // entry emits "**Date:**" in the output.
 func TestArchPlanMetadataKey(t *testing.T) {
-	sd := schemaDir(t)
-	schemaPath := filepath.Join(sd, "arch-plan.yml")
+	schemaYAML := schema(t, "arch-plan")
 
 	meta := []tmpl.KV{
 		{Key: "Source Issue", Value: "#2"},
@@ -152,7 +134,7 @@ func TestArchPlanMetadataKey(t *testing.T) {
 		"open_questions":         {"None"},
 	}
 
-	out, err := tmpl.Render(schemaPath, meta, sections)
+	out, err := tmpl.Render(schemaYAML, meta, sections)
 	if err != nil {
 		t.Fatalf("Render returned error: %v", err)
 	}
@@ -168,10 +150,9 @@ func TestArchPlanMetadataKey(t *testing.T) {
 // TestSkeletonEmitsMetadataAndHeadings verifies that Skeleton emits bold metadata
 // key placeholders before section headings, with no content validation.
 func TestSkeletonEmitsMetadataAndHeadings(t *testing.T) {
-	sd := schemaDir(t)
-	schemaPath := filepath.Join(sd, "impl-plan.yml")
+	schemaYAML := schema(t, "impl-plan")
 
-	out, err := tmpl.Skeleton(schemaPath)
+	out, err := tmpl.Skeleton(schemaYAML)
 	if err != nil {
 		t.Fatalf("Skeleton returned error: %v", err)
 	}
@@ -193,10 +174,9 @@ func TestSkeletonEmitsMetadataAndHeadings(t *testing.T) {
 // TestQuickTaskSkeletonHeadingsInOrder verifies that quick-task's skeleton
 // output includes all six required section headings in the schema's order.
 func TestQuickTaskSkeletonHeadingsInOrder(t *testing.T) {
-	sd := schemaDir(t)
-	schemaPath := filepath.Join(sd, "quick-task.yml")
+	schemaYAML := schema(t, "quick-task")
 
-	out, err := tmpl.Skeleton(schemaPath)
+	out, err := tmpl.Skeleton(schemaYAML)
 	if err != nil {
 		t.Fatalf("Skeleton returned error: %v", err)
 	}
@@ -226,8 +206,7 @@ func TestQuickTaskSkeletonHeadingsInOrder(t *testing.T) {
 // TestQuickTaskRenderMissingTDDEntryPoint verifies that Render fails
 // validation when the required tdd_entry_point section is omitted.
 func TestQuickTaskRenderMissingTDDEntryPoint(t *testing.T) {
-	sd := schemaDir(t)
-	schemaPath := filepath.Join(sd, "quick-task.yml")
+	schemaYAML := schema(t, "quick-task")
 
 	meta := []tmpl.KV{
 		{Key: "Source Issue", Value: "#91"},
@@ -245,7 +224,7 @@ func TestQuickTaskRenderMissingTDDEntryPoint(t *testing.T) {
 		// tdd_entry_point intentionally omitted
 	}
 
-	_, err := tmpl.Render(schemaPath, meta, sections)
+	_, err := tmpl.Render(schemaYAML, meta, sections)
 	if err == nil {
 		t.Error("expected error for missing required tdd_entry_point section, got nil")
 	}
@@ -254,8 +233,7 @@ func TestQuickTaskRenderMissingTDDEntryPoint(t *testing.T) {
 // TestQuickTaskRenderMissingTechnicalAnalysis verifies that Render fails
 // validation when the required technical_analysis section is omitted.
 func TestQuickTaskRenderMissingTechnicalAnalysis(t *testing.T) {
-	sd := schemaDir(t)
-	schemaPath := filepath.Join(sd, "quick-task.yml")
+	schemaYAML := schema(t, "quick-task")
 
 	meta := []tmpl.KV{
 		{Key: "Source Issue", Value: "#91"},
@@ -273,7 +251,7 @@ func TestQuickTaskRenderMissingTechnicalAnalysis(t *testing.T) {
 		// technical_analysis intentionally omitted
 	}
 
-	_, err := tmpl.Render(schemaPath, meta, sections)
+	_, err := tmpl.Render(schemaYAML, meta, sections)
 	if err == nil {
 		t.Error("expected error for missing required technical_analysis section, got nil")
 	}
@@ -281,8 +259,7 @@ func TestQuickTaskRenderMissingTechnicalAnalysis(t *testing.T) {
 
 // TestRenderRequiredSectionMissing verifies that omitting a required section returns an error.
 func TestRenderRequiredSectionMissing(t *testing.T) {
-	sd := schemaDir(t)
-	schemaPath := filepath.Join(sd, "impl-phase.yml")
+	schemaYAML := schema(t, "impl-phase")
 
 	meta := []tmpl.KV{
 		{Key: "Implementation Plan", Value: "#15"},
@@ -297,7 +274,7 @@ func TestRenderRequiredSectionMissing(t *testing.T) {
 		"success_criteria": {"stuff"},
 	}
 
-	_, err := tmpl.Render(schemaPath, meta, sections)
+	_, err := tmpl.Render(schemaYAML, meta, sections)
 	if err == nil {
 		t.Error("expected error for missing required section, got nil")
 	}

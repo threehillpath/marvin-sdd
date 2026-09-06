@@ -65,12 +65,12 @@ Precedence rules (highest to lowest):
 
 ## Plan Template Resolution
 
-Skills that render plan issue bodies resolve the template for each plan type using this order:
+Skills never read schema YAML directly — they call `marvin template render {type}`, which resolves the template for each plan type using this order:
 
-1. **Project override** (wins if present): `.claude/plan-workflow-templates/{type}.yml` in the consuming project — sibling to the config file.
-2. **Plugin default** (always present): `skills/SHARED/templates/{type}.yml` in the plugin.
+1. **Project override** (wins if present): `.claude/plan-workflow-templates/{type}.yml` in the consuming project, found by the same CWD-walk as the config file.
+2. **Plugin default** (always present): the schema compiled into the `marvin` binary at build time (`go:embed`, source at `tool/internal/template/schemas/` in the plugin repo). Because it's embedded rather than read from disk at runtime, the plugin default resolves correctly regardless of where `skills/` lives relative to the invoking directory — including a real marketplace install, where it isn't reachable from the consuming project's tree at all.
 
-Where `{type}` is `arch-plan`, `impl-plan`, or `impl-phase`. A skill checks for the project override first; if the file is absent, it reads the plugin default. The plugin default is always present, so rendering never fails for lack of a template.
+Where `{type}` is `arch-plan`, `impl-plan`, `impl-phase`, or `quick-task`. `marvin` checks for the project override first; if the file is absent, it uses the embedded plugin default. The plugin default is always present, so rendering never fails for lack of a template.
 
 ## Test Commands
 

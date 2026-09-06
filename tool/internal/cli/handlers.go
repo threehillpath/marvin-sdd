@@ -2,8 +2,10 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -299,15 +301,15 @@ func runParsePhaseList(stdin io.Reader, stdout, stderr io.Writer, jsonOut bool) 
 // runTemplateRender renders a plan template from schema.
 // When skeleton is true, emits empty section headings without requiring content.
 func runTemplateRender(stdout, stderr io.Writer, schemaName, metaFile, sectionsFile string, skeleton bool) error {
-	schemaPath, err := resolveSchemaPath(schemaName)
+	schemaYAML, origin, err := resolveSchema(schemaName)
 	if err != nil {
 		return &CLIError{Code: 1, Msg: err.Error()}
 	}
 
 	if skeleton {
-		out, err := tmplpkg.Skeleton(schemaPath)
+		out, err := tmplpkg.Skeleton(schemaYAML)
 		if err != nil {
-			return &CLIError{Code: 1, Msg: err.Error()}
+			return &CLIError{Code: 1, Msg: fmt.Sprintf("%s (%s): %v", schemaName, origin, err)}
 		}
 		fmt.Fprint(stdout, out)
 		return nil
@@ -338,32 +340,67 @@ func runTemplateRender(stdout, stderr io.Writer, schemaName, metaFile, sectionsF
 		sections = map[string][]string{}
 	}
 
-	out, err := tmplpkg.Render(schemaPath, meta, sections)
+	out, err := tmplpkg.Render(schemaYAML, meta, sections)
 	if err != nil {
-		return &CLIError{Code: 1, Msg: err.Error()}
+		return &CLIError{Code: 1, Msg: fmt.Sprintf("%s (%s): %v", schemaName, origin, err)}
 	}
 	fmt.Fprint(stdout, out)
 	return nil
 }
 
-// resolveSchemaPath finds the YAML schema file by walking up from cwd.
-func resolveSchemaPath(schemaName string) (string, error) {
-	filename := schemaName + ".yml"
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("cannot determine working directory: %v", err)
+// resolveSchema returns the YAML schema bytes for schemaName and a short
+// label identifying where they came from ("project override" or "built-in
+// schema", used to make render/parse error messages actionable), per the
+// precedence documented in skills/SHARED/CONFIG.md:
+//  1. Project override: .claude/plan-workflow-templates/{schemaName}.yml,
+//     found by walking up from cwd (sibling to the config file's own lookup).
+//  2. Plugin default: the schema embedded in the marvin binary.
+//
+// The plugin default is always present for a known schema name and has no
+// CWD dependency, so lookup only fails when schemaName has neither an
+// override nor a built-in schema, or a present override cannot be read.
+func resolveSchema(schemaName string) (data []byte, origin string, err error) {
+	// A failure to determine the CWD does not block the embedded-default
+	// fallback below, which needs no CWD at all — it only means a project
+	// override (which does need one) cannot be searched for.
+	if cwd, cwdErr := os.Getwd(); cwdErr == nil {
+		overrideData, ok, overrideErr := findSchemaOverride(cwd, schemaName)
+		if overrideErr != nil {
+			return nil, "", fmt.Errorf("resolving schema %q: %w", schemaName, overrideErr)
+		}
+		if ok {
+			return overrideData, "project override", nil
+		}
 	}
-	dir := cwd
+	if data, ok := tmplpkg.DefaultSchema(schemaName); ok {
+		return data, "built-in schema", nil
+	}
+	return nil, "", fmt.Errorf("unknown schema %q: no project override and no plugin default", schemaName)
+}
+
+// findSchemaOverride walks up from startDir looking for a project-supplied
+// .claude/plan-workflow-templates/{schemaName}.yml. A missing file at a
+// given level is not an error — the walk continues upward — but any other
+// read failure on a file that does exist there (permission denied, a
+// directory in place of a file, ...) is reported rather than silently
+// treated as "no override," which would otherwise fall through to the
+// embedded default with no signal that the override was ignored.
+func findSchemaOverride(startDir, schemaName string) ([]byte, bool, error) {
+	filename := schemaName + ".yml"
+	dir := startDir
 	for {
-		candidate := filepath.Join(dir, "skills", "SHARED", "templates", filename)
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
+		candidate := filepath.Join(dir, ".claude", "plan-workflow-templates", filename)
+		data, err := os.ReadFile(candidate)
+		if err == nil {
+			return data, true, nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return nil, false, fmt.Errorf("reading project template override %q: %w", candidate, err)
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			break
+			return nil, false, nil
 		}
 		dir = parent
 	}
-	return "", fmt.Errorf("schema %q not found in skills/SHARED/templates/ (searched from %s)", schemaName, cwd)
 }

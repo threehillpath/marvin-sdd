@@ -4,12 +4,29 @@
 package template
 
 import (
+	"embed"
 	"fmt"
-	"os"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+// defaultSchemas embeds the plugin's built-in YAML schemas at compile time,
+// so rendering never depends on skills/SHARED/templates/ (or any other path)
+// being reachable on disk from the caller's working directory.
+//
+//go:embed schemas/*.yml
+var defaultSchemas embed.FS
+
+// DefaultSchema returns the plugin's built-in schema bytes for name (e.g.
+// "impl-plan"), and false if no built-in schema exists under that name.
+func DefaultSchema(name string) ([]byte, bool) {
+	data, err := defaultSchemas.ReadFile("schemas/" + name + ".yml")
+	if err != nil {
+		return nil, false
+	}
+	return data, true
+}
 
 // KV is an ordered metadata key-value pair.
 type KV struct {
@@ -33,20 +50,16 @@ type schema struct {
 }
 
 // Render assembles a plan issue body from:
-//   - schemaPath: path to the YAML schema file (e.g. skills/SHARED/templates/impl-plan.yml)
+//   - schemaYAML: the schema's YAML bytes (from DefaultSchema or a project override)
 //   - meta: ordered key-value pairs for the bold metadata block
 //   - sections: map from section id → one or more content blocks
 //
 // Returns an error if a required section is absent, a non-repeatable section
-// has more than one block, or the schema file cannot be read/parsed.
-func Render(schemaPath string, meta []KV, sections map[string][]string) (string, error) {
-	raw, err := os.ReadFile(schemaPath)
-	if err != nil {
-		return "", fmt.Errorf("reading schema %q: %w", schemaPath, err)
-	}
+// has more than one block, or the schema YAML cannot be parsed.
+func Render(schemaYAML []byte, meta []KV, sections map[string][]string) (string, error) {
 	var sc schema
-	if err := yaml.Unmarshal(raw, &sc); err != nil {
-		return "", fmt.Errorf("parsing schema %q: %w", schemaPath, err)
+	if err := yaml.Unmarshal(schemaYAML, &sc); err != nil {
+		return "", fmt.Errorf("parsing schema: %w", err)
 	}
 
 	// Validate required sections.
@@ -106,17 +119,13 @@ func Render(schemaPath string, meta []KV, sections map[string][]string) (string,
 	return sb.String(), nil
 }
 
-// Skeleton returns a minimal scaffold for schemaPath: bold metadata key
+// Skeleton returns a minimal scaffold for schemaYAML: bold metadata key
 // placeholders followed by empty section headings. Unlike Render, it does not
 // validate required sections or accept section content.
-func Skeleton(schemaPath string) (string, error) {
-	raw, err := os.ReadFile(schemaPath)
-	if err != nil {
-		return "", fmt.Errorf("reading schema %q: %w", schemaPath, err)
-	}
+func Skeleton(schemaYAML []byte) (string, error) {
 	var sc schema
-	if err := yaml.Unmarshal(raw, &sc); err != nil {
-		return "", fmt.Errorf("parsing schema %q: %w", schemaPath, err)
+	if err := yaml.Unmarshal(schemaYAML, &sc); err != nil {
+		return "", fmt.Errorf("parsing schema: %w", err)
 	}
 
 	var sb strings.Builder

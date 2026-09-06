@@ -55,11 +55,15 @@ skills/
     SKILL.md                   ← Authoritative skill prompt
     SUPPLEMENTS/               ← Templates and deeper guidance
 docs/
-  stories/                     ← Durable per-story records, assembled and committed by finish-impl
-    <plan>/                    ← arch-plan.md, impl-plan.md, phases.md, retrospective.md
-      activity/                 ← One verbatim per-phase wrap-up record per phase: <plan>-N.md
-                                   (deep-dive "what happened and why," never lumped across phases —
-                                   contrast retrospective.md's thematic synthesis across phases)
+  stories/                     ← Durable per-story records
+    <plan>/
+      README.md                 ← Index: plan status, contents, phase table — written by finish-impl
+      architecture.md            ← Arch plan issue body verbatim — written by finish-impl
+      implementation-plan.md     ← Impl plan issue body verbatim — written by finish-impl
+      retrospective.md           ← Cross-phase thematic synthesis + red-team critique — written by finish-impl
+      phase-NN-<slug>.md          ← One per phase: spec + implementation summary + test results +
+                                     decisions/scope-changes/deferred/corrections — written by wrap-phase
+                                     as each phase merges (NN and <slug> from `marvin parse title`)
 ```
 
 ## The marvin tool

@@ -89,6 +89,35 @@ func PlanIdent(title string) (Ident, bool) {
 	return Ident{}, false
 }
 
+// bracketPrefixRe matches a leading "[...]" bracket token (and any following
+// whitespace) at the start of a title, e.g. the "[PLAN-00042-1] " in
+// "[PLAN-00042-1] Person & Role Rendering Logic".
+var bracketPrefixRe = regexp.MustCompile(`^\s*\[[^\]]*\]\s*`)
+
+// nonAlnumRunRe matches one or more consecutive non-alphanumeric characters,
+// collapsed to a single hyphen by Slugify.
+var nonAlnumRunRe = regexp.MustCompile(`[^a-z0-9]+`)
+
+// Slugify converts arbitrary text into a lowercase, hyphen-separated,
+// filesystem-safe slug: every run of non-alphanumeric characters becomes a
+// single hyphen, and leading/trailing hyphens are trimmed.
+// Example: "Person & Role Rendering Logic" → "person-role-rendering-logic"
+func Slugify(s string) string {
+	s = strings.ToLower(s)
+	s = nonAlnumRunRe.ReplaceAllString(s, "-")
+	return strings.Trim(s, "-")
+}
+
+// TitleSlug strips a leading "[...]" bracket ident (if present) from title —
+// e.g. "[PLAN-00042-1] " — and slugifies whatever remains. Used to name a
+// durable per-phase doc file (docs/stories/<plan>/phase-NN-<slug>.md) so the
+// same title always produces the same filename regardless of which skill
+// invocation computes it.
+func TitleSlug(title string) string {
+	rest := bracketPrefixRe.ReplaceAllString(title, "")
+	return Slugify(rest)
+}
+
 // phaseListLineRe matches a line like "- #12 [PLAN-00042-1]" and captures the issue number.
 var phaseListLineRe = regexp.MustCompile(`-\s+#(\d+)\s+\[PLAN-`)
 

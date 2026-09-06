@@ -227,14 +227,18 @@ type parseTitleOutput struct {
 	PlanNumber string `json:"plan_number,omitempty"` // lowercase path form, e.g. "plan-00042"
 	Suffix     string `json:"suffix,omitempty"`
 	Phase      int    `json:"phase,omitempty"`
+	Slug       string `json:"slug,omitempty"` // filesystem-safe slug of the title text after the bracket ident
 }
 
 // runParseTitle extracts a plan ident from a title string. jsonOut selects
 // JSON output (--json); by default, output is plain text: one key:value line
-// per populated field. found is always printed, even when false.
+// per populated field. found is always printed, even when false. slug is
+// computed independently of the bracket-ident match (it just strips any
+// leading "[...]" and slugifies the rest), so it can still be populated when
+// found is false.
 func runParseTitle(stdout, stderr io.Writer, title string, jsonOut bool) error {
 	ident, ok := parse.PlanIdent(title)
-	out := parseTitleOutput{Found: ok}
+	out := parseTitleOutput{Found: ok, Slug: parse.TitleSlug(title)}
 	if ok {
 		out.Plan = ident.Plan
 		out.PlanNumber = names.PlanID(ident.Plan)
@@ -249,6 +253,7 @@ func runParseTitle(stdout, stderr io.Writer, title string, jsonOut bool) error {
 			{Key: "plan_number", Value: out.PlanNumber, Omit: out.PlanNumber == ""},
 			{Key: "suffix", Value: out.Suffix, Omit: out.Suffix == ""},
 			{Key: "phase", Value: strconv.Itoa(out.Phase), Omit: out.Phase == 0},
+			{Key: "slug", Value: out.Slug, Omit: out.Slug == ""},
 		})
 		return nil
 	}

@@ -1,6 +1,6 @@
 # PR History Classification Rubric
 
-You are classifying the history of a merged phase PR. Your output is consumed by the `wrap-phase` skill, which will render it as a comment on the parent implementation plan issue and present it to the user for approval.
+You are classifying the history of a merged phase PR. Your output is consumed by the `wrap-phase` skill, which renders it two ways: the four classification categories become a comment on the parent implementation plan issue, and the full result (including `implementation_summary` and `test_plan`) becomes a durable per-phase doc file under `docs/stories/<plan>/`. Both are presented to the user for approval before anything is posted or written.
 
 ## Inputs
 
@@ -41,20 +41,32 @@ Commits pushed to the PR after it was opened that fix something the initial comm
 
 Each entry: `{ "what_changed": "<short>", "why_wrong": "<short>", "correction": "<short>" }`
 
+### `implementation_summary`
+
+A narrative prose account (1-3 paragraphs) of what this phase actually built — read as a durable, standalone technical record once the PR itself is no longer easily reachable. Synthesize from the PR body's `## Summary` section, the full commit list, and the diff's shape (file/function/component names) — this is prose written by someone who read everything, not a re-listing of the PR's own bullets. Name concrete symbols (functions, components, endpoints) the way a code-literate reader would want, not vague behavior descriptions. This becomes the phase doc's `## Implementation` section — a single string, not an array.
+
+### `test_plan`
+
+The PR body's `## Test plan` checklist, carried forward with each item's actual checked state at merge time (`- [x]` vs `- [ ]` in the PR body — do not re-derive pass/fail from anything else). If the PR body's Test plan section is missing entirely, return an empty array.
+
+Each entry: `{ "step": "<checklist item text, verbatim>", "checked": true | false }`
+
 ## Output format
 
 Return a **single JSON object**, no surrounding prose, with exactly these keys:
 
 ```json
 {
-  "decisions":      [ { "summary": "...", "reasoning": "..." } ],
-  "scope_changes":  [ { "summary": "...", "direction": "added", "reason": "..." } ],
-  "deferred":       [ { "summary": "...", "where_to_track": "..." } ],
-  "corrections":    [ { "what_changed": "...", "why_wrong": "...", "correction": "..." } ]
+  "decisions":              [ { "summary": "...", "reasoning": "..." } ],
+  "scope_changes":          [ { "summary": "...", "direction": "added", "reason": "..." } ],
+  "deferred":               [ { "summary": "...", "where_to_track": "..." } ],
+  "corrections":            [ { "what_changed": "...", "why_wrong": "...", "correction": "..." } ],
+  "implementation_summary": "...",
+  "test_plan":              [ { "step": "...", "checked": true } ]
 }
 ```
 
-If a category has no entries, return an empty array for it. Do not omit keys.
+If a category has no entries, return an empty array for it (or an empty string for `implementation_summary` in the unlikely case there's nothing to say). Do not omit keys.
 
 ## Quality bar
 

@@ -109,3 +109,33 @@ func TestPhaseListFromCommentNoMatch(t *testing.T) {
 		t.Error("expected no match, got true")
 	}
 }
+
+// TestTitleSlugStripsBracketAndPunctuation is the TDD entry point for
+// per-phase doc filenames (docs/stories/<plan>/phase-NN-<slug>.md): the
+// ampersand and repeated whitespace must collapse to single hyphens, not
+// leak through or double up.
+func TestTitleSlugStripsBracketAndPunctuation(t *testing.T) {
+	got := parse.TitleSlug("[PLAN-00042-1] Person & Role Rendering Logic")
+	want := "person-role-rendering-logic"
+	if got != want {
+		t.Errorf("TitleSlug = %q, want %q", got, want)
+	}
+}
+
+func TestTitleSlugNoBracketPrefix(t *testing.T) {
+	got := parse.TitleSlug("no bracket token here")
+	want := "no-bracket-token-here"
+	if got != want {
+		t.Errorf("TitleSlug = %q, want %q", got, want)
+	}
+}
+
+func TestTitleSlugEmDash(t *testing.T) {
+	// Em dash is not ASCII alphanumeric, so it collapses like any other
+	// separator — this exercises a multi-byte rune passing through Slugify.
+	got := parse.TitleSlug("[PLAN-00042-3] Backend — Domain")
+	want := "backend-domain"
+	if got != want {
+		t.Errorf("TitleSlug = %q, want %q", got, want)
+	}
+}

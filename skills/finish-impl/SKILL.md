@@ -10,6 +10,8 @@ Close out a completed implementation: confirm all phases are merged, open a PR f
 
 **Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration (repo, owner). Read `../SHARED/GLOSSARY.md` for branch and status conventions.
 
+Each phase's own deep-dive doc (`docs/stories/<plan>/phase-NN-<slug>.md`) was already written, committed, and pushed by `/wrap-phase` when that phase merged — this skill does not touch those files. It assembles the plan-wide docs that only make sense once every phase is done: `architecture.md`, `implementation-plan.md`, `README.md` (an index linking to the phase docs), and `retrospective.md` (a cross-phase thematic synthesis).
+
 ## Arguments
 
 - `$0` — Impl plan issue number
@@ -46,7 +48,7 @@ git branch --show-current
 
 Must be on the story's trunk branch (call the current branch `<main_branch>` for the rest of this skill — its real name is already known from this command's output, never reconstructed). If not, warn and stop — instruct the user to check out the implementation branch first.
 
-Pull the latest from the remote — phase PRs were merged on GitHub and the local branch may be behind:
+Pull the latest from the remote — phase PRs (and each phase's `wrap-phase` doc commit) were pushed to this branch on GitHub and the local branch may be behind:
 
 ```bash
 git pull origin <main_branch>
@@ -56,7 +58,7 @@ git pull origin <main_branch>
 git status
 ```
 
-If there are uncommitted changes **other than untracked or modified files under `docs/stories/<plan>/`** (leftovers from an interrupted run of this skill; step 4 regenerates `arch-plan.md`/`impl-plan.md`/`phases.md` and each matched phase's `activity/<plan>-N.md` unconditionally, while step 5 keeps an existing `retrospective.md` as-is — delete it first if a prior run may have left it incomplete), stop and ask. Otherwise the impl branch should be clean — all work arrives via merged phase PRs.
+If there are uncommitted changes **other than untracked or modified files under `docs/stories/<plan>/`** (leftovers from an interrupted run of this skill; step 4 regenerates `architecture.md`/`implementation-plan.md`/`README.md` unconditionally, while step 5 keeps an existing `retrospective.md` as-is — delete it first if a prior run may have left it incomplete), stop and ask. Otherwise the impl branch should be clean — all work arrives via merged phase PRs and `wrap-phase` doc commits.
 
 ### 3. Summarize what is being shipped
 
@@ -85,7 +87,7 @@ This will open a PR: <main_branch> → main. Proceed?
 
 Ask for confirmation before creating the PR.
 
-### 4. Assemble and commit the story record
+### 4. Assemble and commit the plan-wide docs
 
 ```bash
 marvin issue tree $0 --json
@@ -93,13 +95,13 @@ marvin issue tree $0 --json
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first." If it exits 1, stop and surface the error — a failed hierarchy walk is not the same as an empty one; the graceful-degradation handling below applies only to a successful call that returns an empty or partial result.
 
-Parse the returned JSON array of nodes (each with `kind`, `number`, `title`, `state`, `status`). Identify the one `arch` node (if any), the `impl` node (matches `$0`), and zero or more `phase` nodes. For each `phase` node, determine its ordinal via:
+Parse the returned JSON array of nodes (each with `kind`, `number`, `title`, `state`, `status`). Identify the one `arch` node (if any), the `impl` node (matches `$0`), and zero or more `phase` nodes. For each `phase` node, determine its ordinal and slug via:
 
 ```bash
 marvin parse title "<node title>"
 ```
 
-Read the `phase:` line from the output and sort the phase nodes by this **parsed ordinal** — not `issue tree`'s own issue-number sort order, which only coincides with phase order within a single `phase-split` run. `marvin issue tree` is authoritative for the phase list here — step 1's `marvin parse phase-list` result is used only for that step's own summary display and is not consulted in this step.
+Read the `phase:` line and the `slug:` line. Sort the phase nodes by the **parsed `phase:` ordinal** — not `issue tree`'s own issue-number sort order, which only coincides with phase order within a single `phase-split` run. `marvin issue tree` is authoritative for the phase list here — step 1's `marvin parse phase-list` result is used only for that step's own summary display and is not consulted in this step.
 
 If the `phase` nodes list from `issue tree` is empty, fall back to:
 
@@ -107,61 +109,83 @@ If the `phase` nodes list from `issue tree` is empty, fall back to:
 marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX-" --state all
 ```
 
-(trailing hyphen, no closing bracket — substitute the real plan number, e.g. `"[PLAN-00042-"`). For a multi-impl track (`[PLAN-XXXXX-A]`, `[PLAN-XXXXX-B]` — see `../SHARED/GLOSSARY.md`), apply the same rule one level deeper and use `--title-prefix "[PLAN-XXXXX-<suffix>-"` (e.g. `"[PLAN-00042-A-"`), so the fallback does not also match the sibling track's phases. Treat the rows this fallback returns exactly as `phase` nodes for the rest of this step — run `marvin parse title` on each title and sort by the parsed ordinal the same way as above. If that also returns nothing, note the absence in `phases.md`'s header rather than emitting an empty table. If no `arch` node is present, skip `arch-plan.md` entirely and note its absence in `phases.md`'s header — do not fail either case.
+(trailing hyphen, no closing bracket — substitute the real plan number, e.g. `"[PLAN-00042-"`). For a multi-impl track (`[PLAN-XXXXX-A]`, `[PLAN-XXXXX-B]` — see `../SHARED/GLOSSARY.md`), apply the same rule one level deeper and use `--title-prefix "[PLAN-XXXXX-<suffix>-"` (e.g. `"[PLAN-00042-A-"`), so the fallback does not also match the sibling track's phases. Treat the rows this fallback returns exactly as `phase` nodes for the rest of this step — run `marvin parse title` on each title and sort by the parsed ordinal the same way as above. If that also returns nothing, note the absence in `README.md`'s phase index rather than emitting an empty table. If no `arch` node is present, skip `architecture.md` entirely and omit its bullet from `README.md`'s Contents list — do not fail either case.
 
 The story slug is the plan identifier `<plan>` captured in step 1. Directory: `docs/stories/<plan>/`.
 
-Fetch each node's body:
+Fetch the arch and impl nodes' bodies (phase node bodies are **not** fetched here — each phase's spec already lives verbatim inside the `phase-NN-<slug>.md` that `wrap-phase` wrote when that phase merged):
 
 ```bash
 gh issue view <node-number> --repo <repo> --json number,title,body,url
 ```
 
+For each phase node, check whether its doc file exists — this does not fetch or write the file, only confirms `wrap-phase` already produced it:
+
+```bash
+test -f docs/stories/<plan>/phase-<NN>-<slug>.md
+```
+
+where `<NN>` is the phase's `phase:` ordinal zero-padded to at least two digits (`01`, `12`, `100`) and `<slug>` is that node's `slug:` output from above. A missing file is not fatal — it means `wrap-phase` was never run for that phase (e.g. an older plan predating this doc, or a skipped step) — note it in `README.md`'s phase index (see below) and report it to the user, but continue.
+
 Before writing each target path, check whether it already exists:
 
 ```bash
-test -f docs/stories/<plan>/arch-plan.md
-test -f docs/stories/<plan>/impl-plan.md
-test -f docs/stories/<plan>/phases.md
-test -f docs/stories/<plan>/activity/<plan>-N.md   # for each phase N being written this run
+test -f docs/stories/<plan>/architecture.md
+test -f docs/stories/<plan>/implementation-plan.md
+test -f docs/stories/<plan>/README.md
 ```
 
 and **Read a path first if it exists** — the Write tool refuses to overwrite a path it has not read this session:
 
-- `docs/stories/<plan>/arch-plan.md`: header (`# <title>` / `Source: <url>`) followed by the arch plan body verbatim. Omitted entirely if no arch node was found.
-- `docs/stories/<plan>/impl-plan.md`: header (`# <title>` / `Source: <url>`) followed by the impl plan body verbatim.
-- `docs/stories/<plan>/phases.md`: an index table (`| Phase | Issue | Title |`) followed by each phase's full body under a `## [PLAN-XXXXX-N] <Title>` heading, in the parsed-ordinal order established above. This is each phase's **spec** (what was asked for) — not what happened during implementation; see the per-phase activity files below for that.
+- `docs/stories/<plan>/architecture.md`: header (`# <title>` / `Source: <url>`) followed by the arch plan body verbatim. Omitted entirely if no arch node was found.
+- `docs/stories/<plan>/implementation-plan.md`: header (`# <title>` / `Source: <url>`) followed by the impl plan body verbatim.
+- `docs/stories/<plan>/README.md`: the index for the whole directory. Structure:
 
-Also write one **per-phase activity file** for each phase that has been wrapped: `docs/stories/<plan>/activity/<plan>-N.md`. This is the durable, deep-dive record of what actually happened during that phase's development — decisions and the reasoning behind them, scope changes, deferred items, corrections — meant to stand on its own as a local reference once the source GitHub issue and PR are no longer reachable. Keep it distinct from `retrospective.md`'s cross-phase thematic synthesis (step 5): that file is a surface-level overview across phases, this is the per-phase deep dive. Never lump multiple phases into one file here.
+  ```markdown
+  # <PLAN-XXXXX>: <Impl Plan Title>
 
-From the impl plan issue's comments already fetched in step 1 (`gh issue view $0 --json …,comments` — no new `gh` call needed), filter for **wrap-up comments**: bodies starting with `## Phase wrap-up: [PLAN-XXXXX-`. When two or more matched comments share the same `[PLAN-XXXXX-N]` ident (a phase re-wrapped), keep only the most recent by comment timestamp. For each surviving comment, strip the leading `## Phase wrap-up: ` and feed the remainder (e.g. `[PLAN-XXXXX-N] <Title>`) to `marvin parse title` to read its `phase:` ordinal N — the same mechanism used to order the phase nodes above.
+  Development documentation for <PLAN-XXXXX>, the <Impl Plan Title> implementation plan. This directory is a historical and reference record of the plan's architecture, scope, phase-by-phase implementation, and the decisions/corrections made along the way — generated from the plan's GitHub issues, pull requests, and review history.
 
-If the number of matched wrap-up comments is fewer than the number of phase nodes resolved above (or, if the fallback was used, fewer than that fallback returned), report the shortfall to the user before writing any activity files — don't proceed silently on a partial set. A phase with no matched wrap-up comment yet (not wrapped, or `finish-impl` run early) simply gets no activity file this run — that's expected, not an error.
+  **Plan status**: All <N> phases complete.
 
-Write each `docs/stories/<plan>/activity/<plan>-N.md` as that phase's matched comment's **full body verbatim** — no re-synthesis, no re-summarizing, no merging with any other phase's file.
+  ## Contents
 
-Reuse this same filtered, deduped set (and each comment's parsed ordinal) in step 5 for retrospective synthesis — do not re-filter there.
+  - **[architecture.md](./architecture.md)** — the original architecture plan (issue #<arch-issue>): system design, data model, and component boundaries decided before implementation began. <omit this bullet if no arch node>
+  - **[implementation-plan.md](./implementation-plan.md)** — the implementation plan (issue #$0): how the architecture was broken into phases, with a phase index table below.
+  - **[retrospective.md](./retrospective.md)** — a cross-phase synthesis of decisions, scope changes, deferred items, and corrections, plus the pre-implementation red-team critique if one was run.
+  - **`phase-01-*.md` through `phase-<NN>-*.md`** — one document per phase: its original spec (objective, scope, TDD entry point, success criteria) plus an implementation summary, test results, decisions, scope changes, deferred items, and corrections made during code review.
+
+  ## Phase index
+
+  | # | Phase | Doc |
+  |---|-------|-----|
+  | 1 | [PLAN-XXXXX-1] <Title> | [phase-01-<slug>.md](./phase-01-<slug>.md) |
+  | 2 | [PLAN-XXXXX-2] <Title> | [phase-02-<slug>.md](./phase-02-<slug>.md) |
+  | ... | | |
+  ```
+
+  For a phase whose doc file was missing (checked above), replace that row's Doc cell with plain text noting it (e.g. `_not written — wrap-phase not run_`) instead of a link.
 
 Before staging, verify the files this step just wrote actually exist — a failed `git add` on a missing pathspec exits non-zero and stages **nothing at all** (not even the paths that do exist), which `git diff --cached --quiet` would then read as "nothing to commit," indistinguishable from a legitimate no-op:
 
 ```bash
-test -f docs/stories/<plan>/impl-plan.md && test -f docs/stories/<plan>/phases.md || { echo "story files missing — aborting" >&2; exit 1; }
+test -f docs/stories/<plan>/implementation-plan.md && test -f docs/stories/<plan>/README.md || { echo "story files missing — aborting" >&2; exit 1; }
 ```
 
-(only check `arch-plan.md` too if an arch node was found; only check each expected `docs/stories/<plan>/activity/<plan>-N.md` if any wrap-up comments were matched at all). Stage only the files this step writes — never the whole directory:
+(only check `architecture.md` too if an arch node was found). Stage only the files this step writes — never the whole directory:
 
 ```bash
-git add docs/stories/<plan>/arch-plan.md docs/stories/<plan>/impl-plan.md docs/stories/<plan>/phases.md docs/stories/<plan>/activity/
+git add docs/stories/<plan>/architecture.md docs/stories/<plan>/implementation-plan.md docs/stories/<plan>/README.md
 ```
 
-(omit `arch-plan.md` from the `git add` if no arch node was found; `docs/stories/<plan>/activity/` picks up only the per-phase files just written since nothing else writes into that directory). Commit, gating on `git diff --cached --quiet` (not the commit's exit code) to distinguish a genuine no-op from a real failure; report what's about to be published before pushing; push unconditionally, outside the no-op check. `<main_branch>` here is the story trunk branch captured in step 2, never the literal `main` — pushing to `main` would bypass the impl PR:
+(omit `architecture.md` from the `git add` if no arch node was found). Commit, gating on `git diff --cached --quiet` (not the commit's exit code) to distinguish a genuine no-op from a real failure; report what's about to be published before pushing; push unconditionally, outside the no-op check. `<main_branch>` here is the story trunk branch captured in step 2, never the literal `main` — pushing to `main` would bypass the impl PR:
 
 ```bash
 set -e
 if git diff --cached --quiet; then
   echo "docs/stories/<plan>/ already up to date — no-op"
 else
-  git commit -m "docs: add docs/stories/<plan>/ arch/impl/phase/activity records for [PLAN-XXXXX] <title>"
+  git commit -m "docs: add docs/stories/<plan>/ architecture/implementation-plan/README for [PLAN-XXXXX] <title>"
 fi
 git log origin/<main_branch>..HEAD --oneline
 git push origin <main_branch>
@@ -171,7 +195,12 @@ Any non-zero exit from `git add`, `git commit`, `git log`, or `git push` stops h
 
 ### 5. Synthesize and commit the retrospective
 
-Reuse the **wrap-up comments** filtered, deduped, and ordinal-sorted in step 4 (the shortfall check there already covers this set — no need to re-check it here). Additionally filter for the **red-team critique**, from the same step-1 comments, no new `gh` call needed: bodies starting with `## Plan Red-Team` and containing `— verdict:` on that first line (a re-run renders it as `## Plan Red-Team (round N) — verdict: <verdict>`). Keep only the most recent by comment timestamp if `red-team-plan` was re-run. A missing red-team comment is expected (it's optional) and is not reported as a shortfall.
+Filter the impl plan issue's comments — already fetched in step 1 (`gh issue view $0 --json …,comments`), no new `gh` call needed:
+
+- **Wrap-up comments**: bodies starting with `## Phase wrap-up: [PLAN-XXXXX-`. When two or more matched comments share the same `[PLAN-XXXXX-N]` ident (a phase re-wrapped), keep only the most recent by comment timestamp.
+- **Red-team critique**: bodies starting with `## Plan Red-Team` and containing `— verdict:` on that first line (a re-run renders it as `## Plan Red-Team (round N) — verdict: <verdict>`). Keep only the most recent by comment timestamp if `red-team-plan` was re-run.
+
+If the number of matched wrap-up comments is fewer than the number of phase nodes resolved in step 4 (or, if step 4's fallback was used, fewer than that fallback returned), report the shortfall to the user before synthesizing — don't proceed silently on a partial set. A missing red-team comment is expected (it's optional) and is not reported as a shortfall.
 
 Check whether `docs/stories/<plan>/retrospective.md` already exists:
 
@@ -237,6 +266,6 @@ Where `<plan>` is the plan identifier from step 1 (e.g. `plan-00042`). This remo
 
 ### 9. Confirm
 
-Report: PR URL, `docs/stories/<plan>/` commit (or no-op) and push status (including which `docs/stories/<plan>/activity/<plan>-N.md` files were written this run, if any), `retrospective.md` commit (or no-op/skip) and push status, impl plan issue #$0 moved to In Review, findings cache cleared.
+Report: PR URL, `docs/stories/<plan>/` commit (or no-op) and push status (`architecture.md`/`implementation-plan.md`/`README.md`, plus which phases' doc files were found missing, if any), `retrospective.md` commit (or no-op/skip) and push status, impl plan issue #$0 moved to In Review, findings cache cleared.
 
 **Next step**: `/review-impl $0` to review the impl PR and post findings directly on it.

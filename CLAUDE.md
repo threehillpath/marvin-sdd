@@ -86,7 +86,7 @@ arch-plan → impl-plan → red-team-plan → phase-split → start-impl →
     → finish-impl → review-impl → merge
 ```
 
-`move-issue`, `finish-phase`, and `plan-drift` are auxiliaries usable at any point — `plan-drift` is most valuable mid-phase or before opening a PR, but can run any time. See each skill's `SKILL.md` for behavior.
+`move-issue`, `finish-phase`, `plan-drift`, and `unslop` are auxiliaries usable at any point — `plan-drift` is most valuable mid-phase or before opening a PR, but can run any time. See each skill's `SKILL.md` for behavior.
 
 `quick-task` is a standalone single-cycle pipeline for a bug or small task filed as a source issue: it bypasses the arch-plan → impl-plan → phase-split hierarchy entirely, driving a Task issue from filed requirement to merged PR (and all of that issue's own board transitions) in one skill invocation, with the same TDD and review rigor as the phased pipeline above.
 

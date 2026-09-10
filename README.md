@@ -12,7 +12,7 @@ This plugin implements a full planning and development workflow:
     → /finish-impl → /review-impl → merge
 ```
 
-`/move-issue`, `/finish-phase`, and `/plan-drift` are auxiliaries usable at any point — see each skill's `SKILL.md` for behavior.
+`/move-issue`, `/finish-phase`, `/plan-drift`, and `/unslop` are auxiliaries usable at any point — see each skill's `SKILL.md` for behavior.
 
 ## Skills
 
@@ -32,6 +32,7 @@ This plugin implements a full planning and development workflow:
 | `/finish-impl <impl-issue>` | Assemble and commit `docs/stories/<plan>/` to the trunk branch, open a PR from the implementation branch to main, and move the impl plan to In Review |
 | `/review-impl <impl-issue>` | Comprehensive code-review of the impl PR (trunk branch → main) after `/finish-impl` opens it |
 | `/move-issue <issue> <status>` | Move any issue to a board column |
+| `/unslop` | Cut AI tells from prose and rewrite it with plain, human-sounding language |
 
 ## Setup
 

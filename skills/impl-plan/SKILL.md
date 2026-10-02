@@ -46,7 +46,7 @@ Spawn an **Explore** subagent to read those files and return a structured digest
 > Work to plan (from arch plan #<N>):
 > <paste the arch plan body, or the relevant excerpt>
 >
-> Keep the total response under ~3000 words. Skip files that turn out to be trivial (constants, re-exports). If you find a file that should also be read but wasn't on the list, mention it by path with a one-sentence reason — don't read it.
+> Keep the digest to what the planner needs: signatures and notable behavior, never function bodies or long excerpts — it lands in the planner's context ahead of drafting. Skip files that turn out to be trivial (constants, re-exports). If you find a file that should also be read but wasn't on the list, mention it by path with a one-sentence reason — don't read it.
 
 Capture the digest. This becomes your reference material for drafting; you do not need to read the underlying files yourself unless the digest flags something that needs deeper inspection.
 

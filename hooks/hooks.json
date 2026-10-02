@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/tool/build.sh ${CLAUDE_PLUGIN_ROOT}/tool ${CLAUDE_PLUGIN_ROOT}/bin/marvin"
+            "command": "if [ -f \"${CLAUDE_PLUGIN_ROOT}/tool/build.sh\" ]; then \"${CLAUDE_PLUGIN_ROOT}/tool/build.sh\" \"${CLAUDE_PLUGIN_ROOT}/tool\" \"${CLAUDE_PLUGIN_ROOT}/bin/marvin\"; elif [ ! -f \"${CLAUDE_PLUGIN_ROOT}/bin/marvin\" ]; then echo \"marvin: no Go source at ${CLAUDE_PLUGIN_ROOT}/tool and no existing binary; marvin is unavailable.\" >&2; fi; exit 0"
           }
         ]
       }

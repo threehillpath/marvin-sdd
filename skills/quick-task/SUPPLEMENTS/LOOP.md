@@ -22,20 +22,28 @@ Read all source files relevant to this Task before writing any code. The orchest
 
 ## 2. The TDD loop
 
-Work through the Task issue's success criteria **one at a time, in order**.
+Work through the Task issue's success criteria **one at a time, in order**: finish the full test → red → implement → green cycle for criterion N before writing any test or code for criterion N+1. The point is evidence: each criterion's test has to be seen failing before its implementation exists, and a test written alongside or after the code proves nothing about whether it can fail. Reviewers check this from commit order, so each criterion lands as two commits — the failing test, then the implementation.
 
 ### Backend and non-UI frontend logic (reducers, utilities, validation helpers)
 
-**CRITICAL: Work strictly one criterion at a time. Do not write tests for future criteria or implement beyond the current criterion. Complete the full loop (test → red → implement → green) for criterion N before touching criterion N+1.**
-
 For each criterion:
 
-1. **Write one failing test** — and only one. Use the TDD Entry Point from the Task issue as the anchor for the first criterion. Each subsequent criterion gets its own targeted test asserting the outermost observable behavior — what a caller sees, not internal state. Do not write tests for any other criterion at this step.
-2. **Run the test suite. Confirm red.** Use the test command from `.claude/plan-workflow-config.yml`, run from the worktree directory. The new test must fail. If it passes immediately, the behavior already exists — note it, skip implementation, move to the next criterion.
-3. **Write the minimum code to make the test pass.** Do not implement beyond what the current test requires. Do not add code in anticipation of future criteria.
-4. **Run the test suite. Confirm green.** All previously passing tests must still pass.
-5. If still failing after implementation: diagnose, fix, re-run — up to 3 attempts total.
-6. Only after green: move to the next criterion and repeat from step 1.
+1. **Write one failing test** for this criterion. Use the TDD Entry Point from the Task issue as the anchor for the first criterion. Each subsequent criterion gets its own targeted test asserting the outermost observable behavior — what a caller sees, not internal state.
+2. **Run the test suite. Confirm red for the right reason.** Use the test command from `.claude/plan-workflow-config.yml`, run from the worktree directory. Red means the new test ran and failed on its assertion. A compile or type error, a missing dependency, a runner that failed to start, or a test that never executed is not red — fix that first (for a missing dependency, install it with the project's own package manager) and re-run until the new test fails on its assertion. If it passes immediately, the behavior already exists — note it, commit the test as a regression guard, and move to the next criterion.
+3. **Commit the failing test**:
+   ```bash
+   git -C <worktree-path> add <test file(s)>
+   git -C <worktree-path> commit -m "[TASK-XXXXX] test: <criterion summary>"
+   ```
+4. **Write the minimum code to make the test pass** — nothing in anticipation of later criteria.
+5. **Run the test suite. Confirm green.** All previously passing tests must still pass.
+6. If still failing after implementation: diagnose, fix, re-run — up to 3 attempts total.
+7. **Commit the implementation** once green:
+   ```bash
+   git -C <worktree-path> add <implementation file(s)>
+   git -C <worktree-path> commit -m "[TASK-XXXXX] <criterion summary>"
+   ```
+   Then move to the next criterion.
 
 ### Rendered controls (markup and styling only)
 
@@ -85,9 +93,9 @@ If any check produces a fix, re-run the test suite to confirm green, then procee
 
 When the self-review is clean and the suite is green:
 
-### Stage and commit
+### Commit remaining changes
 
-Stage only the files you created or modified for this Task. Do not stage untracked files you did not intentionally create. Run git commands from inside the worktree:
+Each criterion is already committed (section 2). Commit whatever is left — self-review fixes, rendered-control markup — as one final commit; if nothing is left, skip it. Stage only the files you created or modified for this Task. Do not stage untracked files you did not intentionally create. Run git commands from inside the worktree:
 
 ```bash
 git -C <worktree-path> add <each modified or created file by path>

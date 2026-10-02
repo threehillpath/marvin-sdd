@@ -14,7 +14,7 @@ The full rule lives in `impl-plan/SUPPLEMENTS/TDD.md`. Apply it to the diff:
 
 - Every new non-component module (handlers, derived state, validation, formatting, parsing, sorting, mapping, predicates) must have at least one test in the diff or in a co-located test file.
 - Logic embedded inside a component file is a finding unless the test exists for it. The litmus test: **if the code can be tested with the DOM removed, it is logic — extract and test.**
-- Tests added after implementation (commits show implementation before tests for that criterion) are a finding — TDD requires the failing test first. Commit order is the evidence.
+- Tests added after implementation are a finding — TDD requires the failing test first. Commit order is the evidence: the implement loop commits each criterion's failing test (`test: <criterion>`) before its implementation, so a criterion whose implementation commit precedes its test commit, or whose test and implementation arrive in the same commit, is a finding.
 - Tests that assert internal state instead of outermost observable behavior are a finding (low-severity nit unless the assertion is so coupled to internals that a refactor would falsely fail).
 
 ### `self-review` — Items from `implement-phase/SUPPLEMENTS/LOOP.md` §4

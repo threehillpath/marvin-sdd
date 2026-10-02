@@ -70,7 +70,7 @@ Use the rendered skeleton (six required sections) as the structural frame:
   > Work to address (from source issue #$0):
   > <paste the source issue body, or the relevant excerpt>
   >
-  > Keep the total response under ~1500 words. Skip files that turn out to be trivial. If you find a file that should also be read but wasn't on the list, mention it by path with a one-sentence reason — don't read it.
+  > Keep the digest to what the drafter needs: signatures and notable behavior, never function bodies or long excerpts — it lands in the drafter's context ahead of drafting. Skip files that turn out to be trivial. If you find a file that should also be read but wasn't on the list, mention it by path with a one-sentence reason — don't read it.
 
   Use the digest to draft Technical Analysis; you do not need to read the underlying files yourself unless the digest flags something needing deeper inspection.
 - **TDD Entry Point** and **Implementation Notes** — drafted from the digest and `$0`'s content.

@@ -61,7 +61,9 @@ The litmus test: **if the code can be tested with the DOM removed, it is logic â
 Do not make further changes.
 
 **Repeated stalling**: If you have hit the 3-attempt limit on more than one criterion, or the same category of failure keeps recurring across different criteria, include this note in your escalation report:
-> "Progress has stalled on multiple criteria. Consider re-running `/implement-phase` with the model upgraded to opus for better reasoning on this phase."
+> "Progress has stalled on multiple criteria."
+
+The orchestrator uses this note to offer the user a re-run on opus.
 
 **Requirement ambiguity** (phase issue and impl plan conflict, or a requirement is underspecified): Stop the loop. Describe the ambiguity specifically. Return to the caller for input.
 

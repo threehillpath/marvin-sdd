@@ -78,8 +78,7 @@ If multiple PRs match, ask the user which to audit.
 
 Spawn an **Agent** with:
 
-- `subagent_type: "general-purpose"`
-- `model: "sonnet"`
+- `subagent_type: "plan-workflow:drift-auditor"` (sonnet, read-only tools — set in `agents/drift-auditor.md`)
 - No worktree isolation (drift check is read-only)
 
 Assemble the prompt by **referencing** the inputs the sub-agent should fetch — do not paste the spec or diff into the prompt. The sub-agent has its own context window.
@@ -105,7 +104,7 @@ Prompt template (PR-mode variant):
 >
 > Read the diff fully. For files where the diff is large or context-dependent, read the surrounding source via the Read tool to verify whether a criterion is actually satisfied (the test exists *and* exercises the behavior; the export exists *and* is reachable from callers). Do not audit pre-existing code outside the diff.
 >
-> Use extended thinking. Walk every success criterion against the diff. For each, name the evidence that would falsify a regression — if you cannot, the status is not `met`.
+> Walk every success criterion against the diff. For each, name the evidence that would falsify a regression — if you cannot, the status is not `met`.
 >
 > Apply the rubric category by category. For each finding, populate every field in the Finding schema. Use `evidence` to cite a commit SHA, a quoted line, or a diff hunk so the user can verify quickly.
 >

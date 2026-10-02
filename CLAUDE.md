@@ -9,6 +9,11 @@ A Claude Code plugin defining a structured architecture-to-implementation workfl
 ```
 .claude-plugin/plugin.json     ← Plugin metadata (name, version, description)
 hooks/hooks.json               ← SessionStart hook: builds marvin if missing/stale (marketplace installs)
+agents/                        ← Plugin sub-agents with fixed model + effort, spawned by skills
+  code-reviewer.md             ← opus/xhigh; review-phase, review-impl, quick-task
+  plan-red-teamer.md           ← opus/xhigh; red-team-plan
+  drift-auditor.md             ← sonnet; plan-drift
+  tdd-implementer.md           ← sonnet; implement-phase, quick-task
 .github/
   ISSUE_TEMPLATE/              ← Native GitHub issue forms for human-filed source issues
     feature.yml                ← Feature request form (applies `enhancement` label)
@@ -94,10 +99,10 @@ arch-plan → impl-plan → red-team-plan → phase-split → start-impl →
 
 Four skills spawn fresh-context sub-agents that apply a shared rubric and return structured findings JSON:
 
-- **`red-team-plan`** — opus sub-agent critiques the impl plan against `skills/SHARED/PLAN_RED_TEAM_RUBRIC.md`, returns findings as `skills/SHARED/PLAN_RED_TEAM_FORMAT.md`. Catches hidden assumptions, missing dependencies, weak TDD entry points, and unfalsifiable success criteria *before* phase-split, where errors compound.
-- **`plan-drift`** — sonnet sub-agent audits a phase branch against its spec using `skills/SHARED/PLAN_DRIFT_RUBRIC.md`, returns findings as `skills/SHARED/PLAN_DRIFT_FORMAT.md`. Tracks two things: per-criterion coverage and out-of-scope/interface-divergence containment. Complements but does not replace `review-phase`.
-- **`review-phase` / `review-impl`** — opus sub-agent (extended thinking) applies `skills/SHARED/REVIEW_RUBRIC.md` and returns findings as `skills/SHARED/REVIEW_FINDING_FORMAT.md`.
-- **`quick-task`** — opus sub-agent review step, reusing the same `skills/SHARED/REVIEW_RUBRIC.md` (extended with a Task-specific spec-drift clause) and `skills/SHARED/REVIEW_FINDING_FORMAT.md` as `review-phase`/`review-impl`.
+- **`red-team-plan`** — `plan-red-teamer` (opus, `xhigh`) critiques the impl plan against `skills/SHARED/PLAN_RED_TEAM_RUBRIC.md`, returns findings as `skills/SHARED/PLAN_RED_TEAM_FORMAT.md`. Catches hidden assumptions, missing dependencies, weak TDD entry points, and unfalsifiable success criteria *before* phase-split, where errors compound.
+- **`plan-drift`** — `drift-auditor` (sonnet) audits a phase branch against its spec using `skills/SHARED/PLAN_DRIFT_RUBRIC.md`, returns findings as `skills/SHARED/PLAN_DRIFT_FORMAT.md`. Tracks two things: per-criterion coverage and out-of-scope/interface-divergence containment. Complements but does not replace `review-phase`.
+- **`review-phase` / `review-impl`** — `code-reviewer` (opus, `xhigh`) applies `skills/SHARED/REVIEW_RUBRIC.md` and returns findings as `skills/SHARED/REVIEW_FINDING_FORMAT.md`.
+- **`quick-task`** — `code-reviewer` review step, reusing the same `skills/SHARED/REVIEW_RUBRIC.md` (extended with a Task-specific spec-drift clause) and `skills/SHARED/REVIEW_FINDING_FORMAT.md` as `review-phase`/`review-impl`.
 
 Each findings JSON is the stable contract a future auto-fix loop will consume — these skills produce it, future skills will act on it.
 
@@ -112,6 +117,7 @@ Plan issue templates follow the same project-first resolution: `marvin template 
 - Each `SKILL.md` declares its model (opus for planning, sonnet for implementation, haiku for board ops) and allowed tools in frontmatter.
 - Skills reference SHARED files rather than re-defining names, statuses, PR templates, or label rules.
 - Heavy code-reading is delegated to subagents (Explore for code digestion, general-purpose for autonomous work) so the orchestrating skill's context stays small.
+- A sub-agent whose depth matters (review, red-team, drift, TDD implementation) is a plugin agent in `agents/` with `model` and `effort` in its frontmatter. Claude Code takes thinking depth from `effort`; prompt text such as "use extended thinking" does not change it.
 
 ## Workflow design rules
 

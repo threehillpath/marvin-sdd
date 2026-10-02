@@ -3,7 +3,7 @@ name: phase-split
 description: Break an implementation plan into phases and create GitHub issues for each
 argument-hint: <impl-plan-issue-number>
 allowed-tools: Bash, Read, Glob, Grep
-model: sonnet
+model: opus
 ---
 
 Break an approved implementation plan into phases sized by logical atomicity and estimated complexity. Each phase should be a coherent unit representing one branch, one PR, and one verifiable behavior change.

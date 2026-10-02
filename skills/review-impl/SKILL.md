@@ -6,7 +6,7 @@ allowed-tools: Bash, Read, Agent
 model: sonnet
 ---
 
-Run after `/finish-impl` has opened the impl PR to main. Spawns an opus sub-agent (fresh context, extended thinking) that reviews the cumulative impl-branch diff against `main`, treating the impl plan as the spec and the accumulated wrap-phase comments as the record of intentional drift. Posts findings as a GitHub PR review. Catches integration issues that no individual phase review could see.
+Run after `/finish-impl` has opened the impl PR to main. Spawns the `code-reviewer` sub-agent (opus at `xhigh` effort, fresh context) that reviews the cumulative impl-branch diff against `main`, treating the impl plan as the spec and the accumulated wrap-phase comments as the record of intentional drift. Posts findings as a GitHub PR review. Catches integration issues that no individual phase review could see.
 
 **Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
 
@@ -66,8 +66,7 @@ git fetch origin <main_branch>
 
 Spawn an **Agent** with:
 
-- `subagent_type: "general-purpose"`
-- `model: "opus"`
+- `subagent_type: "plan-workflow:code-reviewer"` (opus at `xhigh` effort, read-only tools — set in `agents/code-reviewer.md`)
 - No worktree isolation (review is read-only)
 
 Prompt template:
@@ -95,7 +94,7 @@ Prompt template:
 > - **Self-review at the impl level**: missing exports/registrations that a phase missed because the registration site lives outside the phase's scope.
 > - **Standard rubric categories**: tdd, correctness, security across the cumulative change.
 >
-> Use extended thinking. The cumulative diff is larger than a single phase's; trace data paths end-to-end across phases, verify barrel files contain exports added by every phase, walk migration steps in commit order to confirm they apply cleanly.
+> The cumulative diff is larger than a single phase's; trace data paths end-to-end across phases, verify barrel files contain exports added by every phase, walk migration steps in commit order to confirm they apply cleanly.
 >
 > Return **only** the JSON object specified in `REVIEW_FINDING_FORMAT.md`. No surrounding prose, no code fence.
 

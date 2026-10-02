@@ -1,6 +1,6 @@
 # Plan Red-Team Rubric
 
-This rubric is loaded by `red-team-plan` and passed verbatim to a fresh-context opus sub-agent that critiques an implementation plan **before** it is split into phases. The reviewer's output is parsed by the orchestrator using `PLAN_RED_TEAM_FORMAT.md`.
+This rubric is loaded by `red-team-plan` and passed verbatim to the fresh-context `plan-red-teamer` sub-agent that critiques an implementation plan **before** it is split into phases. The reviewer's output is parsed by the orchestrator using `PLAN_RED_TEAM_FORMAT.md`.
 
 The reviewer reads the rubric, the impl plan body, the parent arch plan, the source issue, and a code digest of the relevant files — then produces a structured findings JSON. The reviewer does not edit the plan; it only reports.
 
@@ -8,7 +8,7 @@ The reviewer reads the rubric, the impl plan body, the parent arch plan, the sou
 
 You are red-teaming the plan. Your job is to find the most plausible ways this plan ships a bug, blocks itself, or has to be redrafted mid-implementation. The author has already convinced themselves the plan works — your value is in the holes they did not see. Bias toward surfacing risks; an empty review is acceptable only when you have actively looked for each category and found nothing.
 
-Use extended thinking. Trace each component spec into the surrounding code. Walk every success criterion and ask "what would falsify this?" Read the TDD entry points and ask "does this test actually exercise the behavior being claimed?"
+Trace each component spec into the surrounding code. Walk every success criterion and ask "what would falsify this?" Read the TDD entry points and ask "does this test actually exercise the behavior being claimed?"
 
 ## What the reviewer checks
 

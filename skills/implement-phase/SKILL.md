@@ -102,7 +102,7 @@ If `marvin` exits with code 2, surface to the user: "Configuration missing — r
 
 Read `SUPPLEMENTS/LOOP.md` for the TDD loop instructions.
 
-Spawn a **general-purpose** agent **without** `isolation: "worktree"` (the worktree was created in step 2b) and model **sonnet**. Assemble the task prompt by **referencing** the inputs the sub-agent should fetch — do not paste full file contents into the prompt:
+Spawn the `plan-workflow:tdd-implementer` agent (sonnet — set in `agents/tdd-implementer.md`) **without** `isolation: "worktree"` (the worktree was created in step 2b). Assemble the task prompt by **referencing** the inputs the sub-agent should fetch — do not paste full file contents into the prompt:
 
 1. Phase issue number `$0` (and `gh issue view` command for it). The sub-agent fetches the title, objective, scope, TDD entry point, and success criteria itself.
 2. Impl plan issue number (and `gh issue view` command for it). The sub-agent fetches the full component specs and design notes itself.
@@ -123,7 +123,7 @@ When the sub-agent returns, report:
 - Success criteria completed
 - Any failures or escalations requiring input
 
-If the sub-agent stopped on failure, present the diagnostic and ask how to proceed.
+If the sub-agent stopped on failure, present the diagnostic and ask how to proceed. If its report says progress has stalled on multiple criteria, offer to re-spawn `plan-workflow:tdd-implementer` with `model: "opus"` (the Agent call's `model` overrides the agent definition) and the same prompt plus the stalled run's report. The worktree keeps every criterion already committed, so the new run continues from the first criterion without a commit.
 
 The worktree at `<worktree_path>` is **left in place** until `/wrap-phase` runs after merge — reviewers may want to test the branch locally, and the user may push correction commits from it.
 
@@ -131,7 +131,7 @@ The worktree at `<worktree_path>` is **left in place** until `/wrap-phase` runs 
 - Run `/plan-drift <phase-issue-number>` to audit the worktree's diff against the phase spec — checks per-criterion coverage and flags out-of-scope or interface-divergent changes early.
 
 **After the PR is opened**:
-- Run `/plan-drift <phase-issue-number>` again if the PR has additional commits beyond the worktree audit, then `/review-phase <phase-issue-number>` for an opus-driven code review. Address blocking findings before merging.
+- Run `/plan-drift <phase-issue-number>` again if the PR has additional commits beyond the worktree audit, then `/review-phase <phase-issue-number>` for an opus code review. Address blocking findings before merging.
 
 **After the PR is merged**:
 - Run `/wrap-phase <phase-issue-number> <impl-plan-issue-number>` to capture decisions, close the phase issue, move it to Done, and clean up the worktree.

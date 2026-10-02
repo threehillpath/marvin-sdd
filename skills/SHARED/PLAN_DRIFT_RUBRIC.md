@@ -15,7 +15,7 @@ You are auditing whether the work-in-progress matches the spec. Be literal. The 
 
 Drift documented in the PR body's Notes section is **not** a finding — that is the legitimate channel for course corrections. Drift without a Notes entry is the finding.
 
-Use extended thinking to walk every success criterion against the diff. Read enough of the surrounding code to verify whether a criterion is actually satisfied (the test exists *and* exercises the behavior; the export exists *and* is reachable from callers).
+Walk every success criterion against the diff. Read enough of the surrounding code to verify whether a criterion is actually satisfied (the test exists *and* exercises the behavior; the export exists *and* is reachable from callers).
 
 ## Part 1 — Criterion coverage
 

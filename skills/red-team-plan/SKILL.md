@@ -6,7 +6,7 @@ allowed-tools: Bash, Read, Agent
 model: sonnet
 ---
 
-Run after `/impl-plan` produces an implementation plan, before `/phase-split`. Spawns a fresh-context opus sub-agent (extended thinking) that reads the impl plan, the parent arch plan, the source issue, and a code digest of the relevant files, then applies the rubric in `../SHARED/PLAN_RED_TEAM_RUBRIC.md` and returns structured findings per `../SHARED/PLAN_RED_TEAM_FORMAT.md`. Orchestrator presents findings, then on approval posts a single critique comment on the impl plan issue.
+Run after `/impl-plan` produces an implementation plan, before `/phase-split`. Spawns the fresh-context `plan-red-teamer` sub-agent (opus at `xhigh` effort) that reads the impl plan, the parent arch plan, the source issue, and a code digest of the relevant files, then applies the rubric in `../SHARED/PLAN_RED_TEAM_RUBRIC.md` and returns structured findings per `../SHARED/PLAN_RED_TEAM_FORMAT.md`. Orchestrator presents findings, then on approval posts a single critique comment on the impl plan issue.
 
 The red-team is a check on the plan, not the code. It surfaces hidden assumptions, missing dependencies, phase-ordering risks, weak TDD entry points, and unfalsifiable success criteria — the failure modes whose cost compounds across every phase if not caught here.
 
@@ -46,8 +46,7 @@ If the plan names a path the repo does not contain, that itself is a finding the
 
 Spawn an **Agent** with:
 
-- `subagent_type: "general-purpose"`
-- `model: "opus"`
+- `subagent_type: "plan-workflow:plan-red-teamer"` (opus at `xhigh` effort, read-only tools — set in `agents/plan-red-teamer.md`)
 - No worktree isolation (red-team is read-only)
 
 Assemble the prompt by **referencing** the inputs the sub-agent should fetch — do not paste the plan body or any source file into the prompt. The sub-agent has its own context window.
@@ -74,7 +73,7 @@ Prompt template:
 >
 > Use the Read, Glob, and Grep tools to verify that named files, types, functions, and routes exist with the shape the plan claims. If a named symbol does not exist, that is a `hidden-assumption` finding — cite the absence as evidence.
 >
-> Read the rubric's "Stance" and "Anti-patterns" sections before drafting findings. Use extended thinking. Walk every component spec, every TDD entry point, and every success criterion. Ask "what would falsify this?" and "what does this assume that I have not verified?" Trace contracts between components and check whether `phase-split` could produce truly independent phases.
+> Read the rubric's "Stance" and "Anti-patterns" sections before drafting findings. Walk every component spec, every TDD entry point, and every success criterion. Ask "what would falsify this?" and "what does this assume that I have not verified?" Trace contracts between components and check whether `phase-split` could produce truly independent phases.
 >
 > For each finding, populate every field in the Finding schema. Use `evidence` to quote the specific plan text, code excerpt, or named absence — the user must be able to verify in seconds.
 >

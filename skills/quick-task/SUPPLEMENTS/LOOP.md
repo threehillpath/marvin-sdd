@@ -61,7 +61,9 @@ The litmus test: **if the code can be tested with the DOM removed, it is logic â
 Do not make further changes.
 
 **Repeated stalling**: If you have hit the 3-attempt limit on more than one criterion, or the same category of failure keeps recurring across different criteria, include this note in your escalation report:
-> "Progress has stalled on multiple criteria. Consider re-invoking with the sub-agent's model upgraded to opus for better reasoning on this Task."
+> "Progress has stalled on multiple criteria."
+
+The orchestrator uses this note to offer the user a re-run on opus.
 
 **Requirement ambiguity** (the Task issue's requirement is underspecified or self-contradictory â€” a Task has no separate impl plan to conflict with, it is self-contained plus its source issue): Stop the loop. Describe the ambiguity specifically. Return to the caller for input.
 

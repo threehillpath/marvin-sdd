@@ -6,7 +6,7 @@ allowed-tools: Bash, Read, Agent
 model: sonnet
 ---
 
-Run after `/implement-phase` opens a phase PR, before merging. Spawns an opus sub-agent (fresh context, extended thinking) that reads the phase spec and the PR diff, applies the rubric in `../SHARED/REVIEW_RUBRIC.md`, and returns structured findings per `../SHARED/REVIEW_FINDING_FORMAT.md`. Orchestrator presents findings, then on approval posts a single GitHub PR review.
+Run after `/implement-phase` opens a phase PR, before merging. Spawns the `code-reviewer` sub-agent (opus at `xhigh` effort, fresh context) that reads the phase spec and the PR diff, applies the rubric in `../SHARED/REVIEW_RUBRIC.md`, and returns structured findings per `../SHARED/REVIEW_FINDING_FORMAT.md`. Orchestrator presents findings, then on approval posts a single GitHub PR review.
 
 **Before starting**: Read `.claude/plan-workflow-config.yml` for project configuration. Read `../SHARED/GLOSSARY.md` for naming and status conventions.
 
@@ -66,8 +66,7 @@ Skip this step entirely for phases with a real TDD entry point (Go/test diff) �
 
 Spawn an **Agent** with:
 
-- `subagent_type: "general-purpose"`
-- `model: "opus"`
+- `subagent_type: "plan-workflow:code-reviewer"` (opus at `xhigh` effort, read-only tools — set in `agents/code-reviewer.md`)
 - No worktree isolation (review is read-only)
 
 Assemble the prompt by **referencing** the inputs the sub-agent should fetch — do not paste the diff into the prompt. The sub-agent has its own context window.
@@ -99,7 +98,7 @@ Prompt template:
 >
 > Apply the rubric category by category. For each finding, populate every field in the Finding schema. Use `evidence` to cite a commit SHA, a quoted line, or a diff hunk so the user can verify quickly.
 >
-> Use extended thinking on this task. Take the time to trace data paths through handlers, verify exports against barrel files, check declaration order, and walk the diff against the success criteria. The cost of a missed blocking issue here is much higher than the cost of a longer review.
+> Take the time to trace data paths through handlers, verify exports against barrel files, check declaration order, and walk the diff against the success criteria. The cost of a missed blocking issue here is much higher than the cost of a longer review.
 >
 > Return **only** the JSON object specified in `REVIEW_FINDING_FORMAT.md`. No surrounding prose, no code fence.
 

@@ -134,7 +134,7 @@ marvin worktree resolve <worktree_path>
 
 Read `SUPPLEMENTS/LOOP.md` for the TDD loop instructions.
 
-Spawn a **general-purpose** agent **without** `isolation: "worktree"` (the worktree was created in A7) and model **sonnet**. Assemble the task prompt by **referencing** the inputs the sub-agent should fetch — do not paste full file contents into the prompt — mirroring `implement-phase/SKILL.md`'s equivalent spawn step in shape:
+Spawn the `plan-workflow:tdd-implementer` agent (sonnet — set in `agents/tdd-implementer.md`) **without** `isolation: "worktree"` (the worktree was created in A7). Assemble the task prompt by **referencing** the inputs the sub-agent should fetch — do not paste full file contents into the prompt — mirroring `implement-phase/SKILL.md`'s equivalent spawn step in shape:
 
 1. Task issue number (and `gh issue view` command for it) — the sub-agent fetches title, Problem Statement, Scope, Technical Analysis, TDD Entry Point, and Success Criteria itself.
 2. Source issue number `$0` (and `gh issue view` command for it).
@@ -146,13 +146,13 @@ Spawn a **general-purpose** agent **without** `isolation: "worktree"` (the workt
 8. Test commands from `.claude/plan-workflow-config.yml`.
 9. Full instructions from `SUPPLEMENTS/LOOP.md` (paste verbatim — it is the sub-agent's primary procedural guide).
 
-The sub-agent must not pause for user confirmation except on unresolvable failure or ambiguity. Capture its returned PR number, PR URL, and summary.
+The sub-agent must not pause for user confirmation except on unresolvable failure or ambiguity. Capture its returned PR number, PR URL, and summary. If it stops instead and its report says progress has stalled on multiple criteria, offer to re-spawn it with `model: "opus"` (the Agent call's `model` overrides the agent definition) and the same prompt plus the stalled run's report; the worktree keeps every criterion already committed.
 
 ### A9. Spawn the review sub-agent
 
 Immediately after the implement-loop sub-agent returns, spawn a second, independent sub-agent to review the PR it opened:
 
-- `subagent_type: "general-purpose"`, `model: "opus"`, no worktree isolation (review is read-only, fresh context).
+- `subagent_type: "plan-workflow:code-reviewer"` (opus at `xhigh` effort, read-only tools — set in `agents/code-reviewer.md`), no worktree isolation (fresh context).
 - Prompt: read `../SHARED/REVIEW_FINDING_FORMAT.md` first (output schema), then `../SHARED/REVIEW_RUBRIC.md` (rubric) — apply the rubric to the PR diff (`gh pr diff <pr-number> --repo <repo>`). For `spec-drift`, anchor on the Task issue's Success Criteria section read together with source issue `$0`'s Problem Statement and Scope, per the rubric's Task clause. The sub-agent fetches the Task issue (`gh issue view <task-issue> --repo <repo> --json title,body`) and the PR (`gh pr view <pr-number> --repo <repo> --json title,body,commits,files`) itself. Return only the JSON object specified in `REVIEW_FINDING_FORMAT.md` — no surrounding prose, no code fence.
 
 Parse and validate the response the same way `review-phase` does: shape matches `REVIEW_FINDING_FORMAT.md` (`summary`, `verdict`, `blocking`, `nits`); `verdict` is consistent with the arrays (`approve` requires both empty, `request-changes` requires `blocking` non-empty, `comment` requires `blocking` empty and `nits` non-empty); every finding has all required fields and a recognized `category`. If validation fails, re-spawn once with feedback; after two failures, stop and show the user the raw response.

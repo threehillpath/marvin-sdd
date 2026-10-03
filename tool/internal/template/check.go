@@ -15,7 +15,8 @@ import (
 type Source int
 
 const (
-	SourceYAML Source = iota
+	SourceUnknown Source = iota
+	SourceYAML
 	SourceMarkdown
 )
 

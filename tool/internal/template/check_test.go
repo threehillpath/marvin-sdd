@@ -600,3 +600,24 @@ func TestCheckSectionContentFenceRules(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckUnknownSourceIsReported(t *testing.T) {
+	m := phaseMap()
+	m.Source = tmpl.SourceUnknown
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "draft",
+		"SectionMap.Source", "SourceYAML", "SourceMarkdown")
+}
+
+func TestCheckZeroSourceIsUnknown(t *testing.T) {
+	m := phaseMap()
+	m.Source = 0
+	if m.Source != tmpl.SourceUnknown {
+		t.Fatalf("zero Source = %v, want SourceUnknown", m.Source)
+	}
+}
+
+func TestCheckRejectsSchemaNotFromLoadSchema(t *testing.T) {
+	sc := &tmpl.Schema{Type: "impl-phase", TitlePrefix: "[PLAN-XXXXX-N] <Phase Title>"}
+	res := tmpl.Check(sc, builtIn, phaseMap())
+	wantOne(t, res, tmpl.SeverityError, "draft", "LoadSchema", "Schema")
+}

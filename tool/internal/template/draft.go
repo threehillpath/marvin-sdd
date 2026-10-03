@@ -37,6 +37,14 @@ func LoadDraft(sc *Schema, data []byte) (*SectionMap, []Finding) {
 	if root.Kind == yaml.DocumentNode && len(root.Content) == 1 {
 		root = root.Content[0]
 	}
+	if root.Kind == 0 || (root.Kind == yaml.ScalarNode && root.Tag == "!!null") {
+		l.fail(0, "the draft is empty. A draft needs the keys title:, metadata: and sections:. Start from an empty draft with: marvin template render %s --skeleton, then fill it in", sc.Type)
+		return nil, l.findings
+	}
+	if root.Kind != yaml.MappingNode {
+		l.fail(root.Line, "the draft must be a mapping with the keys title:, metadata: and sections:, but it is %s. Start from: marvin template render %s --skeleton", kindName(root), sc.Type)
+		return nil, l.findings
+	}
 	l.walkRoot(root)
 	if len(l.findings) > 0 {
 		return nil, l.findings
@@ -51,9 +59,13 @@ func (l *draftLoader) walkRoot(root *yaml.Node) {
 			l.m.Title = l.text(kv, `"title"`)
 			l.m.TitleLine = kv.val.Line
 		case "metadata":
-			l.walkMetadata(kv.val)
+			if l.expectMapping(kv.val, `"metadata"`, "metadata keys to values. Write one `Key: \"value\"` line per metadata key under \"metadata:\"") {
+				l.walkMetadata(kv.val)
+			}
 		case "sections":
-			l.walkSections(kv.val)
+			if l.expectMapping(kv.val, `"sections"`, "section ids to their content. Write one entry per section under \"sections:\"") {
+				l.walkSections(kv.val)
+			}
 		default:
 			l.unknownKey(kv.key, "at the top level of the draft", []string{"title", "metadata", "sections"}, true)
 		}
@@ -126,11 +138,24 @@ func (l *draftLoader) walkSections(n *yaml.Node) {
 func (l *draftLoader) entries(sec SchemaSection, v *yaml.Node) []Entry {
 	id := fmt.Sprintf("%q", sec.ID)
 	switch {
+	case !sec.Repeatable && v.Kind != yaml.ScalarNode:
+		l.fail(v.Line, "section %s is not repeatable, so it takes one | block, but the draft gives %s. Write \"%s: |\" and indent the text below it", id, kindName(v), sec.ID)
+		return nil
+	case sec.Repeatable && v.Kind != yaml.SequenceNode:
+		if isNamed(sec) {
+			l.fail(v.Line, "section %s is repeatable and each entry is named: write it as a list of entries, each with \"name:\" and \"content: |\", but the draft gives %s", id, kindName(v))
+		} else {
+			l.fail(v.Line, "section %s is repeatable: write it as a list of | blocks, each starting with \"- |\", but the draft gives %s", id, kindName(v))
+		}
+		return nil
 	case !sec.Repeatable:
 		return []Entry{{Content: l.content(pair{key: &yaml.Node{Value: sec.ID}, val: v}, "section "+id, sec.ID+": |"), Line: v.Line}}
 	case isNamed(sec):
 		var out []Entry
 		for _, item := range v.Content {
+			if !l.expectMapping(item, "an entry of section "+id, "name: and content: |, like \"- name: ...\" followed by \"content: |\"") {
+				continue
+			}
 			e := Entry{Line: item.Line}
 			kvs := l.pairs(item, "an entry of section "+id)
 			for _, kv := range kvs {
@@ -180,6 +205,10 @@ func cutComment(kv pair) (comment string, plain bool) {
 // text reads a single-line scalar (title, metadata value, entry name),
 // reporting a comment that cut or trails it.
 func (l *draftLoader) text(kv pair, subject string) string {
+	if kv.val.Kind != yaml.ScalarNode {
+		l.fail(kv.val.Line, "%s must be a single line of text, but the draft gives %s. Write it as a double-quoted string", subject, kindName(kv.val))
+		return ""
+	}
 	if c, plain := cutComment(kv); c != "" {
 		if plain {
 			l.fail(kv.val.Line, "the value of %s was cut at %q: an unquoted \"#\" starts a YAML comment, so the rest of the value was dropped. Wrap the whole value in double quotes", subject, c)
@@ -194,6 +223,10 @@ func (l *draftLoader) text(kv pair, subject string) string {
 // names the content in messages and how is the YAML to write instead.
 func (l *draftLoader) content(kv pair, subject, how string) string {
 	v := kv.val
+	if v.Kind != yaml.ScalarNode {
+		l.fail(v.Line, "the content of %s must be a literal | block, but the draft gives %s. Write it as \"%s\" with the text indented below it", subject, kindName(v), how)
+		return ""
+	}
 	if c, plain := cutComment(kv); c != "" {
 		if plain {
 			l.fail(v.Line, "the content of %s was cut at %q: an unquoted \"#\" starts a YAML comment, so the rest of the content was dropped. Replace it with a | block: write \"%s\" and indent the whole text below it", subject, c, how)
@@ -254,4 +287,28 @@ func (l *draftLoader) unknownKey(k *yaml.Node, where string, valid []string, und
 		hint = "If it is meant to be part of the text of the block above it, it is under-indented: indent every line of a | block at least as far as the block's first line. Otherwise remove it"
 	}
 	l.fail(k.Line, "unknown key %q %s. The valid keys here are: %s. %s", k.Value, where, strings.Join(valid, ", "), hint)
+}
+
+// kindName describes a node for a message.
+func kindName(n *yaml.Node) string {
+	switch {
+	case n.Kind == yaml.MappingNode:
+		return "a mapping"
+	case n.Kind == yaml.SequenceNode:
+		return "a list"
+	case n.Kind == yaml.ScalarNode && n.Tag == "!!null":
+		return "nothing"
+	default:
+		return "text"
+	}
+}
+
+// expectMapping reports a wrong node type unless n is a mapping. what names
+// the node and keys describes what the mapping holds.
+func (l *draftLoader) expectMapping(n *yaml.Node, what, keys string) bool {
+	if n.Kind == yaml.MappingNode {
+		return true
+	}
+	l.fail(n.Line, "%s must be a mapping of %s, but the draft gives %s", what, keys, kindName(n))
+	return false
 }

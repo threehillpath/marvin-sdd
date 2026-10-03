@@ -92,6 +92,7 @@ func Check(sc *Schema, origin string, m *SectionMap) Result {
 	c.checkMetadata()
 	c.checkCrossRefs()
 	c.checkSections()
+	c.checkMarkdownOnly()
 	return c.res
 }
 
@@ -256,11 +257,13 @@ func (c *checker) checkSections() {
 		}
 		for _, e := range entries {
 			if strings.TrimSpace(e.Content) == "" {
+				sev, word := SeverityWarning, "optional"
 				if sec.Required {
-					c.add(SeverityError, loc, e.Line, "required section %q is empty. %s", sec.Heading,
-						c.fix(fmt.Sprintf("Fill the %q block in the draft with content.", sec.ID),
-							fmt.Sprintf("Fill the \"## %s\" section with content.", sec.Heading)))
+					sev, word = SeverityError, "required"
 				}
+				c.add(sev, loc, e.Line, "%s section %q is empty. %s", word, sec.Heading,
+					c.fix(fmt.Sprintf("Fill the %q block in the draft with content, or remove it.", sec.ID),
+						fmt.Sprintf("Fill the \"## %s\" section with content, or remove it.", sec.Heading)))
 			}
 			if sec.Numbered && sec.Named != nil && *sec.Named && strings.TrimSpace(e.Name) == "" {
 				c.add(SeverityError, loc, e.Line, "an entry of numbered section %q has an empty name. The schema expects each entry to be named. %s", sec.Heading,
@@ -297,6 +300,104 @@ func fencedH2(content string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// checkMarkdownOnly applies the rules that only make sense for a markdown
+// body: on the YAML path unknown keys are loader errors and rendering imposes
+// schema order and numbering.
+func (c *checker) checkMarkdownOnly() {
+	if c.m.Source != SourceMarkdown {
+		return
+	}
+	for _, h := range c.m.UnknownHeadings {
+		c.add(SeverityWarning, "draft", h.Line, "heading \"## %s\" is not a section of schema %s. Rename it to one of the schema's headings, or remove it.", h.Text, c.sc.Type)
+	}
+	known := map[string]bool{}
+	for _, key := range c.sc.Metadata {
+		known[key] = true
+	}
+	var extra []string
+	for key := range c.m.Metadata {
+		if !known[key] {
+			extra = append(extra, key)
+		}
+	}
+	sort.Strings(extra)
+	for _, key := range extra {
+		c.add(SeverityWarning, "metadata:"+key, c.m.Metadata[key].Line, "metadata key %q is not in schema %s. Remove the \"**%s:**\" line.", key, c.sc.Type, key)
+	}
+	c.checkOrder()
+	c.checkNumbering()
+}
+
+// checkOrder warns about sections outside the schema's order. Sections that
+// are not part of the longest in-order run (by first-entry line) are the ones
+// reported, so one displaced section yields one warning.
+func (c *checker) checkOrder() {
+	type placed struct {
+		sec  SchemaSection
+		line int
+	}
+	var ps []placed
+	for _, sec := range c.sc.Sections {
+		if es := c.m.Sections[sec.ID]; len(es) > 0 && es[0].Line > 0 {
+			ps = append(ps, placed{sec, es[0].Line})
+		}
+	}
+	n := len(ps)
+	length := make([]int, n)
+	prev := make([]int, n)
+	best := -1
+	for i := range ps {
+		length[i], prev[i] = 1, -1
+		for j := 0; j < i; j++ {
+			if ps[j].line < ps[i].line && length[j]+1 > length[i] {
+				length[i], prev[i] = length[j]+1, j
+			}
+		}
+		if best < 0 || length[i] > length[best] {
+			best = i
+		}
+	}
+	inRun := make([]bool, n)
+	for i := best; i >= 0; i = prev[i] {
+		inRun[i] = true
+	}
+	for i, p := range ps {
+		if !inRun[i] {
+			c.add(SeverityWarning, "section:"+p.sec.ID, p.line, "section %q is out of schema order. Move \"## %s\" to its place in the schema's section order.", p.sec.Heading, p.sec.Heading)
+		}
+	}
+}
+
+// checkNumbering warns at the first numbered heading that breaks the 1, 2, 3
+// sequence across all numbered sections in line order.
+func (c *checker) checkNumbering() {
+	type item struct {
+		sec SchemaSection
+		e   Entry
+	}
+	var items []item
+	for _, sec := range c.sc.Sections {
+		if !sec.Numbered {
+			continue
+		}
+		for _, e := range c.m.Sections[sec.ID] {
+			items = append(items, item{sec, e})
+		}
+	}
+	sort.SliceStable(items, func(i, j int) bool { return items[i].e.Line < items[j].e.Line })
+	for i, it := range items {
+		if it.e.Number == i+1 {
+			continue
+		}
+		heading := it.sec.Heading
+		if it.e.Name != "" {
+			heading = it.e.Name
+		}
+		c.add(SeverityWarning, "section:"+it.sec.ID, it.e.Line, "numbered heading \"## %d. %s\" breaks the sequence. The schema expects consecutive numbers from 1. Renumber it to \"## %d.\".", it.e.Number, heading, i+1)
+		return
+	}
 }
 
 // Format renders the result as plain text: a "schema: <type> (<origin>)"

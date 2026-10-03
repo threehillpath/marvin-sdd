@@ -13,6 +13,7 @@ import (
 
 const overrideSchemaFixture = `
 type: quick-task
+title_prefix: "[TASK-XXXXX] <Title>"
 metadata:
   - Source Issue
 sections:
@@ -21,6 +22,7 @@ sections:
     required: false
     repeatable: false
     numbered: false
+    named: false
 `
 
 // TestTemplateRenderProjectOverrideWinsOverEmbeddedDefault verifies that a

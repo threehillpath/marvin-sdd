@@ -661,3 +661,17 @@ func TestCheckEmptyNamedEntryWithNoNameOrContent(t *testing.T) {
 		}
 	}
 }
+
+func TestFindH2LinesOneBasedAndStripsMarker(t *testing.T) {
+	body := "## First\ntext\n```\n## fenced\n```\n  ##   Spaced  \n##\n"
+	got := tmpl.FindH2Lines(body)
+	want := []tmpl.Heading{{Text: "First", Line: 1}, {Text: "Spaced", Line: 6}, {Text: "", Line: 7}}
+	if len(got) != len(want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("heading %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}

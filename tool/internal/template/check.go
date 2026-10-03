@@ -384,7 +384,7 @@ func (c *checker) checkMarkdownOnly() {
 		return
 	}
 	for _, h := range c.m.UnknownHeadings {
-		c.add(SeverityWarning, "draft", h.Line, "heading \"## %s\" is not a section of schema %s. Rename it to one of the schema's headings, or remove it.", h.Text, c.sc.Type)
+		c.add(SeverityWarning, "draft", h.Line, "heading \"## %s\" is not a section of schema %s. Rename it to one of the schema's headings (%s), or remove it.", h.Text, c.sc.Type, c.expectedHeadings())
 	}
 	known := map[string]bool{}
 	for _, key := range c.sc.Metadata {
@@ -404,20 +404,70 @@ func (c *checker) checkMarkdownOnly() {
 	c.checkNumbering()
 }
 
-// checkOrder warns about sections outside the schema's order. Sections that
-// are not part of the longest in-order run (by first-entry line) are the ones
-// reported, so one displaced section yields one warning.
+// templateHeading is the markdown heading an entry of sec is written as,
+// using the entry's own name and number when known and placeholders otherwise.
+func templateHeading(sec SchemaSection, e Entry) string {
+	if !sec.Numbered {
+		return "## " + sec.Heading
+	}
+	num := "<n>"
+	if e.Number > 0 {
+		num = strconv.Itoa(e.Number)
+	}
+	if isNamed(sec) {
+		name := strings.TrimSpace(e.Name)
+		if name == "" {
+			name = "<Name>"
+		}
+		return fmt.Sprintf("## %s. %s", num, name)
+	}
+	return fmt.Sprintf("## %s. %s", num, sec.Heading)
+}
+
+// expectedHeadings lists the schema's headings, quoted and in schema order,
+// with numbered ones shown as "## <n>. ...".
+func (c *checker) expectedHeadings() string {
+	var hs []string
+	for _, sec := range c.sc.Sections {
+		hs = append(hs, fmt.Sprintf("%q", templateHeading(sec, Entry{})))
+	}
+	return strings.Join(hs, ", ")
+}
+
+// checkOrder warns about entries outside the schema's order. Every entry is
+// placed by line; the entries in the longest non-decreasing run of schema
+// positions are in order and the rest are reported, so one displaced entry
+// yields one warning.
 func (c *checker) checkOrder() {
 	type placed struct {
 		sec  SchemaSection
-		line int
+		e    Entry
+		pos  int // index of sec in the schema
+		rank int // position in schema order (section index, then line)
 	}
 	var ps []placed
-	for _, sec := range c.sc.Sections {
-		if es := c.m.Sections[sec.ID]; len(es) > 0 && es[0].Line > 0 {
-			ps = append(ps, placed{sec, es[0].Line})
+	for i, sec := range c.sc.Sections {
+		for _, e := range c.m.Sections[sec.ID] {
+			if e.Line > 0 {
+				ps = append(ps, placed{sec: sec, e: e, pos: i})
+			}
 		}
 	}
+	bySchema := make([]int, len(ps)) // indexes into ps, in schema order
+	for i := range bySchema {
+		bySchema[i] = i
+	}
+	sort.SliceStable(bySchema, func(a, b int) bool {
+		x, y := ps[bySchema[a]], ps[bySchema[b]]
+		if x.pos != y.pos {
+			return x.pos < y.pos
+		}
+		return x.e.Line < y.e.Line
+	})
+	for r, i := range bySchema {
+		ps[i].rank = r
+	}
+	sort.SliceStable(ps, func(a, b int) bool { return ps[a].e.Line < ps[b].e.Line })
 	n := len(ps)
 	length := make([]int, n)
 	prev := make([]int, n)
@@ -425,7 +475,7 @@ func (c *checker) checkOrder() {
 	for i := range ps {
 		length[i], prev[i] = 1, -1
 		for j := 0; j < i; j++ {
-			if ps[j].line < ps[i].line && length[j]+1 > length[i] {
+			if ps[j].pos <= ps[i].pos && length[j]+1 > length[i] {
 				length[i], prev[i] = length[j]+1, j
 			}
 		}
@@ -437,10 +487,25 @@ func (c *checker) checkOrder() {
 	for i := best; i >= 0; i = prev[i] {
 		inRun[i] = true
 	}
+	byRank := make([]placed, n)
+	for _, p := range ps {
+		byRank[p.rank] = p
+	}
 	for i, p := range ps {
-		if !inRun[i] {
-			c.add(SeverityWarning, "section:"+p.sec.ID, p.line, "section %q is out of schema order. Move \"## %s\" to its place in the schema's section order.", p.sec.Heading, p.sec.Heading)
+		if inRun[i] {
+			continue
 		}
+		h := templateHeading(p.sec, p.e)
+		where := ""
+		switch {
+		case p.rank > 0:
+			q := byRank[p.rank-1]
+			where = fmt.Sprintf("after %q", templateHeading(q.sec, q.e))
+		case n > 1:
+			q := byRank[p.rank+1]
+			where = fmt.Sprintf("before %q", templateHeading(q.sec, q.e))
+		}
+		c.add(SeverityWarning, "section:"+p.sec.ID, p.e.Line, "heading %q is out of schema order. Move it %s; the schema lists its sections in this order: %s.", h, where, c.expectedHeadings())
 	}
 }
 

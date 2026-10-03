@@ -151,6 +151,11 @@ var leadingBracketRe = regexp.MustCompile(`^\s*(\[[^\]]*\])`)
 // taskIdentRe matches a whole [TASK-XXXXX] bracket token.
 var taskIdentRe = regexp.MustCompile(`^\[TASK-(\d{5})\]$`)
 
+// planTokenRe matches exactly the accepted whole-token plan forms:
+// [PLAN-XXXXX], [PLAN-XXXXX-ARCH], [PLAN-XXXXX-<letters>], [PLAN-XXXXX-N], and
+// [PLAN-XXXXX-<letters>-N] (N a positive integer without a leading zero).
+var planTokenRe = regexp.MustCompile(`^\[PLAN-\d{5}(-[A-Za-z]+)?(-[1-9]\d*)?\]$`)
+
 // Classify classifies a title by its leading bracket token only; a later
 // bracket never affects the result. Plan tokens are judged by PlanIdent so the
 // two never disagree. The bool is the only "not found" signal: names.Kind's
@@ -165,6 +170,9 @@ func Classify(title string) (names.Kind, bool) {
 		return names.Task, true
 	}
 	if !strings.HasPrefix(tok, "[PLAN-") {
+		return names.Arch, false
+	}
+	if !planTokenRe.MatchString(tok) {
 		return names.Arch, false
 	}
 	ident, ok := PlanIdent(tok)

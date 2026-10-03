@@ -293,11 +293,12 @@ func sprintfLine(line int, format string, args ...any) string {
 }
 
 var (
-	yamlLineRe  = regexp.MustCompile(`^yaml: (?:line (\d+): )?(.*)$`)
-	indicatorRe = regexp.MustCompile(`[|>][+-]?(\d)?[+-]?\s*(?:#.*)?$`)
-	markerRe    = regexp.MustCompile(`^(?:---|\.\.\.)(?:[ \t]|$)`)
-	titleRawRe  = regexp.MustCompile(`^title:\s*\[`)
-	blockHeadRe = regexp.MustCompile(`^(\s*)(?:-\s+)?(?:[^#\s][^:]*:\s+)?[|>][+-]?\d?\s*(?:#.*)?$`)
+	yamlLineRe   = regexp.MustCompile(`^yaml: (?:line (\d+): )?(.*)$`)
+	indicatorRe  = regexp.MustCompile(`[|>][+-]?(\d)?[+-]?\s*(?:#.*)?$`)
+	anchorNameRe = regexp.MustCompile(`\x27([^\x27]*)\x27`)
+	markerRe     = regexp.MustCompile(`^(?:---|\.\.\.)(?:[ \t]|$)`)
+	titleRawRe   = regexp.MustCompile(`^title:\s*\[`)
+	blockHeadRe  = regexp.MustCompile(`^(\s*)(?:-\s+)?(?:[^#\s][^:]*:\s+)?[|>][+-]?\d?\s*(?:#.*)?$`)
 	// quotedValueRe splits a line whose value starts with a double quote
 	// into everything before that quote (never a quoted key) and the rest.
 	quotedValueRe = regexp.MustCompile(`^(\s*(?:-\s+)?(?:[^\s:"'#][^:]*:\s+)?)"(.*)$`)
@@ -387,7 +388,21 @@ func (l *draftLoader) parseError(data []byte, err error) []Finding {
 		return l.findings
 	}
 	if strings.Contains(text, "unknown anchor") {
-		l.fail(parserLine, "the draft uses a YAML alias (%s). Drafts don't use tags, anchors or aliases: if the * starts text, put the whole value in double quotes (use a | block for content); otherwise delete it", text)
+		// yaml.v3 gives no line for this error: find the alias in the raw
+		// lines (block content is blanked) and quote that line.
+		line, offending := parserLine, ""
+		if m := anchorNameRe.FindStringSubmatch(text); m != nil && line == 0 {
+			for i, raw := range l.code {
+				if strings.Contains(raw, "*"+m[1]) {
+					line = i + 1
+					break
+				}
+			}
+		}
+		if line >= 1 && line <= len(l.lines) {
+			offending = fmt.Sprintf(" on the line \"%s\"", strings.TrimSpace(l.lines[line-1]))
+		}
+		l.fail(line, "the draft uses a YAML alias%s (%s). Drafts don't use tags, anchors or aliases: if the * starts text, put the whole value in double quotes (use a | block for content); otherwise delete it", offending, text)
 		return l.findings
 	}
 	if strings.Contains(text, "unknown escape character") || strings.Contains(text, "hexdecimal number") {

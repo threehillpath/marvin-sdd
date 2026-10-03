@@ -439,3 +439,41 @@ func TestLoadDraftUnknownEscapeQuotesTheLineAndFixesIt(t *testing.T) {
 		}
 	})
 }
+
+// wantDraftFindingLines asserts the exact lines of the loader findings, in order.
+func wantDraftFindingLines(t *testing.T, typ, draft string, lines ...int) []tmpl.Finding {
+	t.Helper()
+	m, fs := loadDraft(t, typ, draft)
+	if m != nil {
+		t.Errorf("a draft with a loader finding must not yield a section map")
+	}
+	if len(fs) != len(lines) {
+		t.Fatalf("want %d findings at lines %v, got %d: %+v", len(lines), lines, len(fs), fs)
+	}
+	for i, f := range fs {
+		if f.Line != lines[i] {
+			t.Errorf("finding %d at line %d, want %d: %s", i, f.Line, lines[i], f.Message)
+		}
+	}
+	return fs
+}
+
+func TestLoadDraftOneFindingPerCommentLine(t *testing.T) {
+	t.Run("three dedented hash lines", func(t *testing.T) {
+		d := patch(t, phaseDraft, "    - two\n", "    - two\n#113 one\n#114 two\n#115 three\n")
+		fs := wantDraftFindingLines(t, "impl-phase", d, 14, 15, 16)
+		for i, w := range []string{`"#113 one"`, `"#114 two"`, `"#115 three"`} {
+			if !strings.Contains(fs[i].Message, w) {
+				t.Errorf("finding %d message %q missing %q", i, fs[i].Message, w)
+			}
+		}
+	})
+	t.Run("foot comment is not mistaken for identical content", func(t *testing.T) {
+		d := patch(t, phaseDraft, "    - [ ] Done\n", "    - [ ] Done\n    ### Notes\n") + "  ### Notes\n"
+		wantDraftFindingLines(t, "impl-phase", d, 21)
+	})
+	t.Run("line comment is matched by its suffix", func(t *testing.T) {
+		d := patch(t, phaseDraft, "objective: |", "objective: | # the goal")
+		wantDraftFindingLines(t, "impl-phase", d, 8)
+	})
+}

@@ -118,6 +118,8 @@ func (c *checker) checkTitle() {
 	if strings.ContainsAny(title, "\r\n") {
 		c.add(SeverityError, "title", line, "title %q spans more than one line. Use a single line.", title)
 	}
+	c.checkRawHTML("title", line, fmt.Sprintf("the title %q", title), title,
+		c.fix("edit \"title:\" in the draft", "edit the issue title"))
 	kind, ok := parse.Classify(title)
 	if !ok {
 		c.add(SeverityError, "title", line, "title %q has no recognizable leading identifier. The schema expects a title like %q with the real numbers filled in (no XXXXX). Start the title with the identifier%s.",
@@ -246,6 +248,8 @@ func (c *checker) checkMetadata() {
 					fmt.Sprintf("Set \"**%s:**\" to a value.", key)))
 			continue
 		}
+		c.checkRawHTML(loc, f.Line, fmt.Sprintf("metadata value %q for %q", v, key), v,
+			c.fix(fmt.Sprintf("edit %q under \"metadata:\" in the draft", key), fmt.Sprintf("edit the \"**%s:**\" line", key)))
 		if strings.ContainsAny(v, "\r\n") {
 			c.add(SeverityError, loc, f.Line, "metadata value %q for %q spans more than one line. Use a single line.", v, key)
 		}
@@ -343,6 +347,10 @@ func (c *checker) checkSections() {
 				}
 				c.add(sev, loc, e.Line, "%s %s is empty. %s", word, what, c.emptyFix(sec, e))
 			}
+			if isNamed(sec) {
+				c.checkRawHTML(loc, e.Line, fmt.Sprintf("the name %q of an entry of numbered section %s", e.Name, label(sec)), e.Name,
+					c.fix(fmt.Sprintf("edit \"name:\" of that %q entry in the draft", sec.ID), "edit the heading text after the number"))
+			}
 			if isNamed(sec) && strings.ContainsAny(e.Name, "\r\n") {
 				c.add(SeverityError, loc, e.Line, "the name %q of an entry of numbered section %s contains a line break, so it would render as more than one heading. %s", e.Name, label(sec),
 					c.fix(fmt.Sprintf("Set \"name:\" of that %q entry to a single line of text.", sec.ID),
@@ -377,45 +385,51 @@ type setextHit struct {
 	Underline string // the "===" or "---" line
 }
 
-// openBlock is a raw HTML construct that the end of the scanned text left
-// open: Tag is what opened it ("<!--", "<pre>", ...), Line where.
-type openBlock struct {
-	Tag  string
-	Line int // one-based
-}
-
 // contentScan is what scanContent learns about a piece of section content.
 type contentScan struct {
 	Headings []Heading  // "## " headings outside fences
 	Fence    *openFence // fence left open at the end, if any
-	Comment  *openBlock // block-level "<!--" never closed by "-->"
-	Setext   *setextHit // first paragraph line turned into a heading by an underline
-	Raw      *openBlock // "<pre>", "<script>", "<style>" or "<textarea>" never closed
-	Details  *openBlock // outermost "<details>" never closed by "</details>"
+	Setext   *setextHit // first line turned into a heading by an underline
+	HTML     *htmlHit   // first raw HTML construct outside code
+}
+
+// htmlHit is a banned raw HTML construct.
+type htmlHit struct {
+	Tag  string // as written, e.g. "<details>" or "<!--"
+	Line int    // one-based line within the scanned text
 }
 
 var (
-	htmlStartRe   = regexp.MustCompile(`^ {0,3}<`)
-	commentSpanRe = regexp.MustCompile(`<!--.*?-->`)
-	detailsTagRe  = regexp.MustCompile(`(?i)<(/?)details(?:\s[^>]*)?>`)
-	rawOpenRe     = regexp.MustCompile(`(?i)^ {0,3}<(pre|script|style|textarea)(?:\s|>|$)`)
-	rawCloseRe    = regexp.MustCompile(`(?i)</(?:pre|script|style|textarea)>`)
-	setextRe      = regexp.MustCompile(`^ {0,3}(?:=+|-+)[ \t]*$`)
-	inlineCodeRe  = regexp.MustCompile("`[^`]*`")
+	setextRe = regexp.MustCompile(`^ {0,3}(?:=+|-+)[ \t]*$`)
+	// rawHTMLRe matches the constructs that can hide or swallow later
+	// sections: comments and the details, pre, script, style and textarea
+	// tags, opening or closing, in any case.
+	rawHTMLRe    = regexp.MustCompile(`(?i)<!--|</?(?:details|pre|script|style|textarea)(?:>|[\s/]|$)`)
+	inlineCodeRe = regexp.MustCompile("`[^`]*`")
 )
+
+// rawHTML returns the first banned raw HTML construct in a single line of
+// text outside code, with its closing ">" when it follows directly.
+func rawHTML(line string) (string, bool) {
+	loc := rawHTMLRe.FindStringIndex(inlineCodeRe.ReplaceAllString(line, ""))
+	if loc == nil {
+		return "", false
+	}
+	tok := inlineCodeRe.ReplaceAllString(line, "")[loc[0]:loc[1]]
+	return strings.TrimRight(tok, " \t/"), true
+}
 
 // scanContent walks body once, tracking CommonMark fences: an opening run of
 // three or more backticks or tildes (up to three spaces of indent) closes only
 // on a run of the same character that is at least as long and carries nothing
-// but whitespace after it. Outside fences it records the "## " headings and
-// the raw HTML blocks that are never closed.
+// but whitespace after it. Outside fences it records the "## " headings, the
+// first underline directly below a non-blank line, and the first raw HTML
+// construct outside inline code.
 func scanContent(body string) contentScan {
 	var out contentScan
 	var fenceCh byte
 	fenceLen := 0
-	inComment := false
-	var details []int         // lines of <details> not yet closed
-	prevText, prevNo := "", 0 // candidate paragraph line directly above
+	prevText, prevNo := "", 0 // non-blank line directly above
 	for i, line := range strings.Split(body, "\n") {
 		line = strings.TrimRight(line, "\r")
 		prev, prevLineNo := prevText, prevNo
@@ -442,31 +456,10 @@ func scanContent(body string) contentScan {
 			text := strings.TrimSpace(strings.TrimLeft(line, " ")[2:])
 			out.Headings = append(out.Headings, Heading{Text: text, Line: i + 1})
 		}
-		if inComment {
-			if strings.Contains(line, "-->") {
-				inComment = false
-				out.Comment = nil
+		if out.HTML == nil {
+			if tag, ok := rawHTML(line); ok {
+				out.HTML = &htmlHit{Tag: tag, Line: i + 1}
 			}
-			continue
-		}
-		// Complete comments and inline code cannot open or close a block.
-		clean := inlineCodeRe.ReplaceAllString(commentSpanRe.ReplaceAllString(line, ""), "")
-		if htmlStartRe.MatchString(line) && strings.Contains(clean, "<!--") {
-			inComment = true
-			out.Comment = &openBlock{Tag: "<!--", Line: i + 1}
-			continue
-		}
-		if out.Raw != nil {
-			if rawCloseRe.MatchString(line) {
-				out.Raw = nil
-			}
-			continue
-		}
-		if m := rawOpenRe.FindStringSubmatch(line); m != nil {
-			if !rawCloseRe.MatchString(line) {
-				out.Raw = &openBlock{Tag: "<" + strings.ToLower(m[1]) + ">", Line: i + 1}
-			}
-			continue
 		}
 		// Conservative setext rule: an underline-shaped line directly after
 		// any non-blank line is reported, whatever that line contains.
@@ -477,16 +470,6 @@ func scanContent(body string) contentScan {
 		} else if strings.TrimSpace(line) != "" {
 			prevText, prevNo = line, i+1
 		}
-		for _, m := range detailsTagRe.FindAllStringSubmatch(clean, -1) {
-			if m[1] == "" {
-				details = append(details, i+1)
-			} else if len(details) > 0 {
-				details = details[:len(details)-1]
-			}
-		}
-	}
-	if len(details) > 0 {
-		out.Details = &openBlock{Tag: "<details>", Line: details[0]}
 	}
 	return out
 }
@@ -529,9 +512,9 @@ func (c *checker) checkContentStructure(sec SchemaSection, e Entry) {
 	if c.m.Source == SourceMarkdown {
 		where = "under that heading"
 	}
-	if b := scan.Comment; b != nil {
-		c.add(SeverityError, loc, e.Line, "content of section %s opens an HTML comment %q on line %d of the section that is never closed by \"-->\", so every later section would be hidden when rendered. Close it with \"-->\" %s, or remove the comment.",
-			label(sec), b.Tag, b.Line, where)
+	if h := scan.HTML; h != nil {
+		c.add(SeverityError, loc, e.Line, "content of section %s contains raw HTML %q on line %d of the section. Raw HTML could hide or swallow the sections after it when rendered, so drafts don't allow it. Wrap it in backticks as inline code (for example `<details>`) or remove it, %s.",
+			label(sec), h.Tag, h.Line, where)
 	}
 	if len(hs) > 0 {
 		c.add(SeverityError, loc, e.Line, "content of section %s contains the heading %q on line %d of the section, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), contentLine(e.Content, hs[0].Line), hs[0].Line)
@@ -545,19 +528,22 @@ func (c *checker) checkContentStructure(sec SchemaSection, e Entry) {
 				label(sec), h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
 		}
 	}
-	if b := scan.Raw; b != nil {
-		c.add(SeverityError, loc, e.Line, "content of section %s opens a %q block on line %d of the section that is never closed by %q, so every later section would render as part of that block. Add a %q line %s, or remove the block.",
-			label(sec), b.Tag, b.Line, "</"+b.Tag[1:], "</"+b.Tag[1:], where)
-	}
-	if b := scan.Details; b != nil {
-		c.add(SeverityError, loc, e.Line, "content of section %s opens a %q block on line %d of the section that is never closed by \"</details>\", so every later section would render inside the collapsed block. Add a \"</details>\" line %s, or remove the block.",
-			label(sec), b.Tag, b.Line, where)
-	}
 	if open != nil {
 		ch := fmt.Sprintf("%q", string(open.Run[0]))
 		c.add(SeverityError, loc, e.Line, "content of section %s opens a code fence %q on line %d of the section that is never closed, so every later section would render as code and be lost to the parser. Close it with a matching fence line (the same character, %s, at least %d long, nothing else on the line) %s.",
 			label(sec), open.Run, open.Line, ch, len(open.Run), where)
 	}
+}
+
+// checkRawHTML reports raw HTML in a single-line field (title, metadata
+// value, entry name). what names the field in the message and fix is the
+// path-specific place to change it.
+func (c *checker) checkRawHTML(loc string, line int, what, text, fix string) {
+	tag, ok := rawHTML(text)
+	if !ok {
+		return
+	}
+	c.add(SeverityError, loc, line, "%s contains raw HTML %q. Raw HTML could hide or swallow the sections after it when rendered, so drafts don't allow it. Wrap it in backticks as inline code (for example `<details>`) or remove it: %s.", what, tag, fix)
 }
 
 // checkMarkdownOnly applies the rules that only make sense for a markdown

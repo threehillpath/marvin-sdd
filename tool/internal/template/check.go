@@ -376,12 +376,15 @@ type contentScan struct {
 	Headings []Heading  // "## " headings outside fences
 	Fence    *openFence // fence left open at the end, if any
 	Comment  *openBlock // block-level "<!--" never closed by "-->"
+	Raw      *openBlock // "<pre>", "<script>", "<style>" or "<textarea>" never closed
 	Details  *openBlock // outermost "<details>" never closed by "</details>"
 }
 
 var (
 	commentOpenRe = regexp.MustCompile(`^ {0,3}<!--`)
 	detailsTagRe  = regexp.MustCompile(`(?i)<(/?)details(?:\s[^>]*)?>`)
+	rawOpenRe     = regexp.MustCompile(`(?i)^ {0,3}<(pre|script|style|textarea)(?:\s|>|$)`)
+	rawCloseRe    = regexp.MustCompile(`(?i)</(?:pre|script|style|textarea)>`)
 	inlineCodeRe  = regexp.MustCompile("`[^`]*`")
 )
 
@@ -432,6 +435,18 @@ func scanContent(body string) contentScan {
 			if !strings.Contains(rest, "-->") {
 				inComment = true
 				out.Comment = &openBlock{Tag: "<!--", Line: i + 1}
+			}
+			continue
+		}
+		if out.Raw != nil {
+			if rawCloseRe.MatchString(line) {
+				out.Raw = nil
+			}
+			continue
+		}
+		if m := rawOpenRe.FindStringSubmatch(line); m != nil {
+			if !rawCloseRe.MatchString(line) {
+				out.Raw = &openBlock{Tag: "<" + strings.ToLower(m[1]) + ">", Line: i + 1}
 			}
 			continue
 		}
@@ -493,6 +508,10 @@ func (c *checker) checkContentStructure(sec SchemaSection, e Entry) {
 	}
 	if len(hs) > 0 {
 		c.add(SeverityError, loc, e.Line, "content of section %s contains the heading %q on line %d of the section, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), contentLine(e.Content, hs[0].Line), hs[0].Line)
+	}
+	if b := scan.Raw; b != nil {
+		c.add(SeverityError, loc, e.Line, "content of section %s opens a %q block on line %d of the section that is never closed by %q, so every later section would render as part of that block. Add a %q line %s, or remove the block.",
+			label(sec), b.Tag, b.Line, "</"+b.Tag[1:], "</"+b.Tag[1:], where)
 	}
 	if b := scan.Details; b != nil {
 		c.add(SeverityError, loc, e.Line, "content of section %s opens a %q block on line %d of the section that is never closed by \"</details>\", so every later section would render inside the collapsed block. Add a \"</details>\" line %s, or remove the block.",

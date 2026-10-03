@@ -2,6 +2,8 @@ package template
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -262,10 +264,92 @@ func sprintfLine(line int, format string, args ...any) string {
 	return msg
 }
 
-// parseError turns a yaml.v3 syntax error into findings.
+var (
+	yamlLineRe   = regexp.MustCompile(`^yaml: (?:line (\d+): )?(.*)$`)
+	titleRawRe   = regexp.MustCompile(`^title:\s*\[`)
+	blockHeadRe  = regexp.MustCompile(`^(\s*)(?:-\s+)?(?:[^#\s][^:]*:\s+)?[|>][+-]?\d?\s*(?:#.*)?$`)
+	innerQuoteRe = regexp.MustCompile(`^\s*(?:-\s+)?(?:[^\s:"'#][^:]*:\s+)?"(?:[^"\\]|\\.)*"[ \t]*[^\s#]`)
+	badEscapeRe  = regexp.MustCompile(`\\[^"0abtnvfre NLP_xuU/\t]`)
+)
+
+// rawLines returns the draft's lines with those inside a block scalar blanked,
+// so a quote or a bracket in content is never mistaken for a YAML value.
+func rawLines(data []byte) []string {
+	lines := strings.Split(string(data), "\n")
+	inBlock, blockIndent := false, 0
+	for i, line := range lines {
+		line = strings.TrimRight(line, "\r")
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+		if inBlock {
+			if strings.TrimSpace(line) == "" || indent > blockIndent {
+				lines[i] = ""
+				continue
+			}
+			inBlock = false
+		}
+		if m := blockHeadRe.FindStringSubmatch(line); m != nil {
+			inBlock, blockIndent = true, len(m[1])
+		}
+		lines[i] = line
+	}
+	return lines
+}
+
+// parseError turns a yaml.v3 syntax error into a finding with a fix. yaml.v3
+// gives the same message ("did not find expected key", often with no line or
+// the wrong one) for several different causes, so the raw lines are inspected
+// first to name the real one.
 func (l *draftLoader) parseError(data []byte, err error) []Finding {
-	l.fail(0, "the draft is not valid YAML (%v)", err)
+	lines := rawLines(data)
+	parserLine, text := 0, err.Error()
+	if m := yamlLineRe.FindStringSubmatch(text); m != nil {
+		parserLine, _ = strconv.Atoi(m[1])
+		text = m[2]
+	}
+	for i, line := range lines {
+		if titleRawRe.MatchString(line) {
+			value := strings.TrimSpace(strings.TrimPrefix(line, "title:"))
+			l.fail(i+1, "the \"title\" value is not quoted, so YAML reads its leading \"[...]\" as a list and cannot parse the rest of the line. Wrap the whole title in double quotes: title: %s", yamlQuote(value))
+			return l.findings
+		}
+	}
+	for i, line := range lines {
+		if !innerQuoteRe.MatchString(line) {
+			continue
+		}
+		fix := ""
+		if trimmed := strings.TrimRight(line, " \t"); strings.HasSuffix(trimmed, `"`) {
+			if open := strings.Index(trimmed, `"`); open >= 0 && open < len(trimmed)-1 {
+				inner := strings.ReplaceAll(trimmed[open+1:len(trimmed)-1], `"`, `\"`)
+				fix = fmt.Sprintf(" For example: %s", trimmed[:open]+`"`+inner+`"`)
+			}
+		}
+		l.fail(i+1, "this double-quoted value contains an unescaped \" that ends the string early. Inside double quotes write \\\" (backslash, quote) for each quote character in the text, or wrap the whole value in single quotes instead.%s", fix)
+		return l.findings
+	}
+	if strings.Contains(text, "unknown escape character") {
+		line := parserLine
+		if line == 0 {
+			for i, raw := range lines {
+				if badEscapeRe.MatchString(strings.ReplaceAll(raw, `\\`, "")) {
+					line = i + 1
+					break
+				}
+			}
+		}
+		l.fail(line, "a double-quoted value contains a backslash that YAML reads as an escape sequence it does not know (%s). Inside double quotes write \\\\ for a literal backslash (\"\\\\d{5}\" for \\d{5}), or wrap the value in single quotes, where backslashes are literal.", text)
+		return l.findings
+	}
+	l.fail(parserLine, "the draft is not valid YAML (%s). Check: section content uses \"|\" block scalars indented consistently; the title and metadata values are double-quoted with inner \" and \\ escaped; no tabs.", text)
 	return l.findings
+}
+
+// yamlQuote returns s as a YAML double-quoted scalar, unquoting a value that
+// already carries its own quotes first.
+func yamlQuote(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	return `"` + s + `"`
 }
 
 func contains(list []string, s string) bool {

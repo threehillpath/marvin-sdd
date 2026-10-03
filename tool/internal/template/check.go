@@ -297,26 +297,19 @@ func (c *checker) emptyFix(sec SchemaSection, e Entry) string {
 	var y, md string
 	name := strings.TrimSpace(e.Name)
 	switch {
-	case isNamed(sec) && name != "":
-		y = fmt.Sprintf("Fill \"content: |\" of the entry named %q in %q with content", name, sec.ID)
-		num := "<n>"
-		if e.Number > 0 {
-			num = strconv.Itoa(e.Number)
+	case isNamed(sec):
+		if name != "" {
+			y = fmt.Sprintf("Fill \"content: |\" of the entry named %q in %q with content", name, sec.ID)
+		} else {
+			y = fmt.Sprintf("Fill \"content: |\" of the unnamed entry in %q with content and give it a \"name:\"", sec.ID)
 		}
-		md = fmt.Sprintf("Fill the \"## %s. %s\" section with content", num, name)
+		md = fmt.Sprintf("Fill the %q section with content", templateHeading(sec, e))
 	case sec.Repeatable:
 		y = fmt.Sprintf("Fill the empty \"- |\" block in %q with content", sec.ID)
-		heading := "## " + sec.Heading
-		if sec.Numbered {
-			heading = "## <n>. " + sec.Heading
-			if e.Number > 0 {
-				heading = fmt.Sprintf("## %d. %s", e.Number, sec.Heading)
-			}
-		}
-		md = fmt.Sprintf("Fill the %q section with content", heading)
+		md = fmt.Sprintf("Fill the %q section with content", templateHeading(sec, e))
 	default:
 		y = fmt.Sprintf("Fill the %q block in the draft with content", sec.ID)
-		md = fmt.Sprintf("Fill the \"## %s\" section with content", sec.Heading)
+		md = fmt.Sprintf("Fill the %q section with content", templateHeading(sec, e))
 	}
 	fix := c.fix(y, md)
 	if !sec.Required {

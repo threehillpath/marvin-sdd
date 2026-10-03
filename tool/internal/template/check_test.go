@@ -900,3 +900,22 @@ func TestCheckSetextLookalikesAreFine(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckHTMLGuardEdgeCases(t *testing.T) {
+	// A details block opened after a complete comment on the same line.
+	guardCase(t, "<!-- note --><details>\nbody", 1, "<details>", "</details>")
+	// An unclosed comment that starts after a tag on an HTML-block line.
+	guardCase(t, "ok\n<div><!-- note\nmore", 2, "<!--", "-->", "never closed")
+	// A <details> inside a complete comment is not a block.
+	for _, ok := range []string{
+		"text <!-- wrap in <details> -->\nmore",
+		"<!-- <details> -->\nmore",
+		"inline `<!--` in code\nmore",
+	} {
+		m := phaseMap()
+		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
+		if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
+			t.Errorf("content %q: want no findings:\n%s", ok, res.Format())
+		}
+	}
+}

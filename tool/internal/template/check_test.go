@@ -172,7 +172,15 @@ func TestCheckArchPlaceholderTitleFailsAtTitle(t *testing.T) {
 func TestCheckTitleMissing(t *testing.T) {
 	m := phaseMap()
 	m.Title = "  "
-	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "title", "missing", "Set")
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "title", "missing", `"[PLAN-XXXXX-N] <Phase Title>"`, `Set "title:" in the draft`)
+
+	m = mdPhaseMap()
+	m.Title = ""
+	res := check(t, "impl-phase", m)
+	wantOne(t, res, tmpl.SeverityError, "title", "missing", `"[PLAN-XXXXX-N] <Phase Title>"`, "--title")
+	if strings.Contains(res.Findings[0].Message, `"title:"`) {
+		t.Errorf("markdown fix must not mention the draft key: %s", res.Findings[0].Message)
+	}
 }
 
 func TestCheckTitleNoIdentifier(t *testing.T) {

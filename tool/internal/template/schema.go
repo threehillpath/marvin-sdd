@@ -24,7 +24,7 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 		return nil, fmt.Errorf("%sparsing schema: %w", pre, err)
 	}
 	if strings.TrimSpace(sc.Type) == "" {
-		return nil, fmt.Errorf("%smissing \"type\". Add a line like type: quick-task. The built-in types are %s", pre, strings.Join(builtInTypes, ", "))
+		return nil, fmt.Errorf("%smissing \"type\". Add a \"type:\" line naming this schema; for a project override use the file's base name (impl-phase for impl-phase.yml). The built-in types are %s", pre, strings.Join(builtInTypes, ", "))
 	}
 	if strings.TrimSpace(sc.TitlePrefix) == "" {
 		return nil, fmt.Errorf("%smissing \"title_prefix\" for type %q. %s", pre, sc.Type, titlePrefixHint(sc.Type))

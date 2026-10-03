@@ -491,6 +491,11 @@ func TestLoadDraftTagsAnchorsAndAliasesAreFindings(t *testing.T) {
 		d := patch(t, planDraft, `name: "First one"`, `name: !Important first one`)
 		wantDraftFinding(t, "impl-plan", d, 13, `"!Important"`, "YAML tag", "double quotes")
 	})
+	t.Run("a quoted mention on an earlier line is not blamed", func(t *testing.T) {
+		d := patch(t, phaseDraft, `title: "[PLAN-00112-1] Add the thing"`, `title: "[PLAN-00112-1] Add *Draft* status"`)
+		d = patch(t, d, `Status: "Upcoming"`, `Status: *Draft`)
+		wantDraftFinding(t, "impl-phase", d, 3, "alias", `"Status: *Draft"`)
+	})
 	t.Run("alias", func(t *testing.T) {
 		d := patch(t, phaseDraft, `Status: "Upcoming"`, `Status: *Claude is bold*`)
 		wantDraftFinding(t, "impl-phase", d, 3, "alias", `"Status: *Claude is bold*"`, "double quotes")

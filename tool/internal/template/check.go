@@ -348,9 +348,7 @@ func (c *checker) checkSections() {
 					c.fix(fmt.Sprintf("Give every %q entry a non-empty \"name:\" in the draft.", sec.ID),
 						"Give the heading text after the number, like \"## 1. <Name>\"."))
 			}
-			if h, ok := fencedH2(e.Content); ok {
-				c.add(SeverityError, loc, e.Line, "content of section %s contains the line %q, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), h)
-			}
+			c.checkContentStructure(sec, e)
 		}
 	}
 }
@@ -360,15 +358,20 @@ var (
 	h2Re    = regexp.MustCompile(`^ {0,3}##(\s|$)`)
 )
 
-// FindH2Lines returns, for each "## " heading line of body that is outside a
-// fenced code block, its one-based line number and its text without the "##"
-// marker, trimmed (the same convention as SectionMap.UnknownHeadings). Fences follow
-// CommonMark: an opening run of three or more backticks or tildes (up to three
-// spaces of indent) closes only on a run of the same character that is at
-// least as long and carries nothing but whitespace after it. Markdown parsers
-// should use this to split a body into sections.
-func FindH2Lines(body string) []Heading {
+// openFence is a code fence that the end of the scanned text left open.
+type openFence struct {
+	Run  string // the opening run of backticks or tildes
+	Line int    // one-based line the fence opens on
+}
+
+// scanFences walks body once, tracking CommonMark fences: an opening run of
+// three or more backticks or tildes (up to three spaces of indent) closes only
+// on a run of the same character that is at least as long and carries nothing
+// but whitespace after it. It returns the "## " headings outside fences and,
+// when the text ends inside a fence, that fence.
+func scanFences(body string) ([]Heading, *openFence) {
 	var out []Heading
+	var open *openFence
 	var fenceCh byte
 	fenceLen := 0
 	for i, line := range strings.Split(body, "\n") {
@@ -379,10 +382,12 @@ func FindH2Lines(body string) []Heading {
 			case fenceCh == 0:
 				if run[0] != '`' || !strings.Contains(rest, "`") {
 					fenceCh, fenceLen = run[0], len(run)
+					open = &openFence{Run: run, Line: i + 1}
 				}
 				continue
 			case run[0] == fenceCh && len(run) >= fenceLen && strings.TrimSpace(rest) == "":
 				fenceCh, fenceLen = 0, 0
+				open = nil
 				continue
 			}
 		}
@@ -391,15 +396,38 @@ func FindH2Lines(body string) []Heading {
 			out = append(out, Heading{Text: text, Line: i + 1})
 		}
 	}
-	return out
+	return out, open
 }
 
-// fencedH2 returns the first "## " line outside a fenced code block.
-func fencedH2(content string) (string, bool) {
-	if hs := FindH2Lines(content); len(hs) > 0 {
-		return strings.TrimSpace("## " + hs[0].Text), true
+// FindH2Lines returns, for each "## " heading line of body that is outside a
+// fenced code block, its one-based line number and its text without the "##"
+// marker, trimmed (the same convention as SectionMap.UnknownHeadings). Fences
+// follow CommonMark, see scanFences. Markdown parsers should use this to
+// split a body into sections.
+func FindH2Lines(body string) []Heading {
+	hs, _ := scanFences(body)
+	return hs
+}
+
+// checkContentStructure reports content that would break the document's
+// structure: a "## " heading outside a fence, which would become a new
+// section, and a fence that is never closed, which would swallow every later
+// section.
+func (c *checker) checkContentStructure(sec SchemaSection, e Entry) {
+	loc := "section:" + sec.ID
+	hs, open := scanFences(e.Content)
+	if len(hs) > 0 {
+		c.add(SeverityError, loc, e.Line, "content of section %s contains the line %q, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), strings.TrimSpace("## "+hs[0].Text))
 	}
-	return "", false
+	if open != nil {
+		ch := fmt.Sprintf("%q", string(open.Run[0]))
+		where := fmt.Sprintf("inside the %q block", sec.ID)
+		if c.m.Source == SourceMarkdown {
+			where = "under that heading"
+		}
+		c.add(SeverityError, loc, e.Line, "content of section %s opens a code fence %q on line %d of the section that is never closed, so every later section would render as code and be lost to the parser. Close it with a matching fence line (the same character, %s, at least %d long, nothing else on the line) %s.",
+			label(sec), open.Run, open.Line, ch, len(open.Run), where)
+	}
 }
 
 // checkMarkdownOnly applies the rules that only make sense for a markdown

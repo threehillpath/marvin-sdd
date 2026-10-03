@@ -1,6 +1,7 @@
 package template_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -432,5 +433,124 @@ func TestGuidancePrintsSectionsAndRules(t *testing.T) {
 	}
 	if strings.Contains(out, "\n  #") {
 		t.Errorf("guidance is plain text, not YAML comments:\n%s", out)
+	}
+}
+
+// wantRefusedAt asserts Render refused (no body) and that some finding is
+// located at loc, names "line N of the section" (or, for loc starting with
+// "metadata:", the metadata key) and contains every substring in want.
+func wantRefusedAt(t *testing.T, name string, m *tmpl.SectionMap, loc string, line int, want ...string) {
+	t.Helper()
+	out, res := tmpl.Render(loadBuiltIn(t, name), builtIn, m)
+	if out != "" {
+		t.Errorf("Render must produce no body when verification fails, got:\n%s", out)
+	}
+	if !res.HasErrors() {
+		t.Fatalf("Render must report an error")
+	}
+	if line > 0 {
+		want = append(want, fmt.Sprintf("line %d of the section", line))
+	}
+	for _, f := range res.Findings {
+		if f.Location != loc {
+			continue
+		}
+		ok := true
+		for _, w := range want {
+			if !strings.Contains(f.Message, w) {
+				ok = false
+			}
+		}
+		if ok && f.Severity == tmpl.SeverityError {
+			return
+		}
+	}
+	t.Fatalf("no error at %s containing %q:\n%s", loc, want, res.Format())
+}
+
+func scopeMap(content string) *tmpl.SectionMap {
+	m := phaseMap()
+	m.Sections["scope"] = []tmpl.Entry{{Content: content, Line: 9}}
+	return m
+}
+
+// TestRenderRefusesHTMLBlocksOfEveryType covers blocks the line scanner never
+// sees: processing instructions, CDATA, declarations and a lone tag, all of
+// which swallow what follows or render nothing.
+func TestRenderRefusesHTMLBlocksOfEveryType(t *testing.T) {
+	cases := []struct {
+		name, content string
+		line          int
+		quote         string
+	}{
+		{"unclosed processing instruction", "Every file must start with\n<?php declare(strict_types=1);", 2, "<?php declare(strict_types=1);"},
+		{"cdata", "intro\n\n<![CDATA[ stuff", 3, "<![CDATA["},
+		{"doctype without >", "<!DOCTYPE html\nbody", 1, "<!DOCTYPE html"},
+		{"div", "text\n\n<div>\nx\n</div>", 3, "<div>"},
+		{"a lone inline tag becomes a block", "text\n\n<kbd>\n\nmore", 3, "<kbd>"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			wantRefusedAt(t, "impl-phase", scopeMap(c.content), "section:scope", c.line,
+				"HTML block", c.quote, "swallow", "backticks", "remove")
+		})
+	}
+}
+
+func TestRenderRefusesInlineHTMLThatSlipsPastTheScanner(t *testing.T) {
+	// A list-item fence ended early by a dedented line: the fence that GitHub
+	// then opens at line 4 swallows every later section.
+	for name, content := range map[string]string{
+		"go build":    "1. Build:\n   ```bash\ngo build ./...\n   ```\n2. Test.",
+		"run details": "1. Build:\n   ```bash\nrun <details>\n   ```\n2. Test.",
+	} {
+		t.Run(name, func(t *testing.T) {
+			wantRefusedAt(t, "impl-phase", scopeMap(content), "section:scope", 4,
+				"fenced code block", "swallow", `"## Components"`, "indent every line")
+		})
+	}
+	t.Run("run details also reports the inline tag", func(t *testing.T) {
+		wantRefusedAt(t, "impl-phase", scopeMap("1. Build:\n   ```bash\nrun <details>\n   ```\n2. Test."), "section:scope", 3,
+			"raw HTML", `"<details>"`, "backticks")
+	})
+}
+
+func TestRenderRefusesExtraHeadingsInTheParsedBody(t *testing.T) {
+	cases := []struct{ name, content string }{
+		{"level 1 heading", "intro\n\n# Big"},
+		{"heading in a list", "- item\n- # nested"},
+		{"heading in a quote", "> ## quoted"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			wantRefusedAt(t, "impl-phase", scopeMap(c.content), "section:scope", strings.Count(c.content, "\n")+1,
+				"heading", "rendered body", "###")
+		})
+	}
+}
+
+func TestRenderRefusesRawHTMLInAMetadataValue(t *testing.T) {
+	m := phaseMap()
+	m.Metadata["Status"] = tmpl.Field{Value: "Use ``` for fences and <details> blocks, see `x`.", Line: 4}
+	wantRefusedAt(t, "impl-phase", m, "metadata:Status", 0, `"<details>"`, "backticks")
+}
+
+func TestRenderAcceptsBenignMarkdown(t *testing.T) {
+	for name, content := range map[string]string{
+		"fenced block":           "```go\nfunc main() {}\n```",
+		"list with proper fence": "1. Build:\n   ```bash\n   go build ./...\n   ```\n2. Test.",
+		"kbd":                    "Press <kbd>Ctrl</kbd>+C and <br> see <https://example.com>.",
+		"table":                  "| a | b |\n|---|---|\n| 1 | 2 |",
+		"task list":              "- [ ] one\n- [x] two",
+		"double backtick span":   "Use ``<details>`` here.",
+		"single backtick span":   "Use `<details>` here.",
+		"h3 and bold":            "### Sub\n\n**bold** text",
+	} {
+		t.Run(name, func(t *testing.T) {
+			out, res := tmpl.Render(loadBuiltIn(t, "impl-phase"), builtIn, scopeMap(content))
+			if res.HasErrors() || out == "" {
+				t.Fatalf("want a clean render, got:\n%s", res.Format())
+			}
+		})
 	}
 }

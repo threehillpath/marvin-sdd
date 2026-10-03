@@ -220,3 +220,26 @@ func TestLoadDraftNonLiteralContentIsFinding(t *testing.T) {
 		}
 	})
 }
+
+func TestLoadDraftUnknownKeysAreFindings(t *testing.T) {
+	t.Run("dedented line inside scope becomes a sibling key", func(t *testing.T) {
+		d := patch(t, phaseDraft, "    - two\n", "    - two\n  Note: x\n")
+		wantDraftFinding(t, "impl-phase", d, 14, `"Note"`, "sections", "under-indented", "block")
+	})
+	t.Run("top level", func(t *testing.T) {
+		d := patch(t, phaseDraft, "sections:\n", "extra: 1\nsections:\n")
+		wantDraftFinding(t, "impl-phase", d, 6, `"extra"`, "top level", "title, metadata, sections", "under-indented")
+	})
+	t.Run("metadata", func(t *testing.T) {
+		d := patch(t, phaseDraft, "  Plan Number:", "  Colour: \"red\"\n  Plan Number:")
+		wantDraftFinding(t, "impl-phase", d, 4, `"Colour"`, "metadata", "Implementation Plan, Plan Number, Status", "Remove")
+	})
+	t.Run("section id", func(t *testing.T) {
+		d := patch(t, phaseDraft, "  verification: |", "  extras: |\n    x\n  verification: |")
+		wantDraftFinding(t, "impl-phase", d, 16, `"extras"`, "sections", "objective, scope", "under-indented")
+	})
+	t.Run("named entry", func(t *testing.T) {
+		d := patch(t, planDraft, "      content: |\n        Body one.", "      content: |\n        Body one.\n      Note: x")
+		wantDraftFinding(t, "impl-plan", d, 16, `"Note"`, `"component"`, "name, content", "under-indented")
+	})
+}

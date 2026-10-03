@@ -655,11 +655,52 @@ func TestCheckEmptyNamedEntryWithNoNameOrContent(t *testing.T) {
 	m = mdImplPlanMap()
 	m.Sections["component"] = []tmpl.Entry{{Name: "", Content: "", Line: 12, Number: 1}}
 	res = check(t, "impl-plan", m)
+	var sawMDEmpty bool
 	for _, f := range res.Findings {
 		if strings.Contains(f.Message, "<Component or Layer Name>") {
 			t.Errorf("placeholder heading leaked: %s", f.Message)
 		}
+		if f.Location == "section:component" && strings.Contains(f.Message, "is empty") {
+			sawMDEmpty = true
+			if !strings.Contains(f.Message, `"## 1. <Name>"`) {
+				t.Errorf("markdown empty finding must name %q: %s", "## 1. <Name>", f.Message)
+			}
+		}
 	}
+	if !sawMDEmpty {
+		t.Fatalf("want a section:component finding containing \"is empty\" on the markdown path:\n%s", res.Format())
+	}
+}
+
+// An unnamed component entry that is out of sequence must be reported by the
+// heading the author would write, never the schema's placeholder heading.
+func TestCheckMarkdownNumberingUnnamedComponentNoPlaceholder(t *testing.T) {
+	m := mdImplPlanMap()
+	m.Sections["component"] = []tmpl.Entry{{Name: "", Content: "c", Line: 20, Number: 2}, {Name: "B", Content: "c", Line: 21, Number: 2}}
+	res := check(t, "impl-plan", m)
+	var sawNumbering bool
+	for _, f := range res.Findings {
+		if strings.Contains(f.Message, "<Component or Layer Name>") {
+			t.Errorf("placeholder heading leaked: %s", f.Message)
+		}
+		if strings.Contains(f.Message, "breaks the sequence") {
+			sawNumbering = true
+			if !strings.Contains(f.Message, `"## 2. <Name>"`) || !strings.Contains(f.Message, "## 1.") {
+				t.Errorf("numbering finding must quote the author's heading and the renumber target: %s", f.Message)
+			}
+		}
+	}
+	if !sawNumbering {
+		t.Fatalf("want a numbering warning:\n%s", res.Format())
+	}
+}
+
+// The content-H2 error must quote the actual line and say where in the
+// section it is.
+func TestCheckSectionContentH2ReportsLineWithinSection(t *testing.T) {
+	m := phaseMap()
+	m.Sections["scope"] = []tmpl.Entry{{Content: "first\nsecond\n  ##   Foo", Line: 9}}
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "section:scope", `"##   Foo"`, "line 3 of the section", "###")
 }
 
 func TestFindH2LinesOneBasedAndStripsMarker(t *testing.T) {

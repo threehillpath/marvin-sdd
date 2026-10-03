@@ -139,11 +139,11 @@ func skeleton(t *testing.T, name string) string {
 
 // TestSkeletonIsAYAMLDraft verifies that Skeleton emits an empty YAML draft:
 // a double-quoted title placeholder from title_prefix, every metadata key as
-// "", and every section key, with the section's guidance as YAML comments.
+// "", and every section key, with no comments.
 func TestSkeletonIsAYAMLDraft(t *testing.T) {
 	out := skeleton(t, "impl-plan")
 
-	if !strings.Contains(out, "\ntitle: \"[PLAN-XXXXX] <Title>\"\n") {
+	if !strings.HasPrefix(out, "title: \"[PLAN-XXXXX] <Title>\"\n") {
 		t.Errorf("want a double-quoted title placeholder, got:\n%s", out)
 	}
 	for _, key := range []string{"Objective", "Architecture Plan", "Source Issue", "Author", "Status", "Last Updated"} {
@@ -162,10 +162,15 @@ func TestSkeletonIsAYAMLDraft(t *testing.T) {
 			t.Errorf("want %q in skeleton, got:\n%s", want, out)
 		}
 	}
-	// Guidance comes through as comments above its key.
-	i, j := strings.Index(out, "# Two sub-sections: **Includes**"), strings.Index(out, "\n  scope: |")
-	if i < 0 || j < 0 || i > j {
-		t.Errorf("want scope's guidance as a comment above \"scope:\", got:\n%s", out)
+	// A skeleton is comment-free: drafts take no YAML comments, and guidance
+	// is printed separately by Guidance.
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "#") {
+			t.Errorf("skeleton must not contain comments, got line %q", line)
+		}
+	}
+	if strings.Contains(out, "Two sub-sections") {
+		t.Errorf("guidance text belongs in Guidance, not the skeleton:\n%s", out)
 	}
 	// The old markdown skeleton is gone.
 	if strings.Contains(out, "\n## ") || strings.Contains(out, "**Objective:**") {
@@ -377,5 +382,50 @@ func TestRenderKeepsFencedHeadingsInContent(t *testing.T) {
 	out := render(t, "impl-phase", m)
 	if !strings.Contains(out, "```md\n## example\n```\n\n### Sub\n") {
 		t.Errorf("fenced content was altered:\n%s", out)
+	}
+}
+
+// TestGuidancePrintsSectionsAndRules verifies the plain-text guidance output:
+// per section in schema order its heading, whether it is required, whether
+// it repeats or is numbered, and its guidance, then the draft-writing rules.
+func TestGuidancePrintsSectionsAndRules(t *testing.T) {
+	out := tmpl.Guidance(loadBuiltIn(t, "impl-plan"))
+
+	last := -1
+	for _, w := range []string{
+		"schema: impl-plan",
+		"Scope (required)",
+		"scope: a single | block",
+		"Two sub-sections: **Includes**",
+		"Component or Layer Name (required, repeatable, numbered, named)",
+		"component: a list of entries with name: and content: |",
+		"Verification Steps (required, repeatable, numbered)",
+		"verification_steps: a list of | blocks",
+		"Design Notes",
+		"Success Criteria",
+	} {
+		idx := strings.Index(out, w)
+		if idx < 0 {
+			t.Fatalf("guidance missing %q:\n%s", w, out)
+		}
+		if idx <= last {
+			t.Fatalf("%q out of schema order:\n%s", w, out)
+		}
+		last = idx
+	}
+	for _, rule := range []string{
+		"double quotes",
+		"| block",
+		"###",
+		"never ##",
+		"no # comments",
+		"--- or ... at column 0",
+	} {
+		if !strings.Contains(out, rule) {
+			t.Errorf("guidance missing the rule %q:\n%s", rule, out)
+		}
+	}
+	if strings.Contains(out, "\n  #") {
+		t.Errorf("guidance is plain text, not YAML comments:\n%s", out)
 	}
 }

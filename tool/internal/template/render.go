@@ -217,3 +217,8 @@ func wrapComment(text string, width int) []string {
 	}
 	return lines
 }
+
+// Guidance returns plain-text help for filling in a draft of sc.
+func Guidance(sc *Schema) string {
+	return ""
+}

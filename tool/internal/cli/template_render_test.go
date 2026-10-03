@@ -101,7 +101,7 @@ func TestTemplateRenderFallsBackToEmbeddedDefault(t *testing.T) {
 	if !strings.Contains(stdout.String(), "problem_statement: |") {
 		t.Errorf("expected embedded default schema's problem_statement key, got:\n%s", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "\ntitle: \"[TASK-XXXXX] <Title>\"\n") {
+	if !strings.HasPrefix(stdout.String(), "title: \"[TASK-XXXXX] <Title>\"\n") {
 		t.Errorf("expected a double-quoted YAML title placeholder, got:\n%s", stdout.String())
 	}
 }
@@ -226,7 +226,44 @@ func TestTemplateRenderWithoutSkeletonSaysWhatToDo(t *testing.T) {
 	if !errors.As(err, &cliErr) || cliErr.Code != 1 {
 		t.Fatalf("want a CLIError with code 1, got %T: %v", err, err)
 	}
-	for _, w := range []string{"--skeleton", "impl-plan"} {
+	for _, w := range []string{"--skeleton", "--guidance", "impl-plan"} {
+		if !strings.Contains(cliErr.Msg, w) {
+			t.Errorf("message %q missing %q", cliErr.Msg, w)
+		}
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("want no stdout, got %q", stdout.String())
+	}
+}
+
+// TestTemplateRenderGuidancePrintsPlainText verifies --guidance prints the
+// per-section guidance and the draft-writing rules.
+func TestTemplateRenderGuidancePrintsPlainText(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"template", "render", "quick-task", "--guidance"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("--guidance returned error: %v\nstderr: %s", err, stderr.String())
+	}
+	for _, w := range []string{"schema: quick-task", "Problem Statement (required)", "problem_statement: a single | block", "no # comments"} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("guidance output missing %q:\n%s", w, stdout.String())
+		}
+	}
+}
+
+// TestTemplateRenderSkeletonAndGuidanceAreExclusive verifies that passing
+// both flags exits 1 and says to pick one.
+func TestTemplateRenderSkeletonAndGuidanceAreExclusive(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"template", "render", "quick-task", "--skeleton", "--guidance"})
+	err := root.Execute()
+	var cliErr *cli.CLIError
+	if !errors.As(err, &cliErr) || cliErr.Code != 1 {
+		t.Fatalf("want a CLIError with code 1, got %T: %v", err, err)
+	}
+	for _, w := range []string{"--skeleton", "--guidance", "only one"} {
 		if !strings.Contains(cliErr.Msg, w) {
 			t.Errorf("message %q missing %q", cliErr.Msg, w)
 		}

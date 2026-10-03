@@ -393,7 +393,7 @@ func (l *draftLoader) parseError(data []byte, err error) []Finding {
 		line, offending := parserLine, ""
 		if m := anchorNameRe.FindStringSubmatch(text); m != nil && line == 0 {
 			for i, raw := range l.code {
-				if strings.Contains(raw, "*"+m[1]) {
+				if regexp.MustCompile(`(?:^\s*|[:,\[{-]\s+)\*` + regexp.QuoteMeta(m[1]) + `(?:[^A-Za-z0-9_-]|$)`).MatchString(raw) {
 					line = i + 1
 					break
 				}

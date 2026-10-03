@@ -199,3 +199,93 @@ func TestCheckTitleMultiLine(t *testing.T) {
 	m.Title = "[PLAN-00112-1] X\nsecond line"
 	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "title", "more than one line", "single line")
 }
+
+func TestCheckMetadataKeyAbsent(t *testing.T) {
+	m := phaseMap()
+	delete(m.Metadata, "Status")
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "metadata:Status", `"Status"`, "Add")
+}
+
+func TestCheckMetadataValueEmpty(t *testing.T) {
+	m := phaseMap()
+	m.Metadata["Status"] = tmpl.Field{Value: "  ", Line: 4}
+	res := check(t, "impl-phase", m)
+	wantOne(t, res, tmpl.SeverityError, "metadata:Status", `"Status"`, "empty", "Set")
+	if res.Findings[0].Line != 4 {
+		t.Errorf("line = %d, want 4", res.Findings[0].Line)
+	}
+}
+
+func TestCheckMetadataValueMultiLine(t *testing.T) {
+	m := phaseMap()
+	m.Metadata["Status"] = tmpl.Field{Value: "Upcoming\nsoon", Line: 4}
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "metadata:Status", `"Upcoming\nsoon"`, "more than one line", "single line")
+}
+
+func TestCheckRequiredSectionEmpty(t *testing.T) {
+	m := phaseMap()
+	m.Sections["scope"] = []tmpl.Entry{{Content: " \n\t", Line: 9}}
+	res := check(t, "impl-phase", m)
+	wantOne(t, res, tmpl.SeverityError, "section:scope", `"Scope"`, "empty", "Fill")
+	if res.Findings[0].Line != 9 {
+		t.Errorf("line = %d, want 9", res.Findings[0].Line)
+	}
+}
+
+func TestCheckNonRepeatableSectionDuplicated(t *testing.T) {
+	m := phaseMap()
+	m.Sections["scope"] = []tmpl.Entry{{Content: "a"}, {Content: "b"}}
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "section:scope", `"Scope"`, "2 entries", "Merge")
+}
+
+func implPlanMap() *tmpl.SectionMap {
+	e := func(c string) []tmpl.Entry { return []tmpl.Entry{{Content: c}} }
+	return &tmpl.SectionMap{
+		Source: tmpl.SourceYAML, Title: "[PLAN-00112] X", TitleLine: 1,
+		Metadata: map[string]tmpl.Field{
+			"Objective": {Value: "o"}, "Architecture Plan": {Value: "#131 ([PLAN-00112-ARCH])"},
+			"Source Issue": {Value: "#112"}, "Author": {Value: "a"}, "Status": {Value: "Draft"}, "Last Updated": {Value: "d"},
+		},
+		Sections: map[string][]tmpl.Entry{
+			"scope":              e("s"),
+			"component":          {{Name: "First", Content: "c1"}, {Name: "Second", Content: "c2"}},
+			"verification_steps": e("v"),
+			"design_notes":       e("d"),
+			"success_criteria":   e("- [ ] x"),
+		},
+	}
+}
+
+func TestCheckConformantImplPlan(t *testing.T) {
+	if res := check(t, "impl-plan", implPlanMap()); len(res.Findings) != 0 {
+		t.Fatalf("want no findings:\n%s", res.Format())
+	}
+}
+
+func TestCheckNamedEntryEmptyName(t *testing.T) {
+	m := implPlanMap()
+	m.Sections["component"] = []tmpl.Entry{{Name: " ", Content: "c1", Line: 12}}
+	wantOne(t, check(t, "impl-plan", m), tmpl.SeverityError, "section:component", "name", "Give")
+}
+
+func TestCheckUnnamedNumberedEntryNeedsNoName(t *testing.T) {
+	m := implPlanMap()
+	m.Sections["verification_steps"] = []tmpl.Entry{{Content: "v1"}, {Content: "v2"}}
+	if res := check(t, "impl-plan", m); len(res.Findings) != 0 {
+		t.Fatalf("want no findings:\n%s", res.Format())
+	}
+}
+
+func TestCheckSectionContentH2OutsideFence(t *testing.T) {
+	m := phaseMap()
+	m.Sections["scope"] = []tmpl.Entry{{Content: "ok\n## Sneaky\nmore", Line: 9}}
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "section:scope", `"## Sneaky"`, "###")
+}
+
+func TestCheckSectionContentH2InsideFenceAllowed(t *testing.T) {
+	m := phaseMap()
+	m.Sections["scope"] = []tmpl.Entry{{Content: "```md\n## fine\n```\n~~~\n## also fine\n~~~\n### ok"}}
+	if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
+		t.Fatalf("want no findings:\n%s", res.Format())
+	}
+}

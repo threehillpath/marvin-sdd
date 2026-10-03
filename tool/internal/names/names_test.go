@@ -190,3 +190,21 @@ func TestDeriveSuffix(t *testing.T) {
 		t.Errorf("TitlePrefix(Phase): got %q want %q", got, want)
 	}
 }
+
+func TestKindString(t *testing.T) {
+	tests := []struct {
+		k    names.Kind
+		want string
+	}{
+		{names.Arch, "arch"},
+		{names.Impl, "impl"},
+		{names.Phase, "phase"},
+		{names.Task, "task"},
+		{names.Kind(99), "Kind(99)"},
+	}
+	for _, tc := range tests {
+		if got := tc.k.String(); got != tc.want {
+			t.Errorf("Kind(%d).String() = %q, want %q", int(tc.k), got, tc.want)
+		}
+	}
+}

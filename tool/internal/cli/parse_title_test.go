@@ -26,6 +26,7 @@ func TestParseTitlePlainTextFound(t *testing.T) {
 		"plan_number: plan-00042\n" +
 		"suffix: A\n" +
 		"phase: 3\n" +
+		"kind: phase\n" +
 		"slug: some-title\n"
 
 	if stdout.String() != want {
@@ -69,6 +70,7 @@ func TestParseTitleJSONFidelityFound(t *testing.T) {
   "plan_number": "plan-00042",
   "suffix": "A",
   "phase": 3,
+  "kind": "phase",
   "slug": "some-title"
 }
 `

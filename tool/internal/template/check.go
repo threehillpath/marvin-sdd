@@ -409,6 +409,15 @@ func FindH2Lines(body string) []Heading {
 	return hs
 }
 
+// contentLine returns the trimmed text of the one-based line n of content.
+func contentLine(content string, n int) string {
+	lines := strings.Split(content, "\n")
+	if n < 1 || n > len(lines) {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimRight(lines[n-1], "\r"))
+}
+
 // checkContentStructure reports content that would break the document's
 // structure: a "## " heading outside a fence, which would become a new
 // section, and a fence that is never closed, which would swallow every later
@@ -417,7 +426,7 @@ func (c *checker) checkContentStructure(sec SchemaSection, e Entry) {
 	loc := "section:" + sec.ID
 	hs, open := scanFences(e.Content)
 	if len(hs) > 0 {
-		c.add(SeverityError, loc, e.Line, "content of section %s contains the line %q, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), strings.TrimSpace("## "+hs[0].Text))
+		c.add(SeverityError, loc, e.Line, "content of section %s contains the heading %q on line %d of the section, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), contentLine(e.Content, hs[0].Line), hs[0].Line)
 	}
 	if open != nil {
 		ch := fmt.Sprintf("%q", string(open.Run[0]))
@@ -584,11 +593,7 @@ func (c *checker) checkNumbering() {
 		if it.e.Number == i+1 {
 			continue
 		}
-		heading := it.sec.Heading
-		if it.e.Name != "" {
-			heading = it.e.Name
-		}
-		c.add(SeverityWarning, "section:"+it.sec.ID, it.e.Line, "numbered heading \"## %d. %s\" breaks the sequence. The schema expects consecutive numbers from 1. Renumber it to \"## %d.\".", it.e.Number, heading, i+1)
+		c.add(SeverityWarning, "section:"+it.sec.ID, it.e.Line, "numbered heading %q breaks the sequence. The schema expects consecutive numbers from 1. Renumber it to \"## %d.\".", templateHeading(it.sec, it.e), i+1)
 		return
 	}
 }

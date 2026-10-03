@@ -191,6 +191,9 @@ func Guidance(sc *Schema) string {
 	sb.WriteString("- Use ### for sub-headings inside content, never ##: a ## line would start a new section.\n")
 	sb.WriteString("- Write no # comments anywhere in the draft: YAML drops them, and a # line meant as content would be lost.\n")
 	sb.WriteString("- Use no --- or ... at column 0: they are YAML document markers. Indent a horizontal rule to the block's level.\n")
+	sb.WriteString("- Leave a blank line before a --- rule, and never --- or === directly under text: markdown reads that as a heading underline.\n")
+	sb.WriteString("- Always close every code fence inside the same section that opens it: an open fence swallows the sections after it.\n")
+	sb.WriteString("- Write no raw HTML: `<!--`, `<details>`, `<pre>`, `<script>`, `<style>` and `<textarea>` (opening or closing) must be in backticks as inline code, in content, metadata values, names and the title.\n")
 	fmt.Fprintf(&sb, "\nMetadata keys (each required, one line): %s\n", strings.Join(sc.Metadata, ", "))
 	sb.WriteString("\nSections, in render order:\n")
 	for _, sec := range sc.Sections {

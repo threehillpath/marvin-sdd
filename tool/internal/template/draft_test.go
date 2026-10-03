@@ -271,3 +271,59 @@ func TestLoadDraftWrongNodeTypeIsFinding(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadDraftParserErrorsGetTargetedFixes(t *testing.T) {
+	t.Run("unquoted title starting with a bracket", func(t *testing.T) {
+		d := patch(t, phaseDraft, `title: "[PLAN-00112-1] Add the thing"`, `title: [PLAN-00112-1] Add the thing`)
+		wantDraftFinding(t, "impl-phase", d, 1, `"title"`, "YAML reads", "double quotes", `title: "[PLAN-00112-1] Add the thing"`)
+	})
+	t.Run("unescaped inner quote in the title", func(t *testing.T) {
+		d := patch(t, phaseDraft, `title: "[PLAN-00112-1] Add the thing"`, `title: "[PLAN-00112-1] Add "validate" command"`)
+		m, fs := loadDraft(t, "impl-phase", d)
+		if m != nil || len(fs) != 1 {
+			t.Fatalf("want one finding, got %+v", fs)
+		}
+		wantDraftFinding(t, "impl-phase", d, 1, `\"`, "single quotes", `title: "[PLAN-00112-1] Add \"validate\" command"`)
+		if strings.Contains(fs[0].Message, "Wrap the whole title") {
+			t.Errorf("an inner-quote error must give an escaping fix, not 'quote the title': %s", fs[0].Message)
+		}
+	})
+	t.Run("unescaped inner quote in a metadata value", func(t *testing.T) {
+		d := patch(t, phaseDraft, `Status: "Upcoming"`, `Status: "He said "hi" ok"`)
+		wantDraftFinding(t, "impl-phase", d, 3, `\"`, "single quotes", `Status: "He said \"hi\" ok"`)
+	})
+	t.Run("unknown escape", func(t *testing.T) {
+		d := patch(t, phaseDraft, `Status: "Upcoming"`, `Status: "Match \d{5}"`)
+		wantDraftFinding(t, "impl-phase", d, 3, "unknown escape", `\\`, "single quotes")
+	})
+	t.Run("block scalar lines are not mistaken for quoted values", func(t *testing.T) {
+		d := patch(t, phaseDraft, "    - two\n", "    - two\n    say \"a\" b\n") + "tabbed:\n\tx: 1\n"
+		m, fs := loadDraft(t, "impl-phase", d)
+		if m != nil || len(fs) != 1 {
+			t.Fatalf("want one finding, got %+v", fs)
+		}
+		if strings.Contains(fs[0].Message, "unescaped") || !strings.Contains(fs[0].Message, "not valid YAML") {
+			t.Errorf("a quote inside a | block is content, not the error: %s", fs[0].Message)
+		}
+	})
+	t.Run("unmapped parser message uses the fallback", func(t *testing.T) {
+		d := patch(t, phaseDraft, "    - two\n", "    - two\n") + "tabbed:\n\tx: 1\n"
+		m, fs := loadDraft(t, "impl-phase", d)
+		if m != nil || len(fs) != 1 {
+			t.Fatalf("want one finding, got %+v", fs)
+		}
+		f := fs[0]
+		if f.Line == 0 {
+			t.Errorf("yaml.v3 gave a line; the finding must carry it: %s", f.Message)
+		}
+		for _, w := range []string{"not valid YAML", "tab", `"|" block scalars`, "double-quoted", "no tabs"} {
+			if !strings.Contains(f.Message, w) {
+				t.Errorf("fallback message %q missing %q", f.Message, w)
+			}
+		}
+	})
+	t.Run("parser message without a line says line unknown", func(t *testing.T) {
+		d := patch(t, phaseDraft, `title: "[PLAN-00112-1] Add the thing"`, "title: {x} y")
+		wantDraftFinding(t, "impl-phase", d, 0, "not valid YAML", "did not find expected key")
+	})
+}

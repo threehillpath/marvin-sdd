@@ -1,6 +1,7 @@
 package template_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -756,6 +757,39 @@ func TestCheckUnclosedFenceIsError(t *testing.T) {
 					t.Errorf("message missing %q: %s", where, res.Findings[0].Message)
 				}
 			})
+		}
+	}
+}
+
+// guardCase checks one structure guard on both input paths: the content must
+// yield exactly one error at section:scope naming the section by heading,
+// the line within the section, and a fix phrased for the path.
+func guardCase(t *testing.T, content string, line int, want ...string) {
+	t.Helper()
+	for _, src := range []tmpl.Source{tmpl.SourceYAML, tmpl.SourceMarkdown} {
+		m := phaseMap()
+		m.Source = src
+		m.Sections["scope"] = []tmpl.Entry{{Content: content, Line: 9}}
+		res := check(t, "impl-phase", m)
+		w := append([]string{`"Scope"`, fmt.Sprintf("line %d of the section", line)}, want...)
+		if src == tmpl.SourceMarkdown {
+			w = append(w, "under that heading")
+		} else {
+			w = append(w, `inside the "scope" block`)
+		}
+		wantOne(t, res, tmpl.SeverityError, "section:scope", w...)
+	}
+}
+
+func TestCheckUnclosedHTMLCommentIsError(t *testing.T) {
+	guardCase(t, "text\n<!-- note to self\nmore", 2, "<!--", "-->", "never closed", "every later section")
+
+	// A closed comment, on one line or several, is fine.
+	for _, ok := range []string{"<!-- one line -->\ntext", "<!--\nmulti\n-->\ntext", "inline <!-- not at line start\ntext"} {
+		m := phaseMap()
+		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
+		if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
+			t.Errorf("content %q: want no findings:\n%s", ok, res.Format())
 		}
 	}
 }

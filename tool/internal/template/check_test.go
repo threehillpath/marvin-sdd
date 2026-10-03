@@ -289,3 +289,66 @@ func TestCheckSectionContentH2InsideFenceAllowed(t *testing.T) {
 		t.Fatalf("want no findings:\n%s", res.Format())
 	}
 }
+
+func TestCheckPlanNumberMismatch(t *testing.T) {
+	m := phaseMap()
+	m.Metadata["Plan Number"] = tmpl.Field{Value: "PLAN-00113", Line: 3}
+	res := check(t, "impl-phase", m)
+	wantOne(t, res, tmpl.SeverityError, "metadata:Plan Number", `"PLAN-00113"`, "PLAN-00112", "Set")
+	if res.Findings[0].Line != 3 {
+		t.Errorf("line = %d, want 3", res.Findings[0].Line)
+	}
+}
+
+func TestCheckPlanNumberBadForm(t *testing.T) {
+	m := phaseMap()
+	m.Metadata["Plan Number"] = tmpl.Field{Value: "112", Line: 3}
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "metadata:Plan Number", `"112"`, "PLAN-00112", "Set")
+}
+
+func taskMap() *tmpl.SectionMap {
+	e := func(c string) []tmpl.Entry { return []tmpl.Entry{{Content: c}} }
+	return &tmpl.SectionMap{
+		Source: tmpl.SourceYAML, Title: "[TASK-00091] X", TitleLine: 1,
+		Metadata: map[string]tmpl.Field{
+			"Source Issue": {Value: "#91"}, "Task Number": {Value: "TASK-00091", Line: 3},
+			"Author": {Value: "a"}, "Status": {Value: "s"}, "Date": {Value: "d"},
+		},
+		Sections: map[string][]tmpl.Entry{
+			"problem_statement": e("p"), "scope": e("s"), "technical_analysis": e("t"),
+			"tdd_entry_point": e("t"), "implementation_notes": e("i"), "success_criteria": e("- [ ] x"),
+		},
+	}
+}
+
+func TestCheckConformantTaskMap(t *testing.T) {
+	if res := check(t, "quick-task", taskMap()); len(res.Findings) != 0 {
+		t.Fatalf("want no findings:\n%s", res.Format())
+	}
+}
+
+func TestCheckTaskNumberMismatch(t *testing.T) {
+	m := taskMap()
+	m.Metadata["Task Number"] = tmpl.Field{Value: "TASK-00092", Line: 3}
+	wantOne(t, check(t, "quick-task", m), tmpl.SeverityError, "metadata:Task Number", `"TASK-00092"`, "TASK-00091", "Set")
+}
+
+func TestCheckReferenceMustStartWithIssueRef(t *testing.T) {
+	m := phaseMap()
+	m.Metadata["Implementation Plan"] = tmpl.Field{Value: "the plan", Line: 2}
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "metadata:Implementation Plan", `"the plan"`, "#<n>", "Set")
+}
+
+func TestCheckReferencePlanIdentMismatch(t *testing.T) {
+	m := phaseMap()
+	m.Metadata["Implementation Plan"] = tmpl.Field{Value: "#132 ([PLAN-00099])", Line: 2}
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "metadata:Implementation Plan", `"#132 ([PLAN-00099])"`, "PLAN-00099", "PLAN-00112", "Set")
+}
+
+func TestCheckReferenceTrailingTextAllowed(t *testing.T) {
+	m := phaseMap()
+	m.Metadata["Implementation Plan"] = tmpl.Field{Value: "#132 (some note)", Line: 2}
+	if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
+		t.Fatalf("want no findings:\n%s", res.Format())
+	}
+}

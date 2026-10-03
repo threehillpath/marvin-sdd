@@ -82,23 +82,41 @@ func Render(sc *Schema, origin string, m *SectionMap) (string, Result) {
 	}
 
 	var sb strings.Builder
+	var origins []lineOrigin
+	var heads []emittedHeading
+	put := func(text string, o lineOrigin) {
+		sb.WriteString(text)
+		sb.WriteByte('\n')
+		origins = append(origins, o)
+	}
 	for _, key := range sc.Metadata {
-		fmt.Fprintf(&sb, "**%s:** %s\n", key, strings.TrimSpace(m.Metadata[key].Value))
+		put(fmt.Sprintf("**%s:** %s", key, strings.TrimSpace(m.Metadata[key].Value)),
+			lineOrigin{loc: "metadata:" + key, what: fmt.Sprintf("metadata value %q", key), line: m.Metadata[key].Line, where: fmt.Sprintf("edit %q under \"metadata:\"", key)})
 	}
 
-	type emitted struct {
-		id, heading string
-		line        int
-	}
-	var want []emitted
 	emit := func(sec SchemaSection, heading, content string, line int) {
-		want = append(want, emitted{sec.ID, heading, line})
-		content = strings.Trim(strings.TrimRight(content, " \t\r\n"), "\n")
+		o := lineOrigin{loc: "section:" + sec.ID, what: "section " + label(sec), line: line, where: fmt.Sprintf("inside the %q block", sec.ID)}
+		if m.Source == SourceMarkdown {
+			o.where = "under that heading"
+		}
+		put("", o)
+		heads = append(heads, emittedHeading{line: len(origins) + 1, text: heading})
+		put("## "+heading, o)
+		content = strings.TrimRight(content, " \t\r\n")
+		lead := 0
+		for strings.HasPrefix(content, "\n") {
+			content = content[1:]
+			lead++
+		}
 		if content == "" {
-			fmt.Fprintf(&sb, "\n## %s\n", heading)
 			return
 		}
-		fmt.Fprintf(&sb, "\n## %s\n\n%s\n", heading, content)
+		put("", o)
+		for i, cl := range strings.Split(content, "\n") {
+			co := o
+			co.content = lead + i + 1
+			put(strings.TrimRight(cl, "\r"), co)
+		}
 	}
 
 	// One running ordinal across all numbered sections.
@@ -117,36 +135,10 @@ func Render(sc *Schema, origin string, m *SectionMap) (string, Result) {
 		}
 	}
 
-	// A heading that does not parse back as exactly itself (a line break in
-	// an entry name) would add headings of its own.
-	for _, w := range want {
-		hs := FindH2Lines("## " + w.heading + "\n")
-		if len(hs) == 1 && hs[0].Text == w.heading {
-			continue
-		}
-		var texts []string
-		for _, h := range hs {
-			texts = append(texts, fmt.Sprintf("%q", h.Text))
-		}
-		res.Findings = append(res.Findings, Finding{Severity: SeverityError, Location: "section:" + w.id, Line: w.line, Message: fmt.Sprintf("the heading Render builds for section %q, %q, would be rendered as %d headings (%s). Section content must never change the document's structure: keep every entry name on a single line, and use \"###\" for sub-headings.", w.id, w.heading, len(hs), strings.Join(texts, ", "))})
-		return "", res
-	}
-
 	body := sb.String()
-	got := FindH2Lines(body)
-	for i := 0; i < len(want) || i < len(got); i++ {
-		switch {
-		case i >= len(want):
-			res.Findings = append(res.Findings, Finding{Severity: SeverityError, Location: "draft", Message: fmt.Sprintf("the rendered body has an extra heading %q (line %d of the rendered body) that Render did not emit. Section content must never change the document's structure: use \"###\" for sub-headings and keep every entry name on a single line.", got[i].Text, got[i].Line)})
-			return "", res
-		case i >= len(got) || got[i].Text != want[i].heading:
-			found := "no heading"
-			if i < len(got) {
-				found = fmt.Sprintf("the heading %q (line %d of the rendered body)", got[i].Text, got[i].Line)
-			}
-			res.Findings = append(res.Findings, Finding{Severity: SeverityError, Location: "section:" + want[i].id, Line: want[i].line, Message: fmt.Sprintf("rendering section %q did not produce the heading Render emitted: expected the rendered body's heading #%d to be %q but found %s. Section content must never change the document's structure: use \"###\" for sub-headings and keep every entry name on a single line.", want[i].id, i+1, want[i].heading, found)})
-			return "", res
-		}
+	if fs := verifyBody(body, origins, heads); len(fs) > 0 {
+		res.Findings = append(res.Findings, fs...)
+		return "", res
 	}
 	return body, res
 }

@@ -675,3 +675,46 @@ func TestFindH2LinesOneBasedAndStripsMarker(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckUnclosedFenceIsError(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		fence   string // want quoted in the message; "" when content is fine
+	}{
+		{"unclosed backticks", "text\n```go\ncode\n", "```"},
+		{"unclosed tildes", "~~~~\ncode", "~~~~"},
+		{"properly closed", "```\ncode\n```", ""},
+		{"longer closing fence closes", "```\ncode\n`````", ""},
+		{"shorter closing fence does not close", "````\ncode\n```", "````"},
+		{"unclosed fence hides later headings", "```\n## inside", "```"},
+	}
+	for _, src := range []tmpl.Source{tmpl.SourceYAML, tmpl.SourceMarkdown} {
+		for _, c := range cases {
+			t.Run(c.name, func(t *testing.T) {
+				m := phaseMap()
+				m.Source = src
+				m.Sections["scope"] = []tmpl.Entry{{Content: c.content, Line: 9}}
+				res := check(t, "impl-phase", m)
+				if c.fence == "" {
+					if len(res.Findings) != 0 {
+						t.Fatalf("want no findings:\n%s", res.Format())
+					}
+					return
+				}
+				wantOne(t, res, tmpl.SeverityError, "section:scope",
+					`"scope"`, `"`+c.fence+`"`, "never closed", "every later section", "matching fence line")
+				if res.Findings[0].Line != 9 {
+					t.Errorf("line = %d, want 9", res.Findings[0].Line)
+				}
+				where := "inside the \"scope\" block"
+				if src == tmpl.SourceMarkdown {
+					where = "under that heading"
+				}
+				if !strings.Contains(res.Findings[0].Message, where) {
+					t.Errorf("message missing %q: %s", where, res.Findings[0].Message)
+				}
+			})
+		}
+	}
+}

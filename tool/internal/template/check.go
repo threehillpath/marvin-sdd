@@ -86,6 +86,7 @@ func (c *checker) add(sev Severity, loc string, line int, format string, args ..
 func Check(sc *Schema, origin string, m *SectionMap) Result {
 	c := &checker{sc: sc, m: m, res: Result{Type: sc.Type, Origin: origin}}
 	c.checkTitle()
+	c.checkMetadata()
 	c.checkSections()
 	return c.res
 }
@@ -134,13 +135,95 @@ func article(kind string) string {
 	return "a " + kind
 }
 
-func (c *checker) checkSections() {
-	for _, sec := range c.sc.Sections {
-		if sec.Required && len(c.m.Sections[sec.ID]) == 0 {
-			c.add(SeverityError, "section:"+sec.ID, 0, "required section %q is missing. Add a %q block under \"sections:\" in the draft.",
-				sec.Heading, sec.ID+": |")
+// fix returns the fix text for the input path m came from.
+func (c *checker) fix(yamlFix, mdFix string) string {
+	if c.m.Source == SourceMarkdown {
+		return mdFix
+	}
+	return yamlFix
+}
+
+func (c *checker) checkMetadata() {
+	for _, key := range c.sc.Metadata {
+		loc := "metadata:" + key
+		f, ok := c.m.Metadata[key]
+		if !ok {
+			c.add(SeverityError, loc, 0, "metadata key %q is missing. The schema requires every metadata key. %s",
+				key, c.fix(fmt.Sprintf("Add a %q key under \"metadata:\" in the draft.", key),
+					fmt.Sprintf("Add a line \"**%s:** <value>\" above the first \"## \" heading.", key)))
+			continue
+		}
+		v := strings.TrimSpace(f.Value)
+		if v == "" {
+			c.add(SeverityError, loc, f.Line, "metadata key %q has an empty value. The schema requires a value. %s",
+				key, c.fix(fmt.Sprintf("Set %q under \"metadata:\" in the draft to a value.", key),
+					fmt.Sprintf("Set \"**%s:**\" to a value.", key)))
+			continue
+		}
+		if strings.Contains(v, "\n") {
+			c.add(SeverityError, loc, f.Line, "metadata value %q for %q spans more than one line. Use a single line.", v, key)
 		}
 	}
+}
+
+func (c *checker) checkSections() {
+	for _, sec := range c.sc.Sections {
+		loc := "section:" + sec.ID
+		entries := c.m.Sections[sec.ID]
+		if len(entries) == 0 {
+			if sec.Required {
+				c.add(SeverityError, loc, 0, "required section %q is missing. %s", sec.Heading,
+					c.fix(fmt.Sprintf("Add a %q block under \"sections:\" in the draft.", sec.ID+": |"),
+						fmt.Sprintf("Add a \"## %s\" heading with content.", sec.Heading)))
+			}
+			continue
+		}
+		if !sec.Repeatable && len(entries) > 1 {
+			c.add(SeverityError, loc, entries[1].Line, "section %q is not repeatable but has %d entries. Merge them into one.", sec.Heading, len(entries))
+		}
+		for _, e := range entries {
+			if strings.TrimSpace(e.Content) == "" {
+				if sec.Required {
+					c.add(SeverityError, loc, e.Line, "required section %q is empty. %s", sec.Heading,
+						c.fix(fmt.Sprintf("Fill the %q block in the draft with content.", sec.ID),
+							fmt.Sprintf("Fill the \"## %s\" section with content.", sec.Heading)))
+				}
+			}
+			if sec.Numbered && sec.Named != nil && *sec.Named && strings.TrimSpace(e.Name) == "" {
+				c.add(SeverityError, loc, e.Line, "an entry of numbered section %q has an empty name. The schema expects each entry to be named. %s", sec.Heading,
+					c.fix(fmt.Sprintf("Give every %q entry a non-empty name in the draft.", sec.ID),
+						"Give the heading text after the number, like \"## 1. <Name>\"."))
+			}
+			if h, ok := fencedH2(e.Content); ok {
+				c.add(SeverityError, loc, e.Line, "content of section %q contains the line %q, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", sec.Heading, h)
+			}
+		}
+	}
+}
+
+// fencedH2 returns the first "## " line outside a fenced code block.
+func fencedH2(content string) (string, bool) {
+	fence := ""
+	for _, line := range strings.Split(content, "\n") {
+		t := strings.TrimLeft(line, " ")
+		if len(line)-len(t) <= 3 {
+			for _, f := range []string{"```", "~~~"} {
+				if strings.HasPrefix(t, f) {
+					switch {
+					case fence == "":
+						fence = f
+					case fence == f:
+						fence = ""
+					}
+					break
+				}
+			}
+		}
+		if fence == "" && strings.HasPrefix(line, "## ") {
+			return strings.TrimRight(line, " \t\r"), true
+		}
+	}
+	return "", false
 }
 
 // Format renders the result as plain text.

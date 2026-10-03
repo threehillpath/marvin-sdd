@@ -9,6 +9,7 @@ import (
 	"threehillpath.com/marvin-sdd/tool/internal/config"
 	"threehillpath.com/marvin-sdd/tool/internal/exec"
 	"threehillpath.com/marvin-sdd/tool/internal/gh"
+	"threehillpath.com/marvin-sdd/tool/internal/names"
 	"threehillpath.com/marvin-sdd/tool/internal/parse"
 )
 
@@ -21,11 +22,24 @@ type Node struct {
 	Status string `json:"status"`
 }
 
-// kindOf classifies a node's title as "arch", "impl", or "phase" via
-// parse.PlanIdent. Titles that fail to parse (should not occur for nodes
+// kindOf classifies a node's title as "arch", "impl", "phase", or "task". When
+// the leading bracket classifies (parse.Classify) its kind wins, so a TASK
+// sub-issue maps to "task". Otherwise it falls back to parse.PlanIdent.
+// Titles that fail to parse (should not occur for nodes
 // Tree adds, since every addition point already validated the title) fall
 // back to "impl" defensively.
 func kindOf(title string) string {
+	if k, ok := parse.Classify(title); ok {
+		switch k {
+		case names.Arch:
+			return "arch"
+		case names.Phase:
+			return "phase"
+		case names.Task:
+			return "task"
+		}
+		return "impl"
+	}
 	ident, ok := parse.PlanIdent(title)
 	if !ok {
 		return "impl"

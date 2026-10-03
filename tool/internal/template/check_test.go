@@ -459,3 +459,74 @@ func TestCheckMarkdownNumberingNotConsecutiveWarns(t *testing.T) {
 		t.Errorf("line = %d, want 20", res.Findings[0].Line)
 	}
 }
+
+func mdImplPlanMap() *tmpl.SectionMap {
+	m := implPlanMap()
+	m.Source = tmpl.SourceMarkdown
+	for i, id := range []string{"scope", "component", "verification_steps", "design_notes", "success_criteria"} {
+		es := m.Sections[id]
+		for j := range es {
+			es[j].Line = 10 + i*10 + j
+		}
+	}
+	m.Sections["component"][0].Number, m.Sections["component"][1].Number = 1, 2
+	m.Sections["verification_steps"][0].Number = 3
+	return m
+}
+
+func TestCheckMissingRepeatableNamedSectionFix(t *testing.T) {
+	for _, src := range []tmpl.Source{tmpl.SourceYAML, tmpl.SourceMarkdown} {
+		m := implPlanMap()
+		if src == tmpl.SourceMarkdown {
+			m = mdImplPlanMap()
+		}
+		delete(m.Sections, "component")
+		m.Sections["verification_steps"][0].Number = 1 // keep numbering valid so only the missing section is reported
+		var want []string
+		if src == tmpl.SourceYAML {
+			want = []string{`"component"`, `"component:"`, `"name:"`, `"content: |"`}
+		} else {
+			want = []string{`"component"`, `"## <n>. <Name>"`, "consecutive"}
+		}
+		wantOne(t, check(t, "impl-plan", m), tmpl.SeverityError, "section:component", want...)
+		if msg := check(t, "impl-plan", m).Findings[0].Message; strings.Contains(msg, "<Component or Layer Name>") {
+			t.Errorf("message must not quote the placeholder heading: %s", msg)
+		}
+	}
+}
+
+func TestCheckMissingRepeatableUnnamedSectionFix(t *testing.T) {
+	m := implPlanMap()
+	delete(m.Sections, "verification_steps")
+	wantOne(t, check(t, "impl-plan", m), tmpl.SeverityError, "section:verification_steps",
+		`"Verification Steps"`, `"verification_steps:"`, `"- |"`)
+
+	m = mdImplPlanMap()
+	delete(m.Sections, "verification_steps")
+	wantOne(t, check(t, "impl-plan", m), tmpl.SeverityError, "section:verification_steps",
+		`"Verification Steps"`, `"## <n>. Verification Steps"`)
+}
+
+func TestCheckEmptyEntryNamesEntryAndOmitsRemoveWhenRequired(t *testing.T) {
+	m := implPlanMap()
+	m.Sections["component"] = []tmpl.Entry{{Name: "First", Content: " ", Line: 12}}
+	res := check(t, "impl-plan", m)
+	wantOne(t, res, tmpl.SeverityError, "section:component", `"First"`, "empty", "content: |")
+	if strings.Contains(res.Findings[0].Message, "remove") {
+		t.Errorf("required section must not suggest removing: %s", res.Findings[0].Message)
+	}
+
+	m = mdImplPlanMap()
+	m.Sections["component"][0].Content = ""
+	wantOne(t, check(t, "impl-plan", m), tmpl.SeverityError, "section:component", `"First"`, "empty", `"## 1. First"`)
+
+	m = implPlanMap()
+	m.Sections["verification_steps"] = []tmpl.Entry{{Content: "", Line: 30}}
+	wantOne(t, check(t, "impl-plan", m), tmpl.SeverityError, "section:verification_steps", "empty", `"- |"`)
+}
+
+func TestCheckEmptyOptionalSectionOffersRemove(t *testing.T) {
+	m := phaseMap()
+	m.Sections["tdd_entry_point"] = []tmpl.Entry{{Content: "", Line: 20}}
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityWarning, "section:tdd_entry_point", "or remove it")
+}

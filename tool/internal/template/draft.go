@@ -48,7 +48,7 @@ func (l *draftLoader) walkRoot(root *yaml.Node) {
 	for _, kv := range l.pairs(root, "the draft") {
 		switch kv.key.Value {
 		case "title":
-			l.m.Title = strings.TrimSpace(kv.val.Value)
+			l.m.Title = l.text(kv, `"title"`)
 			l.m.TitleLine = kv.val.Line
 		case "metadata":
 			l.walkMetadata(kv.val)
@@ -71,7 +71,7 @@ func (l *draftLoader) pairs(n *yaml.Node, what string) []pair {
 
 func (l *draftLoader) walkMetadata(n *yaml.Node) {
 	for _, kv := range l.pairs(n, "metadata") {
-		l.m.Metadata[kv.key.Value] = Field{Value: strings.TrimSpace(kv.val.Value), Line: kv.val.Line}
+		l.m.Metadata[kv.key.Value] = Field{Value: l.text(kv, fmt.Sprintf("%q", kv.key.Value)), Line: kv.val.Line}
 	}
 }
 
@@ -89,7 +89,7 @@ func (l *draftLoader) walkSections(n *yaml.Node) {
 func (l *draftLoader) entries(sec SchemaSection, v *yaml.Node) []Entry {
 	switch {
 	case !sec.Repeatable:
-		return []Entry{{Content: v.Value, Line: v.Line}}
+		return []Entry{{Content: l.content(pair{key: &yaml.Node{Value: sec.ID}, val: v}, sec.ID), Line: v.Line}}
 	case isNamed(sec):
 		var out []Entry
 		for _, item := range v.Content {
@@ -97,9 +97,9 @@ func (l *draftLoader) entries(sec SchemaSection, v *yaml.Node) []Entry {
 			for _, kv := range l.pairs(item, sec.ID) {
 				switch kv.key.Value {
 				case "name":
-					e.Name = strings.TrimSpace(kv.val.Value)
+					e.Name = l.text(kv, `"name"`)
 				case "content":
-					e.Content = kv.val.Value
+					e.Content = l.content(kv, sec.ID)
 				}
 			}
 			out = append(out, e)
@@ -108,7 +108,7 @@ func (l *draftLoader) entries(sec SchemaSection, v *yaml.Node) []Entry {
 	default:
 		var out []Entry
 		for _, item := range v.Content {
-			out = append(out, Entry{Content: item.Value, Line: item.Line})
+			out = append(out, Entry{Content: l.content(pair{key: &yaml.Node{Value: sec.ID}, val: item}, sec.ID), Line: item.Line})
 		}
 		return out
 	}
@@ -128,4 +128,44 @@ func sprintfLine(line int, format string, args ...any) string {
 func (l *draftLoader) parseError(data []byte, err error) []Finding {
 	l.fail(0, "the draft is not valid YAML (%v)", err)
 	return l.findings
+}
+
+// cutComment returns the comment yaml.v3 attached to a scalar pair, and
+// whether the value was plain (so the comment cut it) rather than quoted. A
+// comment after a literal "|" header is harmless and not reported.
+func cutComment(kv pair) (comment string, plain bool) {
+	v := kv.val
+	if v.Kind != yaml.ScalarNode || v.Style&(yaml.LiteralStyle|yaml.FoldedStyle) != 0 {
+		return "", false
+	}
+	plain = v.Style&(yaml.DoubleQuotedStyle|yaml.SingleQuotedStyle) == 0
+	if c := v.LineComment; c != "" {
+		return c, plain
+	}
+	return kv.key.LineComment, plain
+}
+
+// text reads a single-line scalar (title, metadata value, entry name),
+// reporting a comment that cut or trails it.
+func (l *draftLoader) text(kv pair, subject string) string {
+	if c, plain := cutComment(kv); c != "" {
+		if plain {
+			l.fail(kv.val.Line, "the value of %s was cut at %q: an unquoted \"#\" starts a YAML comment, so the rest of the value was dropped. Wrap the whole value in double quotes", subject, c)
+		} else {
+			l.fail(kv.val.Line, "the value of %s is followed by the comment %q, which YAML ignores. If it is part of the value, move it inside the quotes; otherwise remove the comment", subject, c)
+		}
+	}
+	return strings.TrimSpace(kv.val.Value)
+}
+
+// content reads section content, reporting a comment that cut it.
+func (l *draftLoader) content(kv pair, id string) string {
+	if c, plain := cutComment(kv); c != "" {
+		if plain {
+			l.fail(kv.val.Line, "the content of section %q was cut at %q: an unquoted \"#\" starts a YAML comment, so the rest of the content was dropped. Replace it with a | block: write \"%s: |\" and indent the whole text below it", id, c, id)
+		} else {
+			l.fail(kv.val.Line, "the content of section %q is followed by the comment %q, which YAML ignores. Write the content as a | block: \"%s: |\" with the text indented below it", id, c, id)
+		}
+	}
+	return kv.val.Value
 }

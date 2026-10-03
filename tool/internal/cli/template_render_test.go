@@ -66,10 +66,10 @@ func TestTemplateRenderProjectOverrideWinsOverEmbeddedDefault(t *testing.T) {
 	}
 
 	got := stdout.String()
-	if !strings.Contains(got, "OVERRIDE-MARKER-SECTION") {
-		t.Errorf("expected project override content in output, got:\n%s", got)
+	if !strings.Contains(got, "override_marker: |") {
+		t.Errorf("expected the override's section key in the YAML skeleton, got:\n%s", got)
 	}
-	if strings.Contains(got, "Problem Statement") {
+	if strings.Contains(got, "problem_statement") || strings.Contains(got, "Problem Statement") {
 		t.Errorf("expected embedded default's sections to be absent when an override is present, got:\n%s", got)
 	}
 }
@@ -98,8 +98,11 @@ func TestTemplateRenderFallsBackToEmbeddedDefault(t *testing.T) {
 		t.Fatalf("template render quick-task --skeleton returned error: %v\nstderr: %s", err, stderr.String())
 	}
 
-	if !strings.Contains(stdout.String(), "Problem Statement") {
-		t.Errorf("expected embedded default schema's Problem Statement heading, got:\n%s", stdout.String())
+	if !strings.Contains(stdout.String(), "problem_statement: |") {
+		t.Errorf("expected embedded default schema's problem_statement key, got:\n%s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "\ntitle: \"[TASK-XXXXX] <Title>\"\n") {
+		t.Errorf("expected a double-quoted YAML title placeholder, got:\n%s", stdout.String())
 	}
 }
 
@@ -142,7 +145,7 @@ func TestTemplateRenderUnreadableOverrideFails(t *testing.T) {
 	if err := root.Execute(); err == nil {
 		t.Fatalf("expected an error for an unreadable override, got success with stdout:\n%s", stdout.String())
 	}
-	if strings.Contains(stdout.String(), "Problem Statement") {
+	if strings.Contains(stdout.String(), "problem_statement") {
 		t.Errorf("expected no output from the embedded default when the override is unreadable, got:\n%s", stdout.String())
 	}
 }
@@ -183,6 +186,47 @@ func TestTemplateRenderSkeletonRejectsMalformedOverride(t *testing.T) {
 		t.Errorf("Code = %d, want 1", cliErr.Code)
 	}
 	for _, w := range []string{"project override", "title_prefix"} {
+		if !strings.Contains(cliErr.Msg, w) {
+			t.Errorf("message %q missing %q", cliErr.Msg, w)
+		}
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("want no stdout, got %q", stdout.String())
+	}
+}
+
+// TestTemplateRenderRemovedFlagsAreUnknown verifies that the JSON input path
+// is gone: --sections and --meta are unknown flags, a usage error (exit 1).
+func TestTemplateRenderRemovedFlagsAreUnknown(t *testing.T) {
+	for _, flag := range []string{"--sections", "--meta"} {
+		t.Run(flag, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+			root.SetArgs([]string{"template", "render", "impl-plan", flag, "x.json"})
+			err := root.Execute()
+			if err == nil {
+				t.Fatalf("%s must be an unknown flag, got success with stdout:\n%s", flag, stdout.String())
+			}
+			if !strings.Contains(err.Error(), "unknown flag") || !strings.Contains(err.Error(), flag) {
+				t.Errorf("want an unknown-flag error naming %s, got: %v", flag, err)
+			}
+		})
+	}
+}
+
+// TestTemplateRenderWithoutSkeletonSaysWhatToDo verifies that, with the JSON
+// path gone and draft input not yet available, a plain render fails with a
+// message naming the supported call rather than printing nothing.
+func TestTemplateRenderWithoutSkeletonSaysWhatToDo(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"template", "render", "impl-plan"})
+	err := root.Execute()
+	var cliErr *cli.CLIError
+	if !errors.As(err, &cliErr) || cliErr.Code != 1 {
+		t.Fatalf("want a CLIError with code 1, got %T: %v", err, err)
+	}
+	for _, w := range []string{"--skeleton", "impl-plan"} {
 		if !strings.Contains(cliErr.Msg, w) {
 			t.Errorf("message %q missing %q", cliErr.Msg, w)
 		}

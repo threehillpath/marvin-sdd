@@ -840,3 +840,30 @@ func TestCheckUnclosedRawHTMLBlockIsError(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckSetextHeadingIsError(t *testing.T) {
+	// guardCase's line is the text line that turns into a heading.
+	guardCase(t, "ok\n\nTitle text\n---\nmore", 3, `"Title text"`, "---", "horizontal rule", "###")
+	guardCase(t, "Big title\n=====", 1, `"Big title"`, "=====", "###")
+	guardCase(t, "first\nsecond\n--", 2, "--")
+
+	for name, ok := range map[string]string{
+		"hr after blank line":          "text\n\n---\nmore",
+		"hr at start":                  "---\ntext",
+		"fenced underline":             "```\nTitle\n---\n```",
+		"equals after blank":           "text\n\n===\n",
+		"list item then hr":            "- item\n---",
+		"quote then hr":                "> quote\n---",
+		"heading then hr":              "### H\n---",
+		"hr then hr":                   "---\n---",
+		"table delimiter":              "| a | b |\n|---|---|",
+		"four-space code":              "    code\n---",
+		"mixed chars not an underline": "text\n-=-",
+	} {
+		m := phaseMap()
+		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
+		if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
+			t.Errorf("%s: content %q: want no findings:\n%s", name, ok, res.Format())
+		}
+	}
+}

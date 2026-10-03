@@ -621,3 +621,40 @@ func TestCheckRejectsSchemaNotFromLoadSchema(t *testing.T) {
 	res := tmpl.Check(sc, builtIn, phaseMap())
 	wantOne(t, res, tmpl.SeverityError, "draft", "LoadSchema", "Schema")
 }
+
+func TestCheckEmptyNamedEntryWithNoNameOrContent(t *testing.T) {
+	entry := []tmpl.Entry{{Name: "", Content: "", Line: 12}}
+
+	m := implPlanMap()
+	m.Sections["component"] = entry
+	res := check(t, "impl-plan", m)
+	var sawEmpty bool
+	for _, f := range res.Findings {
+		if f.Location != "section:component" {
+			continue
+		}
+		if strings.Contains(f.Message, "- |") {
+			t.Errorf("named section must never mention \"- |\": %s", f.Message)
+		}
+		if strings.Contains(f.Message, "is empty") {
+			sawEmpty = true
+			for _, w := range []string{"content: |", "name:"} {
+				if !strings.Contains(f.Message, w) {
+					t.Errorf("empty finding missing %q: %s", w, f.Message)
+				}
+			}
+		}
+	}
+	if !sawEmpty {
+		t.Fatalf("want an empty-entry finding:\n%s", res.Format())
+	}
+
+	m = mdImplPlanMap()
+	m.Sections["component"] = []tmpl.Entry{{Name: "", Content: "", Line: 12, Number: 1}}
+	res = check(t, "impl-plan", m)
+	for _, f := range res.Findings {
+		if strings.Contains(f.Message, "<Component or Layer Name>") {
+			t.Errorf("placeholder heading leaked: %s", f.Message)
+		}
+	}
+}

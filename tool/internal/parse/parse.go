@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"threehillpath.com/marvin-sdd/tool/internal/names"
 )
 
 // Kind distinguishes an arch plan from an impl plan or phase.
@@ -141,4 +142,15 @@ func PhaseListFromComment(comment string) ([]int, bool) {
 		return nil, false
 	}
 	return nums, true
+}
+
+// Classify classifies a title by its leading bracket token. The bool is the
+// only "not found" signal: names.Kind's zero value is Arch.
+func Classify(title string) (names.Kind, bool) {
+	return names.Arch, false
+}
+
+// TaskIdent returns the task number from a leading [TASK-XXXXX] bracket.
+func TaskIdent(title string) (int, bool) {
+	return 0, false
 }

@@ -18,6 +18,8 @@ type draftLoader struct {
 	sc       *Schema
 	m        *SectionMap
 	findings []Finding
+	lines    []string            // raw draft lines, to locate head and foot comments
+	handled  map[*yaml.Node]bool // nodes whose line comment already has a finding
 }
 
 func (l *draftLoader) fail(line int, format string, args ...any) {
@@ -32,7 +34,7 @@ func LoadDraft(sc *Schema, data []byte) (*SectionMap, []Finding) {
 		Source:   SourceYAML,
 		Metadata: map[string]Field{},
 		Sections: map[string][]Entry{},
-	}}
+	}, lines: strings.Split(string(data), "\n"), handled: map[*yaml.Node]bool{}}
 	// Drafts never use document markers: a column-0 "---" or "..." ends the
 	// open block and starts a document the loader would drop.
 	for i, line := range strings.Split(string(data), "\n") {
@@ -67,6 +69,7 @@ func LoadDraft(sc *Schema, data []byte) (*SectionMap, []Finding) {
 		return nil, l.findings
 	}
 	l.walkRoot(root)
+	l.comments(&doc)
 	if len(l.findings) > 0 {
 		return nil, l.findings
 	}
@@ -231,6 +234,7 @@ func (l *draftLoader) text(kv pair, subject string) string {
 		return ""
 	}
 	if c, plain := cutComment(kv); c != "" {
+		l.handled[kv.key], l.handled[kv.val] = true, true
 		if plain {
 			l.fail(kv.val.Line, "the value of %s was cut at %q: an unquoted \"#\" starts a YAML comment, so the rest of the value was dropped. Wrap the whole value in double quotes", subject, c)
 		} else {
@@ -249,6 +253,7 @@ func (l *draftLoader) content(kv pair, subject, how string) string {
 		return ""
 	}
 	if c, plain := cutComment(kv); c != "" {
+		l.handled[kv.key], l.handled[kv.val] = true, true
 		if plain {
 			l.fail(v.Line, "the content of %s was cut at %q: an unquoted \"#\" starts a YAML comment, so the rest of the content was dropped. Replace it with a | block: write \"%s\" and indent the whole text below it", subject, c, how)
 		} else {
@@ -414,4 +419,42 @@ func (l *draftLoader) expectMapping(n *yaml.Node, what, keys string) bool {
 	}
 	l.fail(n.Line, "%s must be a mapping of %s, but the draft gives %s", what, keys, kindName(n))
 	return false
+}
+
+// comments reports every YAML comment the parser attached to any node. Drafts
+// take no comments: YAML would drop the text, and a "#" line that was meant as
+// content (a markdown heading, an issue reference) would be lost silently.
+func (l *draftLoader) comments(n *yaml.Node) {
+	for _, c := range []struct{ text, kind string }{{n.HeadComment, "head"}, {n.LineComment, "line"}, {n.FootComment, "foot"}} {
+		if c.text == "" || (c.kind == "line" && l.handled[n]) {
+			continue
+		}
+		line := l.commentLine(c.text, n.Line)
+		text := strings.TrimSpace(strings.SplitN(c.text, "\n", 2)[0])
+		if c.kind == "line" {
+			l.fail(line, "%q is a YAML comment: YAML treats a # at this position as a comment and would drop it. Drafts do not take comments, so delete it", text)
+			continue
+		}
+		l.fail(line, "%q is a YAML comment: YAML treats a # at this position as a comment and would drop it. If the line is part of section content, indent it to the level of the | block's text. If it continues a title, metadata value or name, put the whole value in double quotes. Otherwise delete it: drafts don't take comments", text)
+	}
+	for _, c := range n.Content {
+		l.comments(c)
+	}
+}
+
+// commentLine finds the raw line, nearest to hint, that holds the first line
+// of a comment; 0 when it cannot be located.
+func (l *draftLoader) commentLine(comment string, hint int) int {
+	first := strings.TrimSpace(strings.SplitN(comment, "\n", 2)[0])
+	if hint < 1 {
+		hint = 1
+	}
+	for d := 0; d < len(l.lines); d++ {
+		for _, i := range []int{hint - d, hint + d} {
+			if i >= 1 && i <= len(l.lines) && strings.Contains(l.lines[i-1], first) {
+				return i
+			}
+		}
+	}
+	return 0
 }

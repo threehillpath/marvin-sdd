@@ -98,7 +98,7 @@ func TestLoadSchemaMalformedOverrides(t *testing.T) {
 		{"missing title_prefix, custom type", "type: my-type\nmetadata: [A]\n",
 			[]string{overrideOrigin, "title_prefix", "[PLAN-XXXXX-ARCH]", "[PLAN-XXXXX] ", "[PLAN-XXXXX-N]", "[TASK-XXXXX]"}},
 		{"missing type", "title_prefix: \"[TASK-XXXXX] <T>\"\n",
-			[]string{overrideOrigin, `"type"`, "Add", "arch-plan", "impl-plan", "impl-phase", "quick-task"}},
+			[]string{overrideOrigin, `"type"`, "Add", "type:", "file's base name", "arch-plan", "impl-plan", "impl-phase", "quick-task"}},
 		{"numbered section missing named", `type: impl-plan
 title_prefix: "[PLAN-XXXXX] <T>"
 sections:
@@ -121,6 +121,9 @@ sections:
 				if !strings.Contains(err.Error(), w) {
 					t.Errorf("error %q missing %q", err, w)
 				}
+			}
+			if c.name == "missing type" && strings.Contains(err.Error(), "type: quick-task") {
+				t.Errorf("error must not suggest a specific type: %q", err)
 			}
 		})
 	}

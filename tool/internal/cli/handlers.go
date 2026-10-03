@@ -261,7 +261,7 @@ func runParseTitle(stdout, stderr io.Writer, title string, jsonOut bool) error {
 		out.Suffix = ident.Suffix
 		out.Phase = ident.Phase
 		if classified {
-			out.Kind = kindName(kind)
+			out.Kind = kind.String()
 		}
 	}
 
@@ -283,19 +283,6 @@ func runParseTitle(stdout, stderr io.Writer, title string, jsonOut bool) error {
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(out)
-}
-
-// kindName is the lowercase output name of a classified title kind.
-func kindName(k names.Kind) string {
-	switch k {
-	case names.Arch:
-		return "arch"
-	case names.Impl:
-		return "impl"
-	case names.Phase:
-		return "phase"
-	}
-	return "task"
 }
 
 // runParsePhaseList reads stdin and extracts phase issue numbers. stdin is

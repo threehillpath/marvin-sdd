@@ -181,20 +181,18 @@ func newTemplateCmd(stdout, stderr io.Writer) *cobra.Command {
 		Short: "Render plan issue templates",
 	}
 
-	var metaFile, sectionsFile string
-	var skeleton bool
+	var skeleton, guidance bool
 
 	renderCmd := &cobra.Command{
 		Use:   "render <arch-plan|impl-plan|impl-phase>",
 		Short: "Render a plan template from schema",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runTemplateRender(stdout, stderr, args[0], metaFile, sectionsFile, skeleton)
+			return runTemplateRender(stdout, stderr, args[0], skeleton, guidance)
 		},
 	}
-	renderCmd.Flags().StringVar(&metaFile, "meta", "", "Path to meta JSON file")
-	renderCmd.Flags().StringVar(&sectionsFile, "sections", "", "Path to sections JSON file")
-	renderCmd.Flags().BoolVar(&skeleton, "skeleton", false, "Output empty section headings without requiring content")
+	renderCmd.Flags().BoolVar(&skeleton, "skeleton", false, "Output an empty YAML draft for the schema")
+	renderCmd.Flags().BoolVar(&guidance, "guidance", false, "Output plain-text guidance for filling in a draft (exclusive with --skeleton)")
 
 	tmpl.AddCommand(renderCmd)
 	return tmpl

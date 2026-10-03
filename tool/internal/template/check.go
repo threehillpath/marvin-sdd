@@ -115,9 +115,11 @@ func (c *checker) checkTitle() {
 			c.fix("Set \"title:\" in the draft.", "Supply the issue title with --title."))
 		return
 	}
-	if strings.Contains(title, "\n") {
+	if strings.ContainsAny(title, "\r\n") {
 		c.add(SeverityError, "title", line, "title %q spans more than one line. Use a single line.", title)
 	}
+	c.checkRawHTML("title", line, fmt.Sprintf("the title %q", title), title,
+		c.fix("edit \"title:\" in the draft", "edit the issue title"))
 	kind, ok := parse.Classify(title)
 	if !ok {
 		c.add(SeverityError, "title", line, "title %q has no recognizable leading identifier. The schema expects a title like %q with the real numbers filled in (no XXXXX). Start the title with the identifier%s.",
@@ -246,7 +248,9 @@ func (c *checker) checkMetadata() {
 					fmt.Sprintf("Set \"**%s:**\" to a value.", key)))
 			continue
 		}
-		if strings.Contains(v, "\n") {
+		c.checkRawHTML(loc, f.Line, fmt.Sprintf("metadata value %q for %q", v, key), v,
+			c.fix(fmt.Sprintf("edit %q under \"metadata:\" in the draft", key), fmt.Sprintf("edit the \"**%s:**\" line", key)))
+		if strings.ContainsAny(v, "\r\n") {
 			c.add(SeverityError, loc, f.Line, "metadata value %q for %q spans more than one line. Use a single line.", v, key)
 		}
 	}
@@ -343,6 +347,15 @@ func (c *checker) checkSections() {
 				}
 				c.add(sev, loc, e.Line, "%s %s is empty. %s", word, what, c.emptyFix(sec, e))
 			}
+			if isNamed(sec) {
+				c.checkRawHTML(loc, e.Line, fmt.Sprintf("the name %q of an entry of numbered section %s", e.Name, label(sec)), e.Name,
+					c.fix(fmt.Sprintf("edit \"name:\" of that %q entry in the draft", sec.ID), "edit the heading text after the number"))
+			}
+			if isNamed(sec) && strings.ContainsAny(e.Name, "\r\n") {
+				c.add(SeverityError, loc, e.Line, "the name %q of an entry of numbered section %s contains a line break, so it would render as more than one heading. %s", e.Name, label(sec),
+					c.fix(fmt.Sprintf("Set \"name:\" of that %q entry to a single line of text.", sec.ID),
+						"Put the heading text on a single line."))
+			}
 			if isNamed(sec) && strings.TrimSpace(e.Name) == "" {
 				c.add(SeverityError, loc, e.Line, "an entry of numbered section %s has an empty name. The schema expects each entry to be named. %s", label(sec),
 					c.fix(fmt.Sprintf("Give every %q entry a non-empty \"name:\" in the draft.", sec.ID),
@@ -364,39 +377,178 @@ type openFence struct {
 	Line int    // one-based line the fence opens on
 }
 
-// scanFences walks body once, tracking CommonMark fences: an opening run of
+// setextHit is a paragraph line directly followed by a "===" or "---" line,
+// which Markdown renders as a heading.
+type setextHit struct {
+	Text      string // the line that becomes the heading
+	Line      int    // its one-based line
+	Underline string // the "===" or "---" line
+}
+
+// contentScan is what scanContent learns about a piece of section content.
+type contentScan struct {
+	Headings []Heading  // "## " headings outside fences
+	Fence    *openFence // fence left open at the end, if any
+	Setext   *setextHit // first line turned into a heading by an underline
+	HTML     *htmlHit   // first raw HTML construct outside code
+}
+
+// htmlHit is a banned raw HTML construct.
+type htmlHit struct {
+	Tag  string // as written, e.g. "<details>" or "<!--"
+	Line int    // one-based line within the scanned text
+}
+
+var (
+	setextRe = regexp.MustCompile(`^ {0,3}(?:=+|-+)[ \t]*$`)
+	// rawHTMLRe matches the constructs that can hide or swallow later
+	// sections: comments and the details, pre, script, style and textarea
+	// tags, opening or closing, in any case.
+	rawHTMLRe = regexp.MustCompile(`(?i)<!--|</?(?:details|pre|script|style|textarea)(?:>|[\s/]|$)`)
+)
+
+// maskCodeSpans returns text with every code span, delimiters included,
+// replaced by spaces (newlines kept), following CommonMark: a run of n
+// backticks closes at the next run of exactly n backticks, an unmatched run
+// is literal text, a backslash makes the next character literal outside code
+// spans (so "\\`" is not a delimiter), and spans may cross lines.
+func maskCodeSpans(text string) string {
+	b := []byte(text)
+	for i := 0; i < len(b); {
+		switch b[i] {
+		case '\\':
+			i += 2
+		case '`':
+			n := 0
+			for i+n < len(b) && b[i+n] == '`' {
+				n++
+			}
+			closeAt := -1
+			for j := i + n; j < len(b); {
+				if b[j] != '`' {
+					j++
+					continue
+				}
+				m := 0
+				for j+m < len(b) && b[j+m] == '`' {
+					m++
+				}
+				if m == n {
+					closeAt = j
+					break
+				}
+				j += m
+			}
+			if closeAt < 0 {
+				i += n
+				continue
+			}
+			for k := i; k < closeAt+n; k++ {
+				if b[k] != '\n' {
+					b[k] = ' '
+				}
+			}
+			i = closeAt + n
+		default:
+			i++
+		}
+	}
+	return string(b)
+}
+
+// rawHTMLAt returns the first banned raw HTML construct in text (which may
+// span lines of one paragraph) outside code spans, with its closing ">" when
+// it follows directly, and its byte offset.
+func rawHTMLAt(text string) (tag string, off int, ok bool) {
+	masked := maskCodeSpans(text)
+	loc := rawHTMLRe.FindStringIndex(masked)
+	if loc == nil {
+		return "", 0, false
+	}
+	return strings.TrimRight(masked[loc[0]:loc[1]], " \t/"), loc[0], true
+}
+
+// rawHTML is rawHTMLAt for a single-line field.
+func rawHTML(text string) (string, bool) {
+	tag, _, ok := rawHTMLAt(text)
+	return tag, ok
+}
+
+// scanContent walks body once, tracking CommonMark fences: an opening run of
 // three or more backticks or tildes (up to three spaces of indent) closes only
 // on a run of the same character that is at least as long and carries nothing
-// but whitespace after it. It returns the "## " headings outside fences and,
-// when the text ends inside a fence, that fence.
-func scanFences(body string) ([]Heading, *openFence) {
-	var out []Heading
-	var open *openFence
+// but whitespace after it. Outside fences it records the "## " headings, the
+// first underline directly below a non-blank line, and the first raw HTML
+// construct outside inline code.
+func scanContent(body string) contentScan {
+	var out contentScan
 	var fenceCh byte
 	fenceLen := 0
+	prevText, prevNo := "", 0 // non-blank line directly above
+	var para []string         // consecutive non-blank lines outside fences
+	paraStart := 0            // one-based line of para[0]
+	flush := func() {
+		if len(para) > 0 && out.HTML == nil {
+			if tag, off, ok := rawHTMLAt(strings.Join(para, "\n")); ok {
+				out.HTML = &htmlHit{Tag: tag, Line: paraStart + strings.Count(strings.Join(para, "\n")[:off], "\n")}
+			}
+		}
+		para = nil
+	}
 	for i, line := range strings.Split(body, "\n") {
 		line = strings.TrimRight(line, "\r")
+		prev, prevLineNo := prevText, prevNo
+		prevText = ""
 		if m := fenceRe.FindStringSubmatch(line); m != nil {
 			run, rest := m[1], m[2]
 			switch {
 			case fenceCh == 0:
 				if run[0] != '`' || !strings.Contains(rest, "`") {
+					flush()
 					fenceCh, fenceLen = run[0], len(run)
-					open = &openFence{Run: run, Line: i + 1}
+					out.Fence = &openFence{Run: run, Line: i + 1}
 				}
 				continue
 			case run[0] == fenceCh && len(run) >= fenceLen && strings.TrimSpace(rest) == "":
 				fenceCh, fenceLen = 0, 0
-				open = nil
+				out.Fence = nil
 				continue
 			}
 		}
-		if fenceCh == 0 && h2Re.MatchString(line) {
+		if fenceCh != 0 {
+			continue
+		}
+		if h2Re.MatchString(line) {
 			text := strings.TrimSpace(strings.TrimLeft(line, " ")[2:])
-			out = append(out, Heading{Text: text, Line: i + 1})
+			out.Headings = append(out.Headings, Heading{Text: text, Line: i + 1})
+		}
+		if strings.TrimSpace(line) == "" {
+			flush()
+		} else {
+			if len(para) == 0 {
+				paraStart = i + 1
+			}
+			para = append(para, line)
+		}
+		// Conservative setext rule: an underline-shaped line directly after
+		// any non-blank line is reported, whatever that line contains.
+		if prev != "" && setextRe.MatchString(line) {
+			if out.Setext == nil {
+				out.Setext = &setextHit{Text: strings.TrimSpace(prev), Line: prevLineNo, Underline: strings.TrimSpace(line)}
+			}
+		} else if strings.TrimSpace(line) != "" {
+			prevText, prevNo = line, i+1
 		}
 	}
-	return out, open
+	flush()
+	return out
+}
+
+// scanFences returns the "## " headings outside fences and, when the text
+// ends inside a fence, that fence.
+func scanFences(body string) ([]Heading, *openFence) {
+	s := scanContent(body)
+	return s.Headings, s.Fence
 }
 
 // FindH2Lines returns, for each "## " heading line of body that is outside a
@@ -409,25 +561,64 @@ func FindH2Lines(body string) []Heading {
 	return hs
 }
 
+// contentLine returns the trimmed text of the one-based line n of content.
+func contentLine(content string, n int) string {
+	lines := strings.Split(content, "\n")
+	if n < 1 || n > len(lines) {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimRight(lines[n-1], "\r"))
+}
+
 // checkContentStructure reports content that would break the document's
 // structure: a "## " heading outside a fence, which would become a new
 // section, and a fence that is never closed, which would swallow every later
 // section.
 func (c *checker) checkContentStructure(sec SchemaSection, e Entry) {
 	loc := "section:" + sec.ID
-	hs, open := scanFences(e.Content)
+	if norm := strings.ReplaceAll(e.Content, "\r\n", "\n"); strings.Contains(norm, "\r") {
+		n := strings.Count(norm[:strings.Index(norm, "\r")], "\n") + 1
+		c.add(SeverityError, loc, e.Line, "content of section %s has a lone carriage return on line %d of the section, which GitHub renders as a line break the structure checks cannot see (for example \"a\\r## X\" becomes a heading). Fix: replace the carriage return with a line break (or remove it), %s.",
+			label(sec), n, c.fix(fmt.Sprintf("inside the %q block", sec.ID), "under that heading"))
+	}
+	scan := scanContent(e.Content)
+	hs, open := scan.Headings, scan.Fence
+	where := fmt.Sprintf("inside the %q block", sec.ID)
+	if c.m.Source == SourceMarkdown {
+		where = "under that heading"
+	}
+	if h := scan.HTML; h != nil {
+		c.add(SeverityError, loc, e.Line, "content of section %s contains raw HTML %q on line %d of the section. Raw HTML could hide or swallow the sections after it when rendered, so drafts don't allow it. Wrap it in backticks as inline code (for example `<details>`) or remove it, %s.",
+			label(sec), h.Tag, h.Line, where)
+	}
 	if len(hs) > 0 {
-		c.add(SeverityError, loc, e.Line, "content of section %s contains the line %q, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), strings.TrimSpace("## "+hs[0].Text))
+		c.add(SeverityError, loc, e.Line, "content of section %s contains the heading %q on line %d of the section, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), contentLine(e.Content, hs[0].Line), hs[0].Line)
+	}
+	if h := scan.Setext; h != nil {
+		if strings.HasPrefix(h.Underline, "=") {
+			c.add(SeverityError, loc, e.Line, "content of section %s has the line %q on line %d of the section directly above the underline %q, which makes it a heading when rendered and would split the section. Remove the %q line, or write the heading as \"### %s\" %s.",
+				label(sec), h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
+		} else {
+			c.add(SeverityError, loc, e.Line, "content of section %s has the line %q on line %d of the section directly above the underline %q, which makes it a heading when rendered and would split the section. If you meant a horizontal rule, put a blank line before %q; otherwise write the heading as \"### %s\" or remove the underline %s.",
+				label(sec), h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
+		}
 	}
 	if open != nil {
 		ch := fmt.Sprintf("%q", string(open.Run[0]))
-		where := fmt.Sprintf("inside the %q block", sec.ID)
-		if c.m.Source == SourceMarkdown {
-			where = "under that heading"
-		}
 		c.add(SeverityError, loc, e.Line, "content of section %s opens a code fence %q on line %d of the section that is never closed, so every later section would render as code and be lost to the parser. Close it with a matching fence line (the same character, %s, at least %d long, nothing else on the line) %s.",
 			label(sec), open.Run, open.Line, ch, len(open.Run), where)
 	}
+}
+
+// checkRawHTML reports raw HTML in a single-line field (title, metadata
+// value, entry name). what names the field in the message and fix is the
+// path-specific place to change it.
+func (c *checker) checkRawHTML(loc string, line int, what, text, fix string) {
+	tag, ok := rawHTML(text)
+	if !ok {
+		return
+	}
+	c.add(SeverityError, loc, line, "%s contains raw HTML %q. Raw HTML could hide or swallow the sections after it when rendered, so drafts don't allow it. Wrap it in backticks as inline code (for example `<details>`) or remove it: %s.", what, tag, fix)
 }
 
 // checkMarkdownOnly applies the rules that only make sense for a markdown
@@ -452,6 +643,9 @@ func (c *checker) checkMarkdownOnly() {
 	}
 	sort.Strings(extra)
 	for _, key := range extra {
+		f := c.m.Metadata[key]
+		c.checkRawHTML("metadata:"+key, f.Line, fmt.Sprintf("metadata value %q for %q", strings.TrimSpace(f.Value), key), f.Value,
+			fmt.Sprintf("edit the \"**%s:**\" line, or remove it", key))
 		c.add(SeverityWarning, "metadata:"+key, c.m.Metadata[key].Line, "metadata key %q is not in schema %s. Remove the \"**%s:**\" line.", key, c.sc.Type, key)
 	}
 	c.checkOrder()
@@ -584,11 +778,7 @@ func (c *checker) checkNumbering() {
 		if it.e.Number == i+1 {
 			continue
 		}
-		heading := it.sec.Heading
-		if it.e.Name != "" {
-			heading = it.e.Name
-		}
-		c.add(SeverityWarning, "section:"+it.sec.ID, it.e.Line, "numbered heading \"## %d. %s\" breaks the sequence. The schema expects consecutive numbers from 1. Renumber it to \"## %d.\".", it.e.Number, heading, i+1)
+		c.add(SeverityWarning, "section:"+it.sec.ID, it.e.Line, "numbered heading %q breaks the sequence. The schema expects consecutive numbers from 1. Renumber it to \"## %d.\".", templateHeading(it.sec, it.e), i+1)
 		return
 	}
 }

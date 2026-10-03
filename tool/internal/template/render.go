@@ -28,12 +28,6 @@ func DefaultSchema(name string) ([]byte, bool) {
 	return data, true
 }
 
-// KV is an ordered metadata key-value pair.
-type KV struct {
-	Key   string
-	Value string
-}
-
 // SchemaSection mirrors the YAML section definition.
 type SchemaSection struct {
 	ID         string `yaml:"id"`
@@ -45,6 +39,9 @@ type SchemaSection struct {
 	// instance's heading text comes from content. It is a pointer so a
 	// missing field is distinguishable from an explicit false.
 	Named *bool `yaml:"named"`
+	// Guidance is how-to-fill prose; the Guidance function prints it as plain
+	// text (a skeleton carries no comments, because drafts take none).
+	Guidance string `yaml:"guidance"`
 }
 
 // Schema is the top-level YAML structure.
@@ -61,100 +58,186 @@ type Schema struct {
 	loaded bool
 }
 
-// Render assembles a plan issue body from:
-//   - schemaYAML: the schema's YAML bytes (from DefaultSchema or a project override)
-//   - meta: ordered key-value pairs for the bold metadata block
-//   - sections: map from section id → one or more content blocks
-//
-// Returns an error if a required section is absent, a non-repeatable section
-// has more than one block, or the schema YAML cannot be parsed.
-func Render(schemaYAML []byte, meta []KV, sections map[string][]string) (string, error) {
-	sc, err := LoadSchema("", schemaYAML)
-	if err != nil {
-		return "", err
-	}
-
-	// Validate required sections.
-	for _, sec := range sc.Sections {
-		if sec.Required {
-			if _, ok := sections[sec.ID]; !ok {
-				return "", fmt.Errorf("required section %q is missing", sec.ID)
-			}
+// HasErrors reports whether any finding is an error.
+func (r Result) HasErrors() bool {
+	for _, f := range r.Findings {
+		if f.Severity == SeverityError {
+			return true
 		}
 	}
-
-	var sb strings.Builder
-
-	// Metadata block: bold key-value pairs.
-	for _, kv := range meta {
-		fmt.Fprintf(&sb, "**%s:** %s\n", kv.Key, kv.Value)
-	}
-
-	// Running ordinal for numbered sections (components + verification_steps in impl-plan).
-	ordinal := 0
-
-	for _, sec := range sc.Sections {
-		blocks, supplied := sections[sec.ID]
-		if !supplied {
-			// Optional sections not supplied are silently omitted.
-			continue
-		}
-
-		if !sec.Repeatable {
-			if len(blocks) > 1 {
-				return "", fmt.Errorf("section %q is not repeatable but %d blocks were supplied", sec.ID, len(blocks))
-			}
-			// Plain (non-numbered, non-repeatable) section.
-			fmt.Fprintf(&sb, "\n## %s\n\n%s\n", sec.Heading, blocks[0])
-			continue
-		}
-
-		// Repeatable section.
-		for _, block := range blocks {
-			if sec.Numbered {
-				ordinal++
-				// First line of each block is the per-instance heading text;
-				// the schema heading is a placeholder and is not used here.
-				heading, body, _ := strings.Cut(block, "\n")
-				body = strings.TrimLeft(body, "\n")
-				if body == "" {
-					fmt.Fprintf(&sb, "\n## %d. %s\n", ordinal, heading)
-				} else {
-					fmt.Fprintf(&sb, "\n## %d. %s\n\n%s\n", ordinal, heading, body)
-				}
-			} else {
-				fmt.Fprintf(&sb, "\n## %s\n\n%s\n", sec.Heading, block)
-			}
-		}
-	}
-
-	return sb.String(), nil
+	return false
 }
 
-// Skeleton returns a minimal scaffold for schemaYAML: bold metadata key
-// placeholders followed by empty section headings. Unlike Render, it does not
-// validate required sections or accept section content.
-func Skeleton(schemaYAML []byte) (string, error) {
-	sc, err := LoadSchema("", schemaYAML)
-	if err != nil {
-		return "", err
+// Render assembles a plan issue body from a section map. It runs Check first
+// and refuses, returning no body, when the check reports any error; the
+// returned Result carries every finding, warnings included. Rendering applies
+// the schema's order and numbering whatever order the map was written in.
+//
+// Because a draft's content is data, Render also verifies the rendered body:
+// its "## " headings must be exactly the ones Render emitted, so no content
+// can add, hide or reshape a section.
+func Render(sc *Schema, origin string, m *SectionMap) (string, Result) {
+	res := Check(sc, origin, m)
+	if res.HasErrors() {
+		return "", res
 	}
 
 	var sb strings.Builder
-
-	// Metadata block: one placeholder line per key.
+	var origins []lineOrigin
+	var heads []emittedHeading
+	put := func(text string, o lineOrigin) {
+		sb.WriteString(text)
+		sb.WriteByte('\n')
+		origins = append(origins, o)
+	}
 	for _, key := range sc.Metadata {
-		fmt.Fprintf(&sb, "**%s:**\n", key)
+		put(fmt.Sprintf("**%s:** %s", key, strings.TrimSpace(m.Metadata[key].Value)),
+			lineOrigin{loc: "metadata:" + key, what: fmt.Sprintf("metadata value %q", key), line: m.Metadata[key].Line, where: fmt.Sprintf("edit %q under \"metadata:\"", key)})
 	}
 
-	ordinal := 0
-	for _, sec := range sc.Sections {
-		if sec.Numbered {
-			ordinal++
-			fmt.Fprintf(&sb, "\n## %d. %s\n", ordinal, sec.Heading)
-		} else {
-			fmt.Fprintf(&sb, "\n## %s\n", sec.Heading)
+	emit := func(sec SchemaSection, heading, content string, line int) {
+		o := lineOrigin{loc: "section:" + sec.ID, what: "section " + label(sec), line: line, where: fmt.Sprintf("inside the %q block", sec.ID)}
+		if m.Source == SourceMarkdown {
+			o.where = "under that heading"
+		}
+		put("", o)
+		heads = append(heads, emittedHeading{line: len(origins) + 1, text: heading})
+		put("## "+heading, o)
+		content = strings.TrimRight(content, " \t\r\n")
+		lead := 0
+		for strings.HasPrefix(content, "\n") {
+			content = content[1:]
+			lead++
+		}
+		if content == "" {
+			return
+		}
+		put("", o)
+		for i, cl := range strings.Split(content, "\n") {
+			co := o
+			co.content = lead + i + 1
+			put(strings.TrimRight(cl, "\r"), co)
 		}
 	}
-	return sb.String(), nil
+
+	// One running ordinal across all numbered sections.
+	ordinal := 0
+	for _, sec := range sc.Sections {
+		for _, e := range m.Sections[sec.ID] {
+			heading := sec.Heading
+			if sec.Numbered {
+				ordinal++
+				if isNamed(sec) {
+					heading = strings.TrimSpace(e.Name)
+				}
+				heading = fmt.Sprintf("%d. %s", ordinal, heading)
+			}
+			emit(sec, heading, e.Content, e.Line)
+		}
+	}
+
+	body := sb.String()
+	if fs := verifyBody(body, origins, heads); len(fs) > 0 {
+		res.Findings = append(res.Findings, fs...)
+		return "", res
+	}
+	return body, res
+}
+
+// Skeleton returns an empty YAML draft for sc: a double-quoted title
+// placeholder from title_prefix, every metadata key as "", and every section
+// key with its empty shape (an empty block, a list of blocks, or a list of
+// {name, content} entries). It contains no comments, because drafts take
+// none; Guidance prints the how-to-fill text separately. It is itself a
+// loadable draft; Check then reports what is still empty.
+func Skeleton(sc *Schema) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "title: %s\n", yamlQuote(sc.TitlePrefix))
+	sb.WriteString("metadata:\n")
+	for _, key := range sc.Metadata {
+		fmt.Fprintf(&sb, "  %s: \"\"\n", key)
+	}
+	sb.WriteString("sections:\n")
+	for _, sec := range sc.Sections {
+		switch {
+		case isNamed(sec):
+			fmt.Fprintf(&sb, "  %s:\n    - name: \"\"\n      content: |\n", sec.ID)
+		case sec.Repeatable:
+			fmt.Fprintf(&sb, "  %s:\n    - |\n", sec.ID)
+		default:
+			fmt.Fprintf(&sb, "  %s: |\n", sec.ID)
+		}
+	}
+	return sb.String()
+}
+
+// Guidance returns plain-text help for filling in a draft of sc: the rules
+// for writing a draft, then, per section in schema order, its heading,
+// whether it is required, repeatable, numbered or named, the draft key shape
+// and the schema's guidance text.
+func Guidance(sc *Schema) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "schema: %s\n\n", sc.Type)
+	sb.WriteString("Rules for writing a draft:\n")
+	sb.WriteString("- Keep the title and every metadata value in double quotes. Inside them, write \\\" for a quote and \\\\ for a backslash.\n")
+	sb.WriteString("- Write section content as | blocks, indenting every line at least as far as the block's first line.\n")
+	sb.WriteString("- Use ### or deeper for sub-headings in content, never # or ##, including inside list items and quotes: a # or ## line would add or break a section. Escape a literal # at the start of a line as \\#.\n")
+	sb.WriteString("- Write no # comments anywhere in the draft: YAML drops them, so a # line meant as content would be lost.\n")
+	sb.WriteString("- Never put --- or ... at column 0: they are YAML document markers. Indent a horizontal rule to the block's level.\n")
+	sb.WriteString("- Leave a blank line before a --- horizontal rule, and never put --- or === directly under a line of text: markdown reads that as a heading underline.\n")
+	sb.WriteString("- Close every code fence in the section that opens it: an open fence swallows the sections after it.\n")
+	sb.WriteString("- Inside a list item, indent the opening fence, every code line and the closing fence at least as far as the opening fence: a less-indented line ends the item and leaves the fence open.\n")
+	sb.WriteString("- Don't start a line with an HTML tag, <? or <!, as in <div>, a tag alone on its line, <?php or <!DOCTYPE: markdown reads it as an HTML block that can swallow what follows.\n")
+	sb.WriteString("- Use no raw HTML (<!--, <details>, <pre>, <script>, <style>, <textarea>, opening or closing) in content, metadata values, names or the title. Put it in backticks as inline code.\n")
+	fmt.Fprintf(&sb, "\nMetadata keys (each required, one line): %s\n", strings.Join(sc.Metadata, ", "))
+	sb.WriteString("\nSections, in render order:\n")
+	for _, sec := range sc.Sections {
+		attrs := []string{"optional"}
+		if sec.Required {
+			attrs = []string{"required"}
+		}
+		if sec.Repeatable {
+			attrs = append(attrs, "repeatable")
+		}
+		if sec.Numbered {
+			attrs = append(attrs, "numbered")
+		}
+		if isNamed(sec) {
+			attrs = append(attrs, "named")
+		}
+		heading := strings.Trim(sec.Heading, "<>")
+		fmt.Fprintf(&sb, "\n%s (%s)\n", heading, strings.Join(attrs, ", "))
+		switch {
+		case isNamed(sec):
+			fmt.Fprintf(&sb, "  %s: a list of entries with name: and content: |; each name becomes the heading text\n", sec.ID)
+		case sec.Repeatable:
+			fmt.Fprintf(&sb, "  %s: a list of | blocks, each starting with - |\n", sec.ID)
+		default:
+			fmt.Fprintf(&sb, "  %s: a single | block\n", sec.ID)
+		}
+		for _, line := range wrapComment(sec.Guidance, 76) {
+			fmt.Fprintf(&sb, "  %s\n", line)
+		}
+	}
+	return sb.String()
+}
+
+// wrapComment folds text to lines of at most width characters.
+func wrapComment(text string, width int) []string {
+	var lines []string
+	line := ""
+	for _, w := range strings.Fields(text) {
+		if line != "" && len(line)+1+len(w) > width {
+			lines = append(lines, line)
+			line = ""
+		}
+		if line != "" {
+			line += " "
+		}
+		line += w
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
 }

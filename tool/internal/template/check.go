@@ -395,12 +395,7 @@ var (
 	rawOpenRe     = regexp.MustCompile(`(?i)^ {0,3}<(pre|script|style|textarea)(?:\s|>|$)`)
 	rawCloseRe    = regexp.MustCompile(`(?i)</(?:pre|script|style|textarea)>`)
 	setextRe      = regexp.MustCompile(`^ {0,3}(?:=+|-+)[ \t]*$`)
-	// nonParagraphStartRe matches lines that cannot be the text of a setext
-	// heading: indented code (four or more spaces or a tab), ATX headings,
-	// quotes, list items and HTML.
-	nonParagraphStartRe = regexp.MustCompile(`^(?: {4,}|\t|\s{0,3}(?:#|>|<|[-*+]\s|\d+[.)]\s))`)
-	listOrQuoteRe       = regexp.MustCompile(`^\s{0,3}(?:>|[-*+]\s|\d+[.)]\s)`)
-	inlineCodeRe        = regexp.MustCompile("`[^`]*`")
+	inlineCodeRe  = regexp.MustCompile("`[^`]*`")
 )
 
 // scanContent walks body once, tracking CommonMark fences: an opening run of
@@ -415,7 +410,6 @@ func scanContent(body string) contentScan {
 	inComment := false
 	var details []int         // lines of <details> not yet closed
 	prevText, prevNo := "", 0 // candidate paragraph line directly above
-	inQuoteOrList := false    // until the next blank line, lines are lazy continuations
 	for i, line := range strings.Split(body, "\n") {
 		line = strings.TrimRight(line, "\r")
 		prev, prevLineNo := prevText, prevNo
@@ -469,16 +463,13 @@ func scanContent(body string) contentScan {
 			}
 			continue
 		}
-		switch {
-		case strings.TrimSpace(line) == "":
-			inQuoteOrList = false
-		case setextRe.MatchString(line) && prev != "":
+		// Conservative setext rule: an underline-shaped line directly after
+		// any non-blank line is reported, whatever that line contains.
+		if prev != "" && setextRe.MatchString(line) {
 			if out.Setext == nil {
 				out.Setext = &setextHit{Text: strings.TrimSpace(prev), Line: prevLineNo, Underline: strings.TrimSpace(line)}
 			}
-		case nonParagraphStartRe.MatchString(line):
-			inQuoteOrList = listOrQuoteRe.MatchString(line)
-		case !inQuoteOrList && !setextRe.MatchString(line):
+		} else if strings.TrimSpace(line) != "" {
 			prevText, prevNo = line, i+1
 		}
 		for _, m := range detailsTagRe.FindAllStringSubmatch(inlineCodeRe.ReplaceAllString(line, ""), -1) {
@@ -541,8 +532,13 @@ func (c *checker) checkContentStructure(sec SchemaSection, e Entry) {
 		c.add(SeverityError, loc, e.Line, "content of section %s contains the heading %q on line %d of the section, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), contentLine(e.Content, hs[0].Line), hs[0].Line)
 	}
 	if h := scan.Setext; h != nil {
-		c.add(SeverityError, loc, e.Line, "content of section %s has the line %q on line %d of the section directly above the underline %q, which makes it a heading when rendered and would split the section. If you meant a horizontal rule, put a blank line before %q; otherwise remove the underline, or write the heading as \"### %s\" %s.",
-			label(sec), h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
+		if strings.HasPrefix(h.Underline, "=") {
+			c.add(SeverityError, loc, e.Line, "content of section %s has the line %q on line %d of the section directly above the underline %q, which makes it a heading when rendered and would split the section. Remove the %q line, or write the heading as \"### %s\" %s.",
+				label(sec), h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
+		} else {
+			c.add(SeverityError, loc, e.Line, "content of section %s has the line %q on line %d of the section directly above the underline %q, which makes it a heading when rendered and would split the section. If you meant a horizontal rule, put a blank line before %q; otherwise write the heading as \"### %s\" or remove the underline %s.",
+				label(sec), h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
+		}
 	}
 	if b := scan.Raw; b != nil {
 		c.add(SeverityError, loc, e.Line, "content of section %s opens a %q block on line %d of the section that is never closed by %q, so every later section would render as part of that block. Add a %q line %s, or remove the block.",

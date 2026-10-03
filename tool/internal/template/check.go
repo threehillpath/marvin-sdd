@@ -3,8 +3,10 @@ package template
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
+	"threehillpath.com/marvin-sdd/tool/internal/names"
 	"threehillpath.com/marvin-sdd/tool/internal/parse"
 )
 
@@ -87,6 +89,7 @@ func Check(sc *Schema, origin string, m *SectionMap) Result {
 	c := &checker{sc: sc, m: m, res: Result{Type: sc.Type, Origin: origin}}
 	c.checkTitle()
 	c.checkMetadata()
+	c.checkCrossRefs()
 	c.checkSections()
 	return c.res
 }
@@ -133,6 +136,75 @@ func article(kind string) string {
 		return "an " + kind
 	}
 	return "a " + kind
+}
+
+var (
+	issueRefRe = regexp.MustCompile(`^#\d+`)
+	planIdRe   = regexp.MustCompile(`PLAN-(\d{5})`)
+)
+
+// titleNumber returns the plan or task number of the title's leading
+// identifier, and whether the title is a task title. ok is false when the
+// title does not classify.
+func (c *checker) titleNumber() (n int, task, ok bool) {
+	title := strings.TrimSpace(c.m.Title)
+	kind, found := parse.Classify(title)
+	if !found {
+		return 0, false, false
+	}
+	tok := leadingBracket.FindString(title)
+	if kind == names.Task {
+		n, ok = parse.TaskIdent(tok)
+		return n, true, ok
+	}
+	id, ok := parse.PlanIdent(tok)
+	return id.Plan, false, ok
+}
+
+// checkCrossRefs verifies metadata keys that must agree with the title. The
+// checks are keyed by key name so project overrides that keep the names
+// inherit them.
+func (c *checker) checkCrossRefs() {
+	n, task, ok := c.titleNumber()
+	if !ok {
+		return
+	}
+	title := strings.TrimSpace(c.m.Title)
+	for _, key := range c.sc.Metadata {
+		f, present := c.m.Metadata[key]
+		v := strings.TrimSpace(f.Value)
+		if !present || v == "" {
+			continue
+		}
+		loc := "metadata:" + key
+		setFix := fmt.Sprintf("Set %q to %%s, or fix the title.", key)
+		switch key {
+		case "Plan Number", "Task Number":
+			if (key == "Task Number") != task {
+				continue // title family differs; the title kind check reports it
+			}
+			want := names.PlanNumber(n)
+			if task {
+				want = names.TaskNumber(n)
+			}
+			if v != want {
+				c.add(SeverityError, loc, f.Line, "value %q does not match the title's %s %s (title %q). "+setFix, v, strings.ToLower(key), want, title, fmt.Sprintf("%q", want))
+			}
+		case "Source Issue", "Architecture Plan", "Implementation Plan":
+			if !issueRefRe.MatchString(v) {
+				c.add(SeverityError, loc, f.Line, "value %q does not begin with an issue reference. The schema expects \"#<n>\", optionally followed by text like \"#56 ([PLAN-00041-ARCH])\". Set %q to start with the issue number.", v, key)
+				continue
+			}
+			if task {
+				continue
+			}
+			if m := planIdRe.FindStringSubmatch(v[len(issueRefRe.FindString(v)):]); m != nil {
+				if got, _ := strconv.Atoi(m[1]); got != n {
+					c.add(SeverityError, loc, f.Line, "value %q names plan %s, but the title's plan number is %s. "+setFix, v, m[0], names.PlanNumber(n), fmt.Sprintf("a reference to %s", names.PlanNumber(n)))
+				}
+			}
+		}
+	}
 }
 
 // fix returns the fix text for the input path m came from.

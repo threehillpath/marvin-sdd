@@ -240,20 +240,91 @@ func (c *checker) checkMetadata() {
 	}
 }
 
+// isNamed reports whether sec is a numbered section whose entries carry
+// their own heading text.
+func isNamed(sec SchemaSection) bool {
+	return sec.Numbered && sec.Named != nil && *sec.Named
+}
+
+// label describes a section in a message: its quoted heading, or, for a named
+// section whose heading is only a placeholder, its quoted id.
+func label(sec SchemaSection) string {
+	if isNamed(sec) {
+		return fmt.Sprintf("%q", sec.ID)
+	}
+	return fmt.Sprintf("%q", sec.Heading)
+}
+
+// missingFix returns the fix for a missing section, shaped by the section's
+// kind and the input path.
+func (c *checker) missingFix(sec SchemaSection) string {
+	var y, md string
+	switch {
+	case isNamed(sec):
+		y = fmt.Sprintf("Add %q under \"sections:\" in the draft as a list of entries, each with \"name:\" and \"content: |\".", sec.ID+":")
+		md = "Add one or more headings like \"## <n>. <Name>\", where <Name> is the entry's own name and <n> continues the consecutive numbering."
+	case sec.Repeatable && sec.Numbered:
+		y = fmt.Sprintf("Add %q under \"sections:\" in the draft as a list of blocks, each starting with \"- |\".", sec.ID+":")
+		md = fmt.Sprintf("Add one or more headings like \"## <n>. %s\" with content, where <n> continues the consecutive numbering.", sec.Heading)
+	case sec.Repeatable:
+		y = fmt.Sprintf("Add %q under \"sections:\" in the draft as a list of blocks, each starting with \"- |\".", sec.ID+":")
+		md = fmt.Sprintf("Add one or more \"## %s\" headings with content.", sec.Heading)
+	case sec.Numbered:
+		y = fmt.Sprintf("Add a %q block under \"sections:\" in the draft.", sec.ID+": |")
+		md = fmt.Sprintf("Add a \"## <n>. %s\" heading with content.", sec.Heading)
+	default:
+		y = fmt.Sprintf("Add a %q block under \"sections:\" in the draft.", sec.ID+": |")
+		md = fmt.Sprintf("Add a \"## %s\" heading with content.", sec.Heading)
+	}
+	return c.fix(y, md)
+}
+
+// emptyFix returns the fix for an empty entry; optional sections may also be
+// removed.
+func (c *checker) emptyFix(sec SchemaSection, e Entry) string {
+	var y, md string
+	name := strings.TrimSpace(e.Name)
+	switch {
+	case isNamed(sec) && name != "":
+		y = fmt.Sprintf("Fill \"content: |\" of the entry named %q in %q with content", name, sec.ID)
+		num := "<n>"
+		if e.Number > 0 {
+			num = strconv.Itoa(e.Number)
+		}
+		md = fmt.Sprintf("Fill the \"## %s. %s\" section with content", num, name)
+	case sec.Repeatable:
+		y = fmt.Sprintf("Fill the empty \"- |\" block in %q with content", sec.ID)
+		heading := "## " + sec.Heading
+		if sec.Numbered {
+			heading = "## <n>. " + sec.Heading
+			if e.Number > 0 {
+				heading = fmt.Sprintf("## %d. %s", e.Number, sec.Heading)
+			}
+		}
+		md = fmt.Sprintf("Fill the %q section with content", heading)
+	default:
+		y = fmt.Sprintf("Fill the %q block in the draft with content", sec.ID)
+		md = fmt.Sprintf("Fill the \"## %s\" section with content", sec.Heading)
+	}
+	fix := c.fix(y, md)
+	if !sec.Required {
+		fix += ", or remove it"
+	}
+	return fix + "."
+}
+
 func (c *checker) checkSections() {
 	for _, sec := range c.sc.Sections {
 		loc := "section:" + sec.ID
 		entries := c.m.Sections[sec.ID]
 		if len(entries) == 0 {
 			if sec.Required {
-				c.add(SeverityError, loc, 0, "required section %q is missing. %s", sec.Heading,
-					c.fix(fmt.Sprintf("Add a %q block under \"sections:\" in the draft.", sec.ID+": |"),
-						fmt.Sprintf("Add a \"## %s\" heading with content.", sec.Heading)))
+				c.add(SeverityError, loc, 0, "required section %s is missing. %s", label(sec), c.missingFix(sec))
 			}
 			continue
 		}
 		if !sec.Repeatable && len(entries) > 1 {
-			c.add(SeverityError, loc, entries[1].Line, "section %q is not repeatable but has %d entries. Merge them into one.", sec.Heading, len(entries))
+			c.add(SeverityError, loc, entries[1].Line, "section %s is not repeatable but has %d entries. Merge them into one.", label(sec), len(entries))
 		}
 		for _, e := range entries {
 			if strings.TrimSpace(e.Content) == "" {
@@ -261,17 +332,19 @@ func (c *checker) checkSections() {
 				if sec.Required {
 					sev, word = SeverityError, "required"
 				}
-				c.add(sev, loc, e.Line, "%s section %q is empty. %s", word, sec.Heading,
-					c.fix(fmt.Sprintf("Fill the %q block in the draft with content, or remove it.", sec.ID),
-						fmt.Sprintf("Fill the \"## %s\" section with content, or remove it.", sec.Heading)))
+				what := "section " + label(sec)
+				if n := strings.TrimSpace(e.Name); isNamed(sec) && n != "" {
+					what = fmt.Sprintf("entry %q of section %s", n, label(sec))
+				}
+				c.add(sev, loc, e.Line, "%s %s is empty. %s", word, what, c.emptyFix(sec, e))
 			}
-			if sec.Numbered && sec.Named != nil && *sec.Named && strings.TrimSpace(e.Name) == "" {
-				c.add(SeverityError, loc, e.Line, "an entry of numbered section %q has an empty name. The schema expects each entry to be named. %s", sec.Heading,
-					c.fix(fmt.Sprintf("Give every %q entry a non-empty name in the draft.", sec.ID),
+			if isNamed(sec) && strings.TrimSpace(e.Name) == "" {
+				c.add(SeverityError, loc, e.Line, "an entry of numbered section %s has an empty name. The schema expects each entry to be named. %s", label(sec),
+					c.fix(fmt.Sprintf("Give every %q entry a non-empty \"name:\" in the draft.", sec.ID),
 						"Give the heading text after the number, like \"## 1. <Name>\"."))
 			}
 			if h, ok := fencedH2(e.Content); ok {
-				c.add(SeverityError, loc, e.Line, "content of section %q contains the line %q, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", sec.Heading, h)
+				c.add(SeverityError, loc, e.Line, "content of section %s contains the line %q, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), h)
 			}
 		}
 	}

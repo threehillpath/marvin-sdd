@@ -390,7 +390,8 @@ type contentScan struct {
 }
 
 var (
-	commentOpenRe = regexp.MustCompile(`^ {0,3}<!--`)
+	htmlStartRe   = regexp.MustCompile(`^ {0,3}<`)
+	commentSpanRe = regexp.MustCompile(`<!--.*?-->`)
 	detailsTagRe  = regexp.MustCompile(`(?i)<(/?)details(?:\s[^>]*)?>`)
 	rawOpenRe     = regexp.MustCompile(`(?i)^ {0,3}<(pre|script|style|textarea)(?:\s|>|$)`)
 	rawCloseRe    = regexp.MustCompile(`(?i)</(?:pre|script|style|textarea)>`)
@@ -443,12 +444,11 @@ func scanContent(body string) contentScan {
 			}
 			continue
 		}
-		if commentOpenRe.MatchString(line) {
-			rest := line[strings.Index(line, "<!--")+len("<!--"):]
-			if !strings.Contains(rest, "-->") {
-				inComment = true
-				out.Comment = &openBlock{Tag: "<!--", Line: i + 1}
-			}
+		// Complete comments and inline code cannot open or close a block.
+		clean := inlineCodeRe.ReplaceAllString(commentSpanRe.ReplaceAllString(line, ""), "")
+		if htmlStartRe.MatchString(line) && strings.Contains(clean, "<!--") {
+			inComment = true
+			out.Comment = &openBlock{Tag: "<!--", Line: i + 1}
 			continue
 		}
 		if out.Raw != nil {
@@ -472,7 +472,7 @@ func scanContent(body string) contentScan {
 		} else if strings.TrimSpace(line) != "" {
 			prevText, prevNo = line, i+1
 		}
-		for _, m := range detailsTagRe.FindAllStringSubmatch(inlineCodeRe.ReplaceAllString(line, ""), -1) {
+		for _, m := range detailsTagRe.FindAllStringSubmatch(clean, -1) {
 			if m[1] == "" {
 				details = append(details, i+1)
 			} else if len(details) > 0 {

@@ -84,3 +84,56 @@ func TestBuiltInSchemasDeriveExpectedKinds(t *testing.T) {
 		}
 	}
 }
+
+const overrideOrigin = "project override: /p/.claude/plan-workflow-templates/x.yml"
+
+func TestLoadSchemaMalformedOverrides(t *testing.T) {
+	cases := []struct {
+		name string
+		yaml string
+		want []string
+	}{
+		{"missing title_prefix", "type: quick-task\nmetadata: [A]\nsections: []\n",
+			[]string{overrideOrigin, "title_prefix", "Add"}},
+		{"numbered section missing named", `type: impl-plan
+title_prefix: "[PLAN-XXXXX] <T>"
+sections:
+  - id: component
+    heading: C
+    required: true
+    repeatable: true
+    numbered: true
+`, []string{overrideOrigin, `"component"`, `"named"`, "named: true", "named: false"}},
+		{"unclassifiable prefix", "type: x\ntitle_prefix: \"[WHAT-XXXXX] <T>\"\n",
+			[]string{overrideOrigin, "title_prefix", "[WHAT-XXXXX] <T>"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := tmpl.LoadSchema(overrideOrigin, []byte(c.yaml))
+			if err == nil {
+				t.Fatal("want malformed-schema error, got nil")
+			}
+			for _, w := range c.want {
+				if !strings.Contains(err.Error(), w) {
+					t.Errorf("error %q missing %q", err, w)
+				}
+			}
+		})
+	}
+}
+
+func TestBuiltInImplPlanNamedFlags(t *testing.T) {
+	sc := loadBuiltIn(t, "impl-plan")
+	got := map[string]bool{}
+	for _, s := range sc.Sections {
+		if s.Numbered {
+			if s.Named == nil {
+				t.Fatalf("section %s has no named", s.ID)
+			}
+			got[s.ID] = *s.Named
+		}
+	}
+	if len(got) != 2 || !got["component"] || got["verification_steps"] {
+		t.Errorf("named flags = %v, want component:true verification_steps:false", got)
+	}
+}

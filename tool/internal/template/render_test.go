@@ -357,13 +357,16 @@ func TestRenderDraftWithH2InContentIsRefused(t *testing.T) {
 	wantRefused(t, "impl-phase", m, "section:scope", `"## Sub"`, "line 3 of the section", "###")
 }
 
-// TestRenderNamedEntryNameCannotChangeStructure verifies the rendered-body
-// guard: an entry name with a line break would put a "## " line into the
-// body that Render did not mean to emit, so the render is refused.
+// TestRenderNamedEntryNameCannotChangeStructure verifies that an entry name
+// with a line break is refused, at its own line, by the check that Render runs.
 func TestRenderNamedEntryNameCannotChangeStructure(t *testing.T) {
 	m := implPlanMap()
 	m.Sections["component"] = []tmpl.Entry{{Name: "Foo\n## Injected", Content: "body", Line: 12}}
-	wantRefused(t, "impl-plan", m, "section:component", `"Injected"`, "rendered", "single line", "###")
+	wantRefused(t, "impl-plan", m, "section:component", `"Foo\n## Injected"`, "line break", "single line", `"component"`)
+	_, res := tmpl.Render(loadBuiltIn(t, "impl-plan"), builtIn, m)
+	if res.Findings[0].Line != 12 {
+		t.Errorf("line = %d, want 12", res.Findings[0].Line)
+	}
 }
 
 // TestRenderKeepsFencedHeadingsInContent verifies that sub-structure inside

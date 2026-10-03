@@ -919,3 +919,30 @@ func TestCheckHTMLGuardEdgeCases(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckLineBreaksInSingleLineFields(t *testing.T) {
+	t.Run("named entry name with newline", func(t *testing.T) {
+		m := implPlanMap()
+		m.Sections["component"] = []tmpl.Entry{{Name: "Foo\n## Injected", Content: "body", Line: 12}}
+		res := check(t, "impl-plan", m)
+		wantOne(t, res, tmpl.SeverityError, "section:component", `"Foo\n## Injected"`, "line break", "single line", `"name:"`)
+		if res.Findings[0].Line != 12 {
+			t.Errorf("line = %d, want 12", res.Findings[0].Line)
+		}
+	})
+	t.Run("name with bare CR on the markdown path", func(t *testing.T) {
+		m := mdImplPlanMap()
+		m.Sections["component"][0].Name = "First\r## one"
+		wantOne(t, check(t, "impl-plan", m), tmpl.SeverityError, "section:component", "line break", "single line")
+	})
+	t.Run("metadata value with bare CR", func(t *testing.T) {
+		m := phaseMap()
+		m.Metadata["Status"] = tmpl.Field{Value: "Up\r## Injected", Line: 4}
+		wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "metadata:Status", "more than one line", "single line")
+	})
+	t.Run("title with bare CR", func(t *testing.T) {
+		m := phaseMap()
+		m.Title = "[PLAN-00112-1] A\rB"
+		wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "title", "more than one line", "single line")
+	})
+}

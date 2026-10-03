@@ -376,9 +376,14 @@ type contentScan struct {
 	Headings []Heading  // "## " headings outside fences
 	Fence    *openFence // fence left open at the end, if any
 	Comment  *openBlock // block-level "<!--" never closed by "-->"
+	Details  *openBlock // outermost "<details>" never closed by "</details>"
 }
 
-var commentOpenRe = regexp.MustCompile(`^ {0,3}<!--`)
+var (
+	commentOpenRe = regexp.MustCompile(`^ {0,3}<!--`)
+	detailsTagRe  = regexp.MustCompile(`(?i)<(/?)details(?:\s[^>]*)?>`)
+	inlineCodeRe  = regexp.MustCompile("`[^`]*`")
+)
 
 // scanContent walks body once, tracking CommonMark fences: an opening run of
 // three or more backticks or tildes (up to three spaces of indent) closes only
@@ -390,6 +395,7 @@ func scanContent(body string) contentScan {
 	var fenceCh byte
 	fenceLen := 0
 	inComment := false
+	var details []int // lines of <details> not yet closed
 	for i, line := range strings.Split(body, "\n") {
 		line = strings.TrimRight(line, "\r")
 		if m := fenceRe.FindStringSubmatch(line); m != nil {
@@ -414,19 +420,31 @@ func scanContent(body string) contentScan {
 			text := strings.TrimSpace(strings.TrimLeft(line, " ")[2:])
 			out.Headings = append(out.Headings, Heading{Text: text, Line: i + 1})
 		}
-		rest := line
-		if !inComment {
-			if !commentOpenRe.MatchString(line) {
-				continue
+		if inComment {
+			if strings.Contains(line, "-->") {
+				inComment = false
+				out.Comment = nil
 			}
-			rest = line[strings.Index(line, "<!--")+len("<!--"):]
-			out.Comment = &openBlock{Tag: "<!--", Line: i + 1}
-			inComment = true
+			continue
 		}
-		if strings.Contains(rest, "-->") {
-			inComment = false
-			out.Comment = nil
+		if commentOpenRe.MatchString(line) {
+			rest := line[strings.Index(line, "<!--")+len("<!--"):]
+			if !strings.Contains(rest, "-->") {
+				inComment = true
+				out.Comment = &openBlock{Tag: "<!--", Line: i + 1}
+			}
+			continue
 		}
+		for _, m := range detailsTagRe.FindAllStringSubmatch(inlineCodeRe.ReplaceAllString(line, ""), -1) {
+			if m[1] == "" {
+				details = append(details, i+1)
+			} else if len(details) > 0 {
+				details = details[:len(details)-1]
+			}
+		}
+	}
+	if len(details) > 0 {
+		out.Details = &openBlock{Tag: "<details>", Line: details[0]}
 	}
 	return out
 }
@@ -475,6 +493,10 @@ func (c *checker) checkContentStructure(sec SchemaSection, e Entry) {
 	}
 	if len(hs) > 0 {
 		c.add(SeverityError, loc, e.Line, "content of section %s contains the heading %q on line %d of the section, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), contentLine(e.Content, hs[0].Line), hs[0].Line)
+	}
+	if b := scan.Details; b != nil {
+		c.add(SeverityError, loc, e.Line, "content of section %s opens a %q block on line %d of the section that is never closed by \"</details>\", so every later section would render inside the collapsed block. Add a \"</details>\" line %s, or remove the block.",
+			label(sec), b.Tag, b.Line, where)
 	}
 	if open != nil {
 		ch := fmt.Sprintf("%q", string(open.Run[0]))

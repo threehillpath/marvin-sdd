@@ -892,6 +892,10 @@ func TestCheckRawHTMLIsBanned(t *testing.T) {
 		{"textarea", "t\n<textarea>\nx", 2, "<textarea>"},
 		{"comment after an inline tag, then details", "<kbd>x</kbd> <!-- a\n<details>\n-->", 1, "<!--"},
 		{"after a closed pre on the same line", "</pre> <!-- c", 1, "</pre>"},
+		{"unmatched triple backtick run before a real tag", "Use ``` for fences and <details> blocks, see `scanContent`.", 1, "<details>"},
+		{"escaped backticks do not make a code span", "ok\nUse \\`<details>\\` literally", 2, "<details>"},
+		{"a run of the wrong length does not match", "Use `` here <details> and ``` there", 1, "<details>"},
+		{"unmatched run does not carry over a blank line", "A ` tick\n\nthen <details> and ` tock", 3, "<details>"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -902,14 +906,17 @@ func TestCheckRawHTMLIsBanned(t *testing.T) {
 
 func TestCheckRawHTMLInCodeOrHarmlessTagsIsFine(t *testing.T) {
 	for name, ok := range map[string]string{
-		"inline code":         "Mention `<details>` and `<!--` in prose.",
-		"double backticks":    "Use `<pre>` here.",
-		"fenced block":        "```html\n<details>\n<!-- x -->\n<pre>\n```",
-		"kbd":                 "Press <kbd>Ctrl</kbd>+C.",
-		"autolink":            "See <https://example.com/docs> for more.",
-		"similar tag name":    "<prefix>x</prefix> and <stylesheet>",
-		"br":                  "line<br>break",
-		"a comment-like text": "<! not a comment",
+		"inline code":                        "Mention `<details>` and `<!--` in prose.",
+		"double backticks":                   "Use ``<details>`` here.",
+		"double backticks around a backtick": "Use `` `<pre>` `` here.",
+		"span that wraps lines":              "A `code span\nthat wraps <details> lines` ok",
+		"span over three lines":              "x ``a\nb <pre>\nc`` y",
+		"fenced block":                       "```html\n<details>\n<!-- x -->\n<pre>\n```",
+		"kbd":                                "Press <kbd>Ctrl</kbd>+C.",
+		"autolink":                           "See <https://example.com/docs> for more.",
+		"similar tag name":                   "<prefix>x</prefix> and <stylesheet>",
+		"br":                                 "line<br>break",
+		"a comment-like text":                "<! not a comment",
 	} {
 		m := phaseMap()
 		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}

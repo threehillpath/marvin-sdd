@@ -3,6 +3,7 @@ package template
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -298,7 +299,34 @@ func fencedH2(content string) (string, bool) {
 	return "", false
 }
 
-// Format renders the result as plain text.
+// Format renders the result as plain text: a "schema: <type> (<origin>)"
+// line, then one line per finding. Errors come before warnings; within each
+// group, findings with a known line come first in line order, then the rest
+// in the order they were found.
 func (r Result) Format() string {
-	return ""
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "schema: %s (%s)\n", r.Type, r.Origin)
+	for _, sev := range []Severity{SeverityError, SeverityWarning} {
+		var group []Finding
+		for _, f := range r.Findings {
+			if f.Severity == sev {
+				group = append(group, f)
+			}
+		}
+		sort.SliceStable(group, func(i, j int) bool {
+			a, b := group[i].Line, group[j].Line
+			if (a == 0) != (b == 0) {
+				return b == 0
+			}
+			return a < b
+		})
+		for _, f := range group {
+			if f.Line > 0 {
+				fmt.Fprintf(&sb, "%s %s line %d: %s\n", f.Severity, f.Location, f.Line, f.Message)
+			} else {
+				fmt.Fprintf(&sb, "%s %s: %s\n", f.Severity, f.Location, f.Message)
+			}
+		}
+	}
+	return sb.String()
 }

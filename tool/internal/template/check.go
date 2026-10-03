@@ -351,27 +351,47 @@ func (c *checker) checkSections() {
 	}
 }
 
-// fencedH2 returns the first "## " line outside a fenced code block.
-func fencedH2(content string) (string, bool) {
-	fence := ""
-	for _, line := range strings.Split(content, "\n") {
-		t := strings.TrimLeft(line, " ")
-		if len(line)-len(t) <= 3 {
-			for _, f := range []string{"```", "~~~"} {
-				if strings.HasPrefix(t, f) {
-					switch {
-					case fence == "":
-						fence = f
-					case fence == f:
-						fence = ""
-					}
-					break
+var (
+	fenceRe = regexp.MustCompile("^ {0,3}(`{3,}|~{3,})(.*)$")
+	h2Re    = regexp.MustCompile(`^ {0,3}##(\s|$)`)
+)
+
+// FindH2Lines returns, for each "## " heading line of body that is outside a
+// fenced code block, its zero-based line index and trimmed text. Fences follow
+// CommonMark: an opening run of three or more backticks or tildes (up to three
+// spaces of indent) closes only on a run of the same character that is at
+// least as long and carries nothing but whitespace after it. Markdown parsers
+// should use this to split a body into sections.
+func FindH2Lines(body string) []Heading {
+	var out []Heading
+	var fenceCh byte
+	fenceLen := 0
+	for i, line := range strings.Split(body, "\n") {
+		line = strings.TrimRight(line, "\r")
+		if m := fenceRe.FindStringSubmatch(line); m != nil {
+			run, rest := m[1], m[2]
+			switch {
+			case fenceCh == 0:
+				if run[0] != '`' || !strings.Contains(rest, "`") {
+					fenceCh, fenceLen = run[0], len(run)
 				}
+				continue
+			case run[0] == fenceCh && len(run) >= fenceLen && strings.TrimSpace(rest) == "":
+				fenceCh, fenceLen = 0, 0
+				continue
 			}
 		}
-		if fence == "" && strings.HasPrefix(line, "## ") {
-			return strings.TrimRight(line, " \t\r"), true
+		if fenceCh == 0 && h2Re.MatchString(line) {
+			out = append(out, Heading{Text: strings.TrimSpace(line), Line: i})
 		}
+	}
+	return out
+}
+
+// fencedH2 returns the first "## " line outside a fenced code block.
+func fencedH2(content string) (string, bool) {
+	if hs := FindH2Lines(content); len(hs) > 0 {
+		return hs[0].Text, true
 	}
 	return "", false
 }

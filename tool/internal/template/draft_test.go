@@ -492,14 +492,8 @@ func TestLoadDraftTagsAnchorsAndAliasesAreFindings(t *testing.T) {
 		wantDraftFinding(t, "impl-plan", d, 13, `"!Important"`, "YAML tag", "double quotes")
 	})
 	t.Run("alias", func(t *testing.T) {
-		d := patch(t, phaseDraft, `Status: "Upcoming"`, `Status: *ref`)
-		m, fs := loadDraft(t, "impl-phase", d)
-		if m != nil || len(fs) == 0 {
-			t.Fatalf("an alias must be a finding, got %+v", fs)
-		}
-		if !strings.Contains(fs[0].Message, `"*ref"`) && !strings.Contains(fs[0].Message, "alias") {
-			t.Errorf("message must name the alias: %s", fs[0].Message)
-		}
+		d := patch(t, phaseDraft, `Status: "Upcoming"`, `Status: *Claude is bold*`)
+		wantDraftFinding(t, "impl-phase", d, 3, "alias", `"Status: *Claude is bold*"`, "double quotes")
 	})
 	t.Run("anchor and alias together", func(t *testing.T) {
 		d := patch(t, phaseDraft, `Status: "Upcoming"`, "Status: &ref Up\n  Extra: *ref")

@@ -369,6 +369,10 @@ func (l *draftLoader) parseError(data []byte, err error) []Finding {
 			`"`+rest[:closeAt]+`"`, strings.TrimSpace(after), strings.TrimSpace(example))
 		return l.findings
 	}
+	if strings.Contains(text, "unknown anchor") {
+		l.fail(parserLine, "the draft uses a YAML alias (%s). Drafts don't use tags, anchors or aliases: if the * starts text, put the whole value in double quotes (use a | block for content); otherwise delete it", text)
+		return l.findings
+	}
 	if strings.Contains(text, "unknown escape character") || strings.Contains(text, "hexdecimal number") {
 		line := parserLine
 		if line == 0 {
@@ -426,6 +430,8 @@ func kindName(n *yaml.Node) string {
 		return "a mapping"
 	case n.Kind == yaml.SequenceNode:
 		return "a list"
+	case n.Kind == yaml.AliasNode:
+		return "an alias"
 	case n.Kind == yaml.ScalarNode && n.Tag == "!!null":
 		return "nothing"
 	default:
@@ -448,6 +454,7 @@ func (l *draftLoader) expectMapping(n *yaml.Node, what, keys string) bool {
 // and a "#" line that was meant as content (a markdown heading, an issue
 // reference) would be lost silently.
 func (l *draftLoader) comments(n *yaml.Node) {
+	l.markup(n)
 	for _, c := range []struct{ text, kind string }{{n.HeadComment, "head"}, {n.LineComment, "line"}, {n.FootComment, "foot"}} {
 		if c.text == "" || (c.kind == "line" && l.handled[n]) {
 			continue
@@ -573,4 +580,22 @@ func isHex(s string) bool {
 		}
 	}
 	return true
+}
+
+// markup reports a YAML anchor, alias or explicit tag on n: YAML applies them
+// silently, and a tag or anchor ahead of a value (!Important, &ref) is removed
+// from the text.
+func (l *draftLoader) markup(n *yaml.Node) {
+	var what, token string
+	switch {
+	case n.Kind == yaml.AliasNode:
+		what, token = "alias", "*"+n.Value
+	case n.Anchor != "":
+		what, token = "anchor", "&"+n.Anchor
+	case n.Style&yaml.TaggedStyle != 0:
+		what, token = "tag", n.Tag
+	default:
+		return
+	}
+	l.fail(n.Line, "%q is a YAML %s. Drafts don't use tags, anchors or aliases: YAML would drop or change the text. If it is part of a value, a name or section content, put the whole value in double quotes (use a | block for content); otherwise delete it", token, what)
 }

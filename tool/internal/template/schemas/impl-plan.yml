@@ -28,6 +28,9 @@ metadata:
 #   required   — whether the section must appear in a valid plan
 #   repeatable — whether the section may appear more than once
 #   numbered   — when true on a repeatable section, each instance is prefixed ## 1., ## 2., …
+#   named      — required on every numbered section. true: each instance's heading text
+#                comes from content (impl-plan Component); false: it renders the literal
+#                schema heading (impl-plan Verification Steps).
 #                Verification Steps continues the running ordinal from the last Component section.
 #   guidance   — how-to-fill prose co-located with the section definition
 sections:
@@ -46,6 +49,7 @@ sections:
     required: true
     repeatable: true
     numbered: true
+    named: true
     guidance: >
       One section per component or layer. Each must contain three sub-sections:
       **Specifications** (files to create/modify, key type names, function
@@ -58,6 +62,7 @@ sections:
     required: true
     repeatable: true
     numbered: true
+    named: false
     guidance: >
       One sub-section per scenario. Each contains a concrete command to run
       and an expected outcome comment. Continues the running ordinal from

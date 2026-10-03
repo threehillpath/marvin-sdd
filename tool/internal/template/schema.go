@@ -15,13 +15,25 @@ import (
 // came from ("built-in" or "project override: <path>") and prefixes every
 // error.
 func LoadSchema(origin string, data []byte) (*Schema, error) {
+	pre := ""
+	if origin != "" {
+		pre = origin + ": "
+	}
 	var sc Schema
 	if err := yaml.Unmarshal(data, &sc); err != nil {
-		return nil, fmt.Errorf("%s: parsing schema: %w", origin, err)
+		return nil, fmt.Errorf("%sparsing schema: %w", pre, err)
+	}
+	if strings.TrimSpace(sc.TitlePrefix) == "" {
+		return nil, fmt.Errorf("%smissing \"title_prefix\". Add a line like title_prefix: \"[PLAN-XXXXX] <Title>\" (XXXXX is the issue number, N a phase ordinal)", pre)
+	}
+	for _, sec := range sc.Sections {
+		if sec.Numbered && sec.Named == nil {
+			return nil, fmt.Errorf("%ssection %q is numbered but has no \"named\" field. Add \"named: true\" if headings come from content, else \"named: false\"", pre, sec.ID)
+		}
 	}
 	kind, err := expectedKind(sc.TitlePrefix)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", origin, err)
+		return nil, fmt.Errorf("%s%w", pre, err)
 	}
 	sc.ExpectedKind = kind
 	return &sc, nil

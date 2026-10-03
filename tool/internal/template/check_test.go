@@ -394,3 +394,74 @@ func TestResultFormatNoFindingsIsHeaderOnly(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+func TestCheckOptionalSectionEmptyIsWarning(t *testing.T) {
+	m := phaseMap()
+	m.Sections["tdd_entry_point"] = []tmpl.Entry{{Content: "", Line: 20}}
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityWarning, "section:tdd_entry_point", `"TDD Entry Point"`, "empty", "Fill")
+}
+
+func mdPhaseMap() *tmpl.SectionMap {
+	m := phaseMap()
+	m.Source = tmpl.SourceMarkdown
+	for i, id := range []string{"objective", "scope", "components", "verification", "success_criteria"} {
+		m.Sections[id] = []tmpl.Entry{{Content: "c", Line: 10 + i*5}}
+	}
+	return m
+}
+
+func TestCheckMarkdownConformant(t *testing.T) {
+	if res := check(t, "impl-phase", mdPhaseMap()); len(res.Findings) != 0 {
+		t.Fatalf("want no findings:\n%s", res.Format())
+	}
+}
+
+func TestCheckMarkdownUnknownHeadingWarns(t *testing.T) {
+	m := mdPhaseMap()
+	m.UnknownHeadings = []tmpl.Heading{{Text: "Extras", Line: 60}}
+	res := check(t, "impl-phase", m)
+	wantOne(t, res, tmpl.SeverityWarning, "draft", `"## Extras"`, "Rename")
+	if res.Findings[0].Line != 60 {
+		t.Errorf("line = %d, want 60", res.Findings[0].Line)
+	}
+}
+
+func TestCheckMarkdownUnknownMetadataWarns(t *testing.T) {
+	m := mdPhaseMap()
+	m.Metadata["Reviewer"] = tmpl.Field{Value: "x", Line: 5}
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityWarning, "metadata:Reviewer", `"Reviewer"`, "Remove")
+}
+
+func TestCheckMarkdownSectionsOutOfOrderWarns(t *testing.T) {
+	m := mdPhaseMap()
+	m.Sections["objective"] = []tmpl.Entry{{Content: "c", Line: 70}}
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityWarning, "section:objective", `"Objective"`, "Move")
+}
+
+func TestCheckYAMLOrderIsIrrelevant(t *testing.T) {
+	m := phaseMap()
+	m.Sections["objective"] = []tmpl.Entry{{Content: "c", Line: 70}}
+	m.Sections["scope"] = []tmpl.Entry{{Content: "c", Line: 5}}
+	if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
+		t.Fatalf("want no findings:\n%s", res.Format())
+	}
+}
+
+func TestCheckMarkdownNumberingNotConsecutiveWarns(t *testing.T) {
+	m := implPlanMap()
+	m.Source = tmpl.SourceMarkdown
+	m.Sections["component"] = []tmpl.Entry{{Name: "A", Content: "c", Line: 10, Number: 1}, {Name: "B", Content: "c", Line: 20, Number: 3}}
+	m.Sections["verification_steps"] = []tmpl.Entry{{Content: "c", Line: 30, Number: 4}}
+	for i, id := range []string{"scope", "design_notes", "success_criteria"} {
+		m.Sections[id] = []tmpl.Entry{{Content: "c", Line: 1 + i}}
+	}
+	// scope(1) < component(10) < verification(30) < design_notes(2)? keep schema order monotonic:
+	m.Sections["scope"][0].Line = 5
+	m.Sections["design_notes"][0].Line = 40
+	m.Sections["success_criteria"][0].Line = 50
+	res := check(t, "impl-plan", m)
+	wantOne(t, res, tmpl.SeverityWarning, "section:component", `"## 3. B"`, "## 2.")
+	if res.Findings[0].Line != 20 {
+		t.Errorf("line = %d, want 20", res.Findings[0].Line)
+	}
+}

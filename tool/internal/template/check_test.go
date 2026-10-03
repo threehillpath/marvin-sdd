@@ -352,3 +352,45 @@ func TestCheckReferenceTrailingTextAllowed(t *testing.T) {
 		t.Fatalf("want no findings:\n%s", res.Format())
 	}
 }
+
+func TestResultFormatMissingVerification(t *testing.T) {
+	m := phaseMap()
+	delete(m.Sections, "verification")
+	out := check(t, "impl-phase", m).Format()
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("want 2 lines, got:\n%s", out)
+	}
+	if lines[0] != "schema: impl-phase (built-in)" {
+		t.Errorf("first line = %q", lines[0])
+	}
+	if !strings.HasPrefix(lines[1], "error section:verification: ") {
+		t.Errorf("second line = %q", lines[1])
+	}
+}
+
+func TestResultFormatOrdersErrorsBeforeWarningsInSourceOrder(t *testing.T) {
+	r := tmpl.Result{Type: "impl-phase", Origin: "project override: /p/x.yml", Findings: []tmpl.Finding{
+		{Severity: tmpl.SeverityWarning, Location: "section:a", Line: 1, Message: "w1"},
+		{Severity: tmpl.SeverityError, Location: "section:b", Line: 7, Message: "e7"},
+		{Severity: tmpl.SeverityError, Location: "title", Line: 3, Message: "e3"},
+		{Severity: tmpl.SeverityWarning, Location: "metadata:K", Message: "w0"},
+		{Severity: tmpl.SeverityError, Location: "section:c", Message: "e0"},
+	}}
+	want := "schema: impl-phase (project override: /p/x.yml)\n" +
+		"error title line 3: e3\n" +
+		"error section:b line 7: e7\n" +
+		"error section:c: e0\n" +
+		"warning section:a line 1: w1\n" +
+		"warning metadata:K: w0\n"
+	if got := r.Format(); got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestResultFormatNoFindingsIsHeaderOnly(t *testing.T) {
+	r := tmpl.Result{Type: "quick-task", Origin: "built-in"}
+	if got := r.Format(); got != "schema: quick-task (built-in)\n" {
+		t.Errorf("got %q", got)
+	}
+}

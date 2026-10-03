@@ -477,3 +477,43 @@ func TestLoadDraftOneFindingPerCommentLine(t *testing.T) {
 		wantDraftFindingLines(t, "impl-phase", d, 8)
 	})
 }
+
+func TestLoadDraftTagsAnchorsAndAliasesAreFindings(t *testing.T) {
+	t.Run("tag on a metadata value", func(t *testing.T) {
+		d := patch(t, phaseDraft, `Status: "Upcoming"`, `Status: !draft Upcoming`)
+		wantDraftFinding(t, "impl-phase", d, 3, `"!draft"`, "YAML tag", "drop", "double quotes", "delete it")
+	})
+	t.Run("anchor on a metadata value", func(t *testing.T) {
+		d := patch(t, phaseDraft, `Status: "Upcoming"`, `Status: &draft Upcoming`)
+		wantDraftFinding(t, "impl-phase", d, 3, `"&draft"`, "YAML anchor", "double quotes", "delete it")
+	})
+	t.Run("tag on an entry name", func(t *testing.T) {
+		d := patch(t, planDraft, `name: "First one"`, `name: !Important first one`)
+		wantDraftFinding(t, "impl-plan", d, 13, `"!Important"`, "YAML tag", "double quotes")
+	})
+	t.Run("alias", func(t *testing.T) {
+		d := patch(t, phaseDraft, `Status: "Upcoming"`, `Status: *ref`)
+		m, fs := loadDraft(t, "impl-phase", d)
+		if m != nil || len(fs) == 0 {
+			t.Fatalf("an alias must be a finding, got %+v", fs)
+		}
+		if !strings.Contains(fs[0].Message, `"*ref"`) && !strings.Contains(fs[0].Message, "alias") {
+			t.Errorf("message must name the alias: %s", fs[0].Message)
+		}
+	})
+	t.Run("anchor and alias together", func(t *testing.T) {
+		d := patch(t, phaseDraft, `Status: "Upcoming"`, "Status: &ref Up\n  Extra: *ref")
+		m, fs := loadDraft(t, "impl-phase", d)
+		if m != nil {
+			t.Fatalf("must not yield a map")
+		}
+		var anchor, alias bool
+		for _, f := range fs {
+			anchor = anchor || (f.Line == 3 && strings.Contains(f.Message, "YAML anchor"))
+			alias = alias || (f.Line == 4 && strings.Contains(f.Message, "YAML alias") && strings.Contains(f.Message, `"*ref"`))
+		}
+		if !anchor || !alias {
+			t.Errorf("want an anchor finding at line 3 and an alias finding at line 4, got %+v", fs)
+		}
+	})
+}

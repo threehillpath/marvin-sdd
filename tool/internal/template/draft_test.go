@@ -327,3 +327,40 @@ func TestLoadDraftParserErrorsGetTargetedFixes(t *testing.T) {
 		wantDraftFinding(t, "impl-phase", d, 0, "not valid YAML", "did not find expected key")
 	})
 }
+
+func TestLoadDraftDocumentMarkersAreFindings(t *testing.T) {
+	const fix = "indent it"
+	t.Run("horizontal rule at column 0 inside content", func(t *testing.T) {
+		d := patch(t, phaseDraft, "    - two\n", "    - two\n---\n    - [ ] Second criterion\n")
+		wantDraftFinding(t, "impl-phase", d, 14, `"---"`, "document marker", "dropped", fix, "| block", "delete")
+	})
+	t.Run("document end marker", func(t *testing.T) {
+		d := patch(t, phaseDraft, "    - two\n", "    - two\n...\n")
+		wantDraftFinding(t, "impl-phase", d, 14, `"..."`, "document marker", fix, "delete")
+	})
+	t.Run("leading marker", func(t *testing.T) {
+		wantDraftFinding(t, "impl-phase", "---\n"+phaseDraft, 1, `"---"`, "document marker", "delete")
+	})
+	t.Run("trailing whitespace after the marker", func(t *testing.T) {
+		d := patch(t, phaseDraft, "    - two\n", "    - two\n---  \n")
+		wantDraftFinding(t, "impl-phase", d, 14, `"---"`, "document marker")
+	})
+	t.Run("an indented rule is content", func(t *testing.T) {
+		d := patch(t, phaseDraft, "    - two\n", "    - two\n\n    ---\n    more\n")
+		if m, fs := loadDraft(t, "impl-phase", d); m == nil || len(fs) != 0 {
+			t.Fatalf("an indented --- is block content: %+v", fs)
+		}
+	})
+	t.Run("a second document is never silently dropped", func(t *testing.T) {
+		d := phaseDraft + "--- extra\n"
+		m, fs := loadDraft(t, "impl-phase", d)
+		if m != nil || len(fs) != 1 {
+			t.Fatalf("want exactly one finding, got %+v", fs)
+		}
+		for _, w := range []string{"second YAML document", "one document", "dropped"} {
+			if !strings.Contains(fs[0].Message, w) {
+				t.Errorf("message %q missing %q", fs[0].Message, w)
+			}
+		}
+	})
+}

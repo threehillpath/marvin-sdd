@@ -54,6 +54,8 @@ func (l *draftLoader) walkRoot(root *yaml.Node) {
 			l.walkMetadata(kv.val)
 		case "sections":
 			l.walkSections(kv.val)
+		default:
+			l.unknownKey(kv.key, "at the top level of the draft", []string{"title", "metadata", "sections"}, true)
 		}
 	}
 }
@@ -94,12 +96,24 @@ func (l *draftLoader) repeatedKey(what string, k *yaml.Node, firstLine int) {
 
 func (l *draftLoader) walkMetadata(n *yaml.Node) {
 	for _, kv := range l.pairs(n, "metadata") {
+		if !contains(l.sc.Metadata, kv.key.Value) {
+			l.unknownKey(kv.key, "under \"metadata:\"", l.sc.Metadata, false)
+			continue
+		}
 		l.m.Metadata[kv.key.Value] = Field{Value: l.text(kv, fmt.Sprintf("%q", kv.key.Value)), Line: kv.val.Line}
 	}
 }
 
 func (l *draftLoader) walkSections(n *yaml.Node) {
+	var ids []string
+	for _, sec := range l.sc.Sections {
+		ids = append(ids, sec.ID)
+	}
 	for _, kv := range l.pairs(n, "sections") {
+		if !contains(ids, kv.key.Value) {
+			l.unknownKey(kv.key, "under \"sections:\"", ids, true)
+			continue
+		}
 		for _, sec := range l.sc.Sections {
 			if sec.ID != kv.key.Value {
 				continue
@@ -120,6 +134,9 @@ func (l *draftLoader) entries(sec SchemaSection, v *yaml.Node) []Entry {
 			e := Entry{Line: item.Line}
 			kvs := l.pairs(item, "an entry of section "+id)
 			for _, kv := range kvs {
+				if kv.key.Value != "name" && kv.key.Value != "content" {
+					l.unknownKey(kv.key, "in an entry of section "+id, []string{"name", "content"}, true)
+				}
 				if kv.key.Value == "name" {
 					e.Name = l.text(kv, `"name"`)
 				}
@@ -216,4 +233,25 @@ func sprintfLine(line int, format string, args ...any) string {
 func (l *draftLoader) parseError(data []byte, err error) []Finding {
 	l.fail(0, "the draft is not valid YAML (%v)", err)
 	return l.findings
+}
+
+func contains(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// unknownKey reports a key the draft format does not define. On the YAML path
+// this is an error, unlike an unknown heading in a markdown body, because an
+// unknown key almost always means lost content: a content line indented less
+// than the rest of its block is read as a key. underIndent adds that hint.
+func (l *draftLoader) unknownKey(k *yaml.Node, where string, valid []string, underIndent bool) {
+	hint := "Remove it"
+	if underIndent {
+		hint = "If it is meant to be part of the text of the block above it, it is under-indented: indent every line of a | block at least as far as the block's first line. Otherwise remove it"
+	}
+	l.fail(k.Line, "unknown key %q %s. The valid keys here are: %s. %s", k.Value, where, strings.Join(valid, ", "), hint)
 }

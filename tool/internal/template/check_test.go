@@ -843,22 +843,55 @@ func TestCheckUnclosedRawHTMLBlockIsError(t *testing.T) {
 
 func TestCheckSetextHeadingIsError(t *testing.T) {
 	// guardCase's line is the text line that turns into a heading.
-	guardCase(t, "ok\n\nTitle text\n---\nmore", 3, `"Title text"`, "---", "horizontal rule", "###")
-	guardCase(t, "Big title\n=====", 1, `"Big title"`, "=====", "###")
+	guardCase(t, "ok\n\nTitle text\n---\nmore", 3, `"Title text"`, "---", "horizontal rule", "blank line", "### Title text")
 	guardCase(t, "first\nsecond\n--", 2, "--")
 
+	// Conservative rule: an underline directly after ANY non-blank line is an
+	// error, whatever that line contains.
+	for name, content := range map[string]string{
+		"hash-number paragraph": "#112 tracks this\n---",
+		"inline kbd tag":        "<kbd>Ctrl</kbd>+C copies\n---",
+		"autolink":              "<https://example.com> has docs\n---",
+		"indented continuation": "Title\n    continued\n---",
+		"non-1 ordered item":    "Text\n2. item\n---",
+		"list item":             "- item\n---",
+		"quote":                 "> quote\n---",
+		"heading":               "### H\n---",
+		"hr then hr":            "---\n---",
+		"indented code":         "    code\n---",
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, src := range []tmpl.Source{tmpl.SourceYAML, tmpl.SourceMarkdown} {
+				m := phaseMap()
+				m.Source = src
+				m.Sections["scope"] = []tmpl.Entry{{Content: content, Line: 9}}
+				res := check(t, "impl-phase", m)
+				wantOne(t, res, tmpl.SeverityError, "section:scope", `"Scope"`, "---", "horizontal rule", "blank line", "###")
+			}
+		})
+	}
+}
+
+// An "=" underline is never a thematic break, so its fix must not offer a
+// horizontal rule.
+func TestCheckSetextEqualsFixHasNoHorizontalRule(t *testing.T) {
+	m := phaseMap()
+	m.Sections["scope"] = []tmpl.Entry{{Content: "Big title\n=====", Line: 9}}
+	res := check(t, "impl-phase", m)
+	wantOne(t, res, tmpl.SeverityError, "section:scope", `"Big title"`, "=====", "line 1 of the section", "Remove", "### Big title")
+	if strings.Contains(res.Findings[0].Message, "horizontal rule") {
+		t.Errorf("an = underline is not a thematic break: %s", res.Findings[0].Message)
+	}
+}
+
+func TestCheckSetextLookalikesAreFine(t *testing.T) {
 	for name, ok := range map[string]string{
-		"hr after blank line":          "text\n\n---\nmore",
-		"hr at start":                  "---\ntext",
-		"fenced underline":             "```\nTitle\n---\n```",
-		"equals after blank":           "text\n\n===\n",
-		"list item then hr":            "- item\n---",
-		"quote then hr":                "> quote\n---",
-		"heading then hr":              "### H\n---",
-		"hr then hr":                   "---\n---",
-		"table delimiter":              "| a | b |\n|---|---|",
-		"four-space code":              "    code\n---",
-		"mixed chars not an underline": "text\n-=-",
+		"hr after blank line": "text\n\n---\nmore",
+		"hr at start":         "---\ntext",
+		"fenced underline":    "```\nTitle\n---\n```",
+		"equals after blank":  "text\n\n===\n",
+		"table delimiter":     "| a | b |\n|---|---|",
+		"mixed chars":         "text\n-=-",
 	} {
 		m := phaseMap()
 		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}

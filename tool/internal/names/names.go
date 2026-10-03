@@ -18,6 +18,9 @@ const (
 	Task              // single-cycle task/bug (source-issue-keyed, no plan hierarchy)
 )
 
+// String returns the lowercase name of the kind.
+func (k Kind) String() string { return "" }
+
 // PlanNumber formats a GitHub issue number as a zero-padded 5-digit plan number.
 // Example: 42 → "PLAN-00042"
 func PlanNumber(issue int) string {

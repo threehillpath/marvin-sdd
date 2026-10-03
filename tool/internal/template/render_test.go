@@ -559,3 +559,8 @@ func TestRenderRefusesEmptyHeadingsAtTheirLine(t *testing.T) {
 	wantRefusedAt(t, "impl-phase", scopeMap("intro\n\n#"), "section:scope", 3, "heading", `"#"`, `\#`, "###")
 	wantRefusedAt(t, "impl-phase", scopeMap("- #"), "section:scope", 1, "heading", `"- #"`, `\#`, "###")
 }
+
+func TestRenderRefusesLoneCarriageReturnInContent(t *testing.T) {
+	m := scopeMap("a\r## X")
+	wantRefusedAt(t, "impl-phase", m, "section:scope", 1, `"Scope"`, "carriage return", "replace the carriage return with a line break")
+}

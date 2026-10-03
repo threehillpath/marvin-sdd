@@ -13,7 +13,7 @@ metadata:
   Plan Number: "PLAN-00112"
   Implementation Plan: "#132 ([PLAN-00112])"
 sections:
-  # guidance comments are fine
+
   objective: |
     Do the thing.
   scope: |
@@ -213,12 +213,6 @@ func TestLoadDraftNonLiteralContentIsFinding(t *testing.T) {
 		d := patch(t, planDraft, "- |\n      Run the tests.", "- >\n      Run the tests.")
 		wantDraftFinding(t, "impl-plan", d, 20, `"verification_steps"`, "folded", "- |")
 	})
-	t.Run("literal block with a header comment is fine", func(t *testing.T) {
-		d := patch(t, phaseDraft, "objective: |", "objective: | # the goal")
-		if m, fs := loadDraft(t, "impl-phase", d); m == nil || len(fs) != 0 {
-			t.Fatalf("a comment after the | header is harmless: %+v", fs)
-		}
-	})
 }
 
 func TestLoadDraftUnknownKeysAreFindings(t *testing.T) {
@@ -362,5 +356,38 @@ func TestLoadDraftDocumentMarkersAreFindings(t *testing.T) {
 				t.Errorf("message %q missing %q", fs[0].Message, w)
 			}
 		}
+	})
+}
+
+// The wording every comment finding must carry: YAML would drop the text.
+func TestLoadDraftCommentsAreFindings(t *testing.T) {
+	const ambiguous = "indent it"
+	t.Run("plain note line", func(t *testing.T) {
+		d := patch(t, phaseDraft, "  objective: |", "  # note\n  objective: |")
+		wantDraftFinding(t, "impl-phase", d, 8, `"# note"`, "YAML comment", "drop", ambiguous, "double quotes", "delete it", "don't take comments")
+	})
+	t.Run("dedented hash line after a block", func(t *testing.T) {
+		d := patch(t, phaseDraft, "    - two\n", "    - two\n#113 is related\n")
+		wantDraftFinding(t, "impl-phase", d, 14, `"#113 is related"`, "YAML comment", ambiguous, "| block", "delete it")
+	})
+	t.Run("trailing foot comment", func(t *testing.T) {
+		d := phaseDraft + "  ### Extra\n"
+		wantDraftFinding(t, "impl-phase", d, 20, `"### Extra"`, "YAML comment", ambiguous, "delete it")
+	})
+	t.Run("metadata value continued by a hash line", func(t *testing.T) {
+		d := patch(t, phaseDraft, `  Status: "Upcoming"`, "  Status: Up\n  #coming soon")
+		wantDraftFinding(t, "impl-phase", d, 4, `"#coming soon"`, "YAML comment", "double quotes", "delete it")
+	})
+	t.Run("entry name continued by a hash line", func(t *testing.T) {
+		d := patch(t, planDraft, `name: "First one"`, "name: First\n      #112 one")
+		wantDraftFinding(t, "impl-plan", d, 14, `"#112 one"`, "YAML comment", "double quotes", "delete it")
+	})
+	t.Run("comment after the | header", func(t *testing.T) {
+		d := patch(t, phaseDraft, "objective: |", "objective: | # the goal")
+		wantDraftFinding(t, "impl-phase", d, 8, `"# the goal"`, "YAML comment", "delete it")
+	})
+	t.Run("comment after a list marker", func(t *testing.T) {
+		d := patch(t, planDraft, "- |\n      Run the tests.", "- | # first\n      Run the tests.")
+		wantDraftFinding(t, "impl-plan", d, 20, `"# first"`, "YAML comment", "delete it")
 	})
 }

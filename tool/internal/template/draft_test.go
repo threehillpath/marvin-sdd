@@ -517,3 +517,8 @@ func TestLoadDraftTagsAnchorsAndAliasesAreFindings(t *testing.T) {
 		}
 	})
 }
+
+func TestLoadDraftCommentBetweenBlockHeaderAndDeeperTextIsLocated(t *testing.T) {
+	d := patch(t, phaseDraft, "    Includes:\n    - one\n    - two\n", "      - nested first\n    # Heading\n")
+	wantDraftFindingLines(t, "impl-phase", d, 12)
+}

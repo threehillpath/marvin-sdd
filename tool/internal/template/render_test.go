@@ -420,6 +420,11 @@ func TestGuidancePrintsSectionsAndRules(t *testing.T) {
 		"never ##",
 		"no # comments",
 		"--- or ... at column 0",
+		"blank line before a --- rule",
+		"never --- or === directly under text",
+		"close every code fence inside the same section",
+		"no raw HTML",
+		"`<!--`, `<details>`, `<pre>`, `<script>`, `<style>` and `<textarea>`",
 	} {
 		if !strings.Contains(out, rule) {
 			t.Errorf("guidance missing the rule %q:\n%s", rule, out)

@@ -272,3 +272,24 @@ func TestTemplateRenderSkeletonAndGuidanceAreExclusive(t *testing.T) {
 		t.Errorf("want no stdout, got %q", stdout.String())
 	}
 }
+
+// TestTemplateRenderUnknownSchemaIsReportedBeforeFlagAdvice verifies that the
+// schema is resolved first, so no message suggests a command that then fails.
+func TestTemplateRenderUnknownSchemaIsReportedBeforeFlagAdvice(t *testing.T) {
+	for _, args := range [][]string{
+		{"template", "render", "nosuch"},
+		{"template", "render", "nosuch", "--skeleton", "--guidance"},
+	} {
+		var stdout, stderr bytes.Buffer
+		root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+		root.SetArgs(args)
+		err := root.Execute()
+		var cliErr *cli.CLIError
+		if !errors.As(err, &cliErr) || cliErr.Code != 1 {
+			t.Fatalf("%v: want a CLIError with code 1, got %T: %v", args, err, err)
+		}
+		if !strings.Contains(cliErr.Msg, `unknown schema "nosuch"`) || strings.Contains(cliErr.Msg, "--skeleton") {
+			t.Errorf("%v: want the unknown-schema error alone, got %q", args, cliErr.Msg)
+		}
+	}
+}

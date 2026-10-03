@@ -424,6 +424,9 @@ func TestGuidancePrintsSectionsAndRules(t *testing.T) {
 		"blank line before a --- rule",
 		"never --- or === directly under text",
 		"close every code fence inside the same section",
+		"never # or ##, including inside list items and quotes",
+		"inside a list item, indent the fence, every code line and the closing fence at least as far as the opening fence",
+		"no line may start with an HTML tag, <? or <!",
 		"no raw HTML",
 		"`<!--`, `<details>`, `<pre>`, `<script>`, `<style>` and `<textarea>`",
 	} {

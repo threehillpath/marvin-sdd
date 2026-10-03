@@ -60,13 +60,36 @@ func (l *draftLoader) walkRoot(root *yaml.Node) {
 
 type pair struct{ key, val *yaml.Node }
 
-// pairs returns the key/value pairs of a mapping node.
+// pairs returns the key/value pairs of a mapping node, reporting (and
+// dropping) a key that repeats an earlier one. yaml.v3 raises that error
+// itself when decoding into structs, but not when decoding into nodes.
 func (l *draftLoader) pairs(n *yaml.Node, what string) []pair {
 	var out []pair
+	first := map[string]int{}
 	for i := 0; i+1 < len(n.Content); i += 2 {
-		out = append(out, pair{n.Content[i], n.Content[i+1]})
+		k, v := n.Content[i], n.Content[i+1]
+		if at, dup := first[k.Value]; dup {
+			l.repeatedKey(what, k, at)
+			continue
+		}
+		first[k.Value] = k.Line
+		out = append(out, pair{k, v})
 	}
 	return out
+}
+
+func (l *draftLoader) repeatedKey(what string, k *yaml.Node, firstLine int) {
+	for _, sec := range l.sc.Sections {
+		if what == "sections" && sec.ID == k.Value && sec.Repeatable {
+			l.fail(k.Line, "key %q appears twice (line %d and line %d). A repeatable section is one list: put every entry under a single \"%s:\" key, each starting with \"- \"", k.Value, firstLine, k.Line, k.Value)
+			return
+		}
+	}
+	if what == "sections" {
+		l.fail(k.Line, "key %q appears twice (line %d and line %d). Merge them into one \"%s: |\" block", k.Value, firstLine, k.Line, k.Value)
+		return
+	}
+	l.fail(k.Line, "key %q appears twice in %s (line %d and line %d). Remove the duplicate or merge its value into the first", k.Value, what, firstLine, k.Line)
 }
 
 func (l *draftLoader) walkMetadata(n *yaml.Node) {

@@ -53,7 +53,7 @@ func TestTrunkBranch(t *testing.T) {
 	}{
 		{"feature", 42, "", "feature/PLAN-00042/main"},
 		{"bug", 42, "", "bug/PLAN-00042/main"},
-		{"", 42, "", "feature/PLAN-00042/main"},         // empty type defaults to feature
+		{"", 42, "", "feature/PLAN-00042/main"},           // empty type defaults to feature
 		{"feature", 42, "a", "feature/PLAN-00042/main-a"}, // suffix lowercased
 		{"feature", 42, "A", "feature/PLAN-00042/main-a"}, // suffix lowercased regardless of input case
 	}

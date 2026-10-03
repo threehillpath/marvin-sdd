@@ -576,6 +576,11 @@ func contentLine(content string, n int) string {
 // section.
 func (c *checker) checkContentStructure(sec SchemaSection, e Entry) {
 	loc := "section:" + sec.ID
+	if norm := strings.ReplaceAll(e.Content, "\r\n", "\n"); strings.Contains(norm, "\r") {
+		n := strings.Count(norm[:strings.Index(norm, "\r")], "\n") + 1
+		c.add(SeverityError, loc, e.Line, "content of section %s has a lone carriage return on line %d of the section, which GitHub renders as a line break the structure checks cannot see (for example \"a\\r## X\" becomes a heading). Fix: replace the carriage return with a line break (or remove it), %s.",
+			label(sec), n, c.fix(fmt.Sprintf("inside the %q block", sec.ID), "under that heading"))
+	}
 	scan := scanContent(e.Content)
 	hs, open := scan.Headings, scan.Fence
 	where := fmt.Sprintf("inside the %q block", sec.ID)

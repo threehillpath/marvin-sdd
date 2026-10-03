@@ -638,6 +638,9 @@ func (c *checker) checkMarkdownOnly() {
 	}
 	sort.Strings(extra)
 	for _, key := range extra {
+		f := c.m.Metadata[key]
+		c.checkRawHTML("metadata:"+key, f.Line, fmt.Sprintf("metadata value %q for %q", strings.TrimSpace(f.Value), key), f.Value,
+			fmt.Sprintf("edit the \"**%s:**\" line, or remove it", key))
 		c.add(SeverityWarning, "metadata:"+key, c.m.Metadata[key].Line, "metadata key %q is not in schema %s. Remove the \"**%s:**\" line.", key, c.sc.Type, key)
 	}
 	c.checkOrder()

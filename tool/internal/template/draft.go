@@ -110,19 +110,27 @@ func (l *draftLoader) walkSections(n *yaml.Node) {
 }
 
 func (l *draftLoader) entries(sec SchemaSection, v *yaml.Node) []Entry {
+	id := fmt.Sprintf("%q", sec.ID)
 	switch {
 	case !sec.Repeatable:
-		return []Entry{{Content: l.content(pair{key: &yaml.Node{Value: sec.ID}, val: v}, sec.ID), Line: v.Line}}
+		return []Entry{{Content: l.content(pair{key: &yaml.Node{Value: sec.ID}, val: v}, "section "+id, sec.ID+": |"), Line: v.Line}}
 	case isNamed(sec):
 		var out []Entry
 		for _, item := range v.Content {
 			e := Entry{Line: item.Line}
-			for _, kv := range l.pairs(item, sec.ID) {
-				switch kv.key.Value {
-				case "name":
+			kvs := l.pairs(item, "an entry of section "+id)
+			for _, kv := range kvs {
+				if kv.key.Value == "name" {
 					e.Name = l.text(kv, `"name"`)
-				case "content":
-					e.Content = l.content(kv, sec.ID)
+				}
+			}
+			for _, kv := range kvs {
+				if kv.key.Value == "content" {
+					subject := `the "content" of an entry of section ` + id
+					if e.Name != "" {
+						subject = fmt.Sprintf("the \"content\" of the entry %q of section %s", e.Name, id)
+					}
+					e.Content = l.content(kv, subject, "content: |")
 				}
 			}
 			out = append(out, e)
@@ -131,26 +139,10 @@ func (l *draftLoader) entries(sec SchemaSection, v *yaml.Node) []Entry {
 	default:
 		var out []Entry
 		for _, item := range v.Content {
-			out = append(out, Entry{Content: l.content(pair{key: &yaml.Node{Value: sec.ID}, val: item}, sec.ID), Line: item.Line})
+			out = append(out, Entry{Content: l.content(pair{key: &yaml.Node{Value: sec.ID}, val: item}, "section "+id, "- |"), Line: item.Line})
 		}
 		return out
 	}
-}
-
-// sprintfLine formats a loader message, appending "(line unknown)" when the
-// line could not be located.
-func sprintfLine(line int, format string, args ...any) string {
-	msg := fmt.Sprintf(format, args...)
-	if line <= 0 {
-		msg += " (line unknown)"
-	}
-	return msg
-}
-
-// parseError turns a yaml.v3 syntax error into findings; filled in below.
-func (l *draftLoader) parseError(data []byte, err error) []Finding {
-	l.fail(0, "the draft is not valid YAML (%v)", err)
-	return l.findings
 }
 
 // cutComment returns the comment yaml.v3 attached to a scalar pair, and
@@ -181,14 +173,47 @@ func (l *draftLoader) text(kv pair, subject string) string {
 	return strings.TrimSpace(kv.val.Value)
 }
 
-// content reads section content, reporting a comment that cut it.
-func (l *draftLoader) content(kv pair, id string) string {
+// content reads section content, which must be a literal "|" block. subject
+// names the content in messages and how is the YAML to write instead.
+func (l *draftLoader) content(kv pair, subject, how string) string {
+	v := kv.val
 	if c, plain := cutComment(kv); c != "" {
 		if plain {
-			l.fail(kv.val.Line, "the content of section %q was cut at %q: an unquoted \"#\" starts a YAML comment, so the rest of the content was dropped. Replace it with a | block: write \"%s: |\" and indent the whole text below it", id, c, id)
+			l.fail(v.Line, "the content of %s was cut at %q: an unquoted \"#\" starts a YAML comment, so the rest of the content was dropped. Replace it with a | block: write \"%s\" and indent the whole text below it", subject, c, how)
 		} else {
-			l.fail(kv.val.Line, "the content of section %q is followed by the comment %q, which YAML ignores. Write the content as a | block: \"%s: |\" with the text indented below it", id, c, id)
+			l.fail(v.Line, "the content of %s is followed by the comment %q, which YAML ignores. Write the content as a | block: \"%s\" with the text indented below it", subject, c, how)
 		}
+		return v.Value
 	}
-	return kv.val.Value
+	if v.Kind == yaml.ScalarNode && v.Style&yaml.LiteralStyle == 0 {
+		var what string
+		switch {
+		case v.Style&yaml.FoldedStyle != 0:
+			what = "a folded (>) block, which reflows lines and silently breaks markdown lists"
+		case v.Style&yaml.DoubleQuotedStyle != 0:
+			what = "a double-quoted scalar"
+		case v.Style&yaml.SingleQuotedStyle != 0:
+			what = "a single-quoted scalar"
+		default:
+			what = "a plain scalar, which YAML folds and truncates at \" #\""
+		}
+		l.fail(v.Line, "the content of %s is %s, not a literal | block. Write it as \"%s\" with the text indented below it", subject, what, how)
+	}
+	return v.Value
+}
+
+// sprintfLine formats a loader message, appending "(line unknown)" when the
+// line could not be located.
+func sprintfLine(line int, format string, args ...any) string {
+	msg := fmt.Sprintf(format, args...)
+	if line <= 0 {
+		msg += " (line unknown)"
+	}
+	return msg
+}
+
+// parseError turns a yaml.v3 syntax error into findings.
+func (l *draftLoader) parseError(data []byte, err error) []Finding {
+	l.fail(0, "the draft is not valid YAML (%v)", err)
+	return l.findings
 }

@@ -554,3 +554,8 @@ func TestRenderAcceptsBenignMarkdown(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderRefusesEmptyHeadingsAtTheirLine(t *testing.T) {
+	wantRefusedAt(t, "impl-phase", scopeMap("intro\n\n#"), "section:scope", 3, "heading", `"#"`, `\#`, "###")
+	wantRefusedAt(t, "impl-phase", scopeMap("- #"), "section:scope", 1, "heading", `"- #"`, `\#`, "###")
+}

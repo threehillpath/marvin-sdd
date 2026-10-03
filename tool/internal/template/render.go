@@ -56,6 +56,9 @@ type Schema struct {
 
 	// ExpectedKind is the title kind derived from TitlePrefix by LoadSchema.
 	ExpectedKind names.Kind `yaml:"-"`
+
+	// loaded is set only by LoadSchema; Check rejects a Schema without it.
+	loaded bool
 }
 
 // Render assembles a plan issue body from:

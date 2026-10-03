@@ -40,8 +40,9 @@ func LoadDraft(sc *Schema, data []byte) (*SectionMap, []Finding) {
 	// Drafts never use document markers: a column-0 "---" or "..." ends the
 	// open block and starts a document the loader would drop.
 	for i, line := range strings.Split(string(data), "\n") {
-		if t := strings.TrimRight(line, " \t\r"); t == "---" || t == "..." {
-			l.fail(i+1, "%q at column 0 is a YAML document marker, which drafts never use: it ends the draft's document, so everything after it would be dropped. If it is a horizontal rule in section content, indent it to the same level as the text of its | block; otherwise delete the line", t)
+		line = strings.TrimRight(line, "\r")
+		if markerRe.MatchString(line) {
+			l.fail(i+1, "%q at column 0 is a YAML document marker, which drafts never use: it ends the draft's document, so everything after it would be dropped. If it is a horizontal rule in section content, indent it to the same level as the text of its | block and leave a blank line above it (a rule directly under text is read as a heading underline); otherwise delete the line", strings.TrimRight(line, " \t"))
 		}
 	}
 	if len(l.findings) > 0 {
@@ -293,6 +294,7 @@ func sprintfLine(line int, format string, args ...any) string {
 
 var (
 	yamlLineRe  = regexp.MustCompile(`^yaml: (?:line (\d+): )?(.*)$`)
+	markerRe    = regexp.MustCompile(`^(?:---|\.\.\.)(?:[ \t]|$)`)
 	titleRawRe  = regexp.MustCompile(`^title:\s*\[`)
 	blockHeadRe = regexp.MustCompile(`^(\s*)(?:-\s+)?(?:[^#\s][^:]*:\s+)?[|>][+-]?\d?\s*(?:#.*)?$`)
 	// quotedValueRe splits a line whose value starts with a double quote

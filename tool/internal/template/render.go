@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"strings"
 
-	"gopkg.in/yaml.v3"
-
 	"threehillpath.com/marvin-sdd/tool/internal/names"
 )
 
@@ -68,9 +66,9 @@ type Schema struct {
 // Returns an error if a required section is absent, a non-repeatable section
 // has more than one block, or the schema YAML cannot be parsed.
 func Render(schemaYAML []byte, meta []KV, sections map[string][]string) (string, error) {
-	var sc Schema
-	if err := yaml.Unmarshal(schemaYAML, &sc); err != nil {
-		return "", fmt.Errorf("parsing schema: %w", err)
+	sc, err := LoadSchema("", schemaYAML)
+	if err != nil {
+		return "", err
 	}
 
 	// Validate required sections.
@@ -134,9 +132,9 @@ func Render(schemaYAML []byte, meta []KV, sections map[string][]string) (string,
 // placeholders followed by empty section headings. Unlike Render, it does not
 // validate required sections or accept section content.
 func Skeleton(schemaYAML []byte) (string, error) {
-	var sc Schema
-	if err := yaml.Unmarshal(schemaYAML, &sc); err != nil {
-		return "", fmt.Errorf("parsing schema: %w", err)
+	sc, err := LoadSchema("", schemaYAML)
+	if err != nil {
+		return "", err
 	}
 
 	var sb strings.Builder

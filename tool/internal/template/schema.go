@@ -39,6 +39,7 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 		return nil, fmt.Errorf("%s%w", pre, err)
 	}
 	sc.ExpectedKind = kind
+	sc.loaded = true
 	return &sc, nil
 }
 

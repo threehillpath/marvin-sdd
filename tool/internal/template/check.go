@@ -15,6 +15,8 @@ import (
 type Source int
 
 const (
+	// SourceUnknown is the zero value: the caller did not say which input
+	// path produced the map. Check reports it as an error.
 	SourceUnknown Source = iota
 	SourceYAML
 	SourceMarkdown
@@ -89,6 +91,14 @@ func (c *checker) add(sev Severity, loc string, line int, format string, args ..
 // Check applies the conformance rules to m.
 func Check(sc *Schema, origin string, m *SectionMap) Result {
 	c := &checker{sc: sc, m: m, res: Result{Type: sc.Type, Origin: origin}}
+	if !sc.loaded {
+		c.add(SeverityError, "draft", 0, "Check was given a Schema that did not come from LoadSchema, so its title kind and validation are unset. This is a bug in the calling code: build the Schema with LoadSchema(origin, data) and pass that.")
+		return c.res
+	}
+	if m.Source == SourceUnknown {
+		c.add(SeverityError, "draft", 0, "SectionMap.Source is not set, so the fix text cannot match the input path. This is a bug in the calling code: set Source to SourceYAML for a YAML draft or SourceMarkdown for a markdown body.")
+		return c.res
+	}
 	c.checkTitle()
 	c.checkMetadata()
 	c.checkCrossRefs()

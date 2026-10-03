@@ -793,3 +793,24 @@ func TestCheckUnclosedHTMLCommentIsError(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckUnclosedDetailsIsError(t *testing.T) {
+	guardCase(t, "intro\n<details>\n<summary>More</summary>\nbody", 2, "<details>", "</details>", "never closed", "every later section")
+
+	for _, ok := range []string{
+		"<details>\n<summary>S</summary>\nbody\n</details>",
+		"<details open><summary>S</summary>x</details>",
+		"Mention `<details>` in prose.",
+		"```html\n<details>\n```",
+		"<DETAILS>\nx\n</DETAILS>",
+		"<details>\n<details>\ninner\n</details>\n</details>",
+	} {
+		m := phaseMap()
+		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
+		if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
+			t.Errorf("content %q: want no findings:\n%s", ok, res.Format())
+		}
+	}
+	// One of two nested blocks left open is still an error.
+	guardCase(t, "<details>\n<details>\ninner\n</details>", 1, "<details>", "</details>")
+}

@@ -39,7 +39,8 @@ type SchemaSection struct {
 	// instance's heading text comes from content. It is a pointer so a
 	// missing field is distinguishable from an explicit false.
 	Named *bool `yaml:"named"`
-	// Guidance is how-to-fill prose; Skeleton emits it as YAML comments.
+	// Guidance is how-to-fill prose; the Guidance function prints it as plain
+	// text (a skeleton carries no comments, because drafts take none).
 	Guidance string `yaml:"guidance"`
 }
 

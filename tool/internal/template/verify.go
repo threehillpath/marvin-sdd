@@ -120,6 +120,9 @@ func verifyBody(body string, origins []lineOrigin, heads []emittedHeading) []Fin
 			line := 0
 			if v.Lines().Len() > 0 {
 				line = lineOf(v.Lines().At(0).Start)
+			} else if p := v.Pos(); p >= 0 {
+				// An empty heading ("#", "- #") has no text line.
+				line = lineOf(p)
 			}
 			topLevel := v.Parent() != nil && v.Parent().Kind() == ast.KindDocument
 			atx := strings.HasPrefix(lineText(line), "#")
@@ -136,7 +139,7 @@ func verifyBody(body string, origins []lineOrigin, heads []emittedHeading) []Fin
 			if isEmitted {
 				seen[line] = true
 			}
-			report(line, " becomes a level-%d heading %s in the rendered body, which would add or reshape a section. Section content must never change the document's structure: write sub-headings as \"### ...\", start them at the beginning of a line with a blank line before them, and use no \"#\" or \"##\" headings, %s.", v.Level, quote(line), where(line))
+			report(line, " becomes a level-%d heading %s in the rendered body, which would add or reshape a section. Section content must never change the document's structure: write sub-headings as \"### ...\", start them at the beginning of a line with a blank line before them, and use no \"#\" or \"##\" headings. If the # is literal text, escape it as \\#. Edit it %s.", v.Level, quote(line), where(line))
 		case *ast.HTMLBlock:
 			line := lineOf(v.Lines().At(0).Start)
 			report(line, " contains an HTML block starting with %s. Raw HTML blocks (a tag alone on a line, <div>, <?php, <![CDATA[, <!DOCTYPE ...) can hide or swallow the sections after them when rendered, so drafts don't allow them. Wrap the HTML in backticks as inline code or remove it, %s.", quote(line), where(line))

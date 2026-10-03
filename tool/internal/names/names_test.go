@@ -53,7 +53,7 @@ func TestTrunkBranch(t *testing.T) {
 	}{
 		{"feature", 42, "", "feature/PLAN-00042/main"},
 		{"bug", 42, "", "bug/PLAN-00042/main"},
-		{"", 42, "", "feature/PLAN-00042/main"},         // empty type defaults to feature
+		{"", 42, "", "feature/PLAN-00042/main"},           // empty type defaults to feature
 		{"feature", 42, "a", "feature/PLAN-00042/main-a"}, // suffix lowercased
 		{"feature", 42, "A", "feature/PLAN-00042/main-a"}, // suffix lowercased regardless of input case
 	}
@@ -188,5 +188,23 @@ func TestDeriveSuffix(t *testing.T) {
 	}
 	if got, want := names.TitlePrefix(names.Phase, issue, suffix, phase), "[PLAN-00042-A-2]"; got != want {
 		t.Errorf("TitlePrefix(Phase): got %q want %q", got, want)
+	}
+}
+
+func TestKindString(t *testing.T) {
+	tests := []struct {
+		k    names.Kind
+		want string
+	}{
+		{names.Arch, "arch"},
+		{names.Impl, "impl"},
+		{names.Phase, "phase"},
+		{names.Task, "task"},
+		{names.Kind(99), "Kind(99)"},
+	}
+	for _, tc := range tests {
+		if got := tc.k.String(); got != tc.want {
+			t.Errorf("Kind(%d).String() = %q, want %q", int(tc.k), got, tc.want)
+		}
 	}
 }

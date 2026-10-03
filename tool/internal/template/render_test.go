@@ -34,10 +34,10 @@ func TestImplPlanNumberedSections(t *testing.T) {
 	}
 	sections := map[string][]string{
 		"scope":              {"**Includes:** stuff\n\n**Does NOT include:** nothing"},
-		"component":         {"First Component\n\nFirst component content", "Second Component\n\nSecond component content"},
+		"component":          {"First Component\n\nFirst component content", "Second Component\n\nSecond component content"},
 		"verification_steps": {"Verify Step\n\nVerify step body"},
-		"design_notes":      {"Some design notes"},
-		"success_criteria":  {"- [ ] Passes"},
+		"design_notes":       {"Some design notes"},
+		"success_criteria":   {"- [ ] Passes"},
 	}
 
 	out, err := tmpl.Render(schemaYAML, meta, sections)
@@ -122,16 +122,16 @@ func TestArchPlanMetadataKey(t *testing.T) {
 		{Key: "Date", Value: "2026-01-01"},
 	}
 	sections := map[string][]string{
-		"problem_statement":      {"The problem"},
-		"scope":                  {"**Includes:** x\n**Excludes:** y"},
-		"domain_model_impacts":   {"Entities affected"},
-		"integration_points":     {"Layers touched"},
-		"cross_cutting_concerns": {"Auth"},
-		"architectural_decisions": {"| Decision | Approach | Rationale |"},
-		"adr_candidates":         {"- [ ] Some decision"},
+		"problem_statement":         {"The problem"},
+		"scope":                     {"**Includes:** x\n**Excludes:** y"},
+		"domain_model_impacts":      {"Entities affected"},
+		"integration_points":        {"Layers touched"},
+		"cross_cutting_concerns":    {"Auth"},
+		"architectural_decisions":   {"| Decision | Approach | Rationale |"},
+		"adr_candidates":            {"- [ ] Some decision"},
 		"constraints_and_tradeoffs": {"Trade-offs"},
-		"tdd_strategy":           {"Start with a failing test"},
-		"open_questions":         {"None"},
+		"tdd_strategy":              {"Start with a failing test"},
+		"open_questions":            {"None"},
 	}
 
 	out, err := tmpl.Render(schemaYAML, meta, sections)

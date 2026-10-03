@@ -227,7 +227,10 @@ type parseTitleOutput struct {
 	PlanNumber string `json:"plan_number,omitempty"` // lowercase path form, e.g. "plan-00042"
 	Suffix     string `json:"suffix,omitempty"`
 	Phase      int    `json:"phase,omitempty"`
-	Slug       string `json:"slug,omitempty"` // filesystem-safe slug of the title text after the bracket ident
+	Kind       string `json:"kind,omitempty"`        // arch|impl|phase|task; only when the leading bracket classifies
+	Task       int    `json:"task,omitempty"`        // task number, [TASK-XXXXX] titles only
+	TaskNumber string `json:"task_number,omitempty"` // e.g. "TASK-00091"
+	Slug       string `json:"slug,omitempty"`        // filesystem-safe slug of the title text after the bracket ident
 }
 
 // runParseTitle extracts a plan ident from a title string. jsonOut selects
@@ -239,11 +242,27 @@ type parseTitleOutput struct {
 func runParseTitle(stdout, stderr io.Writer, title string, jsonOut bool) error {
 	ident, ok := parse.PlanIdent(title)
 	out := parseTitleOutput{Found: ok, Slug: parse.TitleSlug(title)}
-	if ok {
+	kind, classified := parse.Classify(title)
+	if classified && kind == names.Task {
+		// Task titles are the one case where found comes from the
+		// classifier; PlanIdent may still match a later plan bracket, which
+		// must not leak plan fields into the output.
+		n, _ := parse.TaskIdent(title)
+		out = parseTitleOutput{
+			Found:      true,
+			Kind:       "task",
+			Task:       n,
+			TaskNumber: names.TaskNumber(n),
+			Slug:       out.Slug,
+		}
+	} else if ok {
 		out.Plan = ident.Plan
 		out.PlanNumber = names.PlanID(ident.Plan)
 		out.Suffix = ident.Suffix
 		out.Phase = ident.Phase
+		if classified {
+			out.Kind = kind.String()
+		}
 	}
 
 	if !jsonOut {
@@ -253,6 +272,9 @@ func runParseTitle(stdout, stderr io.Writer, title string, jsonOut bool) error {
 			{Key: "plan_number", Value: out.PlanNumber, Omit: out.PlanNumber == ""},
 			{Key: "suffix", Value: out.Suffix, Omit: out.Suffix == ""},
 			{Key: "phase", Value: strconv.Itoa(out.Phase), Omit: out.Phase == 0},
+			{Key: "kind", Value: out.Kind, Omit: out.Kind == ""},
+			{Key: "task", Value: strconv.Itoa(out.Task), Omit: out.Task == 0},
+			{Key: "task_number", Value: out.TaskNumber, Omit: out.TaskNumber == ""},
 			{Key: "slug", Value: out.Slug, Omit: out.Slug == ""},
 		})
 		return nil

@@ -781,66 +781,6 @@ func guardCase(t *testing.T, content string, line int, want ...string) {
 	}
 }
 
-func TestCheckUnclosedHTMLCommentIsError(t *testing.T) {
-	guardCase(t, "text\n<!-- note to self\nmore", 2, "<!--", "-->", "never closed", "every later section")
-
-	// A closed comment, on one line or several, is fine.
-	for _, ok := range []string{"<!-- one line -->\ntext", "<!--\nmulti\n-->\ntext", "inline <!-- not at line start\ntext"} {
-		m := phaseMap()
-		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
-		if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
-			t.Errorf("content %q: want no findings:\n%s", ok, res.Format())
-		}
-	}
-}
-
-func TestCheckUnclosedDetailsIsError(t *testing.T) {
-	guardCase(t, "intro\n<details>\n<summary>More</summary>\nbody", 2, "<details>", "</details>", "never closed", "every later section")
-
-	for _, ok := range []string{
-		"<details>\n<summary>S</summary>\nbody\n</details>",
-		"<details open><summary>S</summary>x</details>",
-		"Mention `<details>` in prose.",
-		"```html\n<details>\n```",
-		"<DETAILS>\nx\n</DETAILS>",
-		"<details>\n<details>\ninner\n</details>\n</details>",
-	} {
-		m := phaseMap()
-		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
-		if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
-			t.Errorf("content %q: want no findings:\n%s", ok, res.Format())
-		}
-	}
-	// One of two nested blocks left open is still an error.
-	guardCase(t, "<details>\n<details>\ninner\n</details>", 1, "<details>", "</details>")
-}
-
-func TestCheckUnclosedRawHTMLBlockIsError(t *testing.T) {
-	for _, tag := range []string{"pre", "script", "style", "textarea"} {
-		t.Run(tag, func(t *testing.T) {
-			guardCase(t, "intro\n<"+tag+">\ncode\n", 2, "<"+tag+">", "</"+tag+">", "never closed", "every later section")
-		})
-	}
-	guardCase(t, "<PRE class=\"x\">\nstuff", 1, "<pre>", "</pre>")
-
-	for _, ok := range []string{
-		"<pre>\ncode\n</pre>",
-		"<pre>one line</pre>",
-		"<script>\nx\n</SCRIPT>",
-		"<style>a{}</style>",
-		"Mention `<pre>` in prose.",
-		"```html\n<pre>\n```",
-		"<prefix>not a raw block</prefix>",
-		"<textarea>\nx\n</textarea>",
-	} {
-		m := phaseMap()
-		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
-		if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
-			t.Errorf("content %q: want no findings:\n%s", ok, res.Format())
-		}
-	}
-}
-
 func TestCheckSetextHeadingIsError(t *testing.T) {
 	// guardCase's line is the text line that turns into a heading.
 	guardCase(t, "ok\n\nTitle text\n---\nmore", 3, `"Title text"`, "---", "horizontal rule", "blank line", "### Title text")
@@ -901,25 +841,6 @@ func TestCheckSetextLookalikesAreFine(t *testing.T) {
 	}
 }
 
-func TestCheckHTMLGuardEdgeCases(t *testing.T) {
-	// A details block opened after a complete comment on the same line.
-	guardCase(t, "<!-- note --><details>\nbody", 1, "<details>", "</details>")
-	// An unclosed comment that starts after a tag on an HTML-block line.
-	guardCase(t, "ok\n<div><!-- note\nmore", 2, "<!--", "-->", "never closed")
-	// A <details> inside a complete comment is not a block.
-	for _, ok := range []string{
-		"text <!-- wrap in <details> -->\nmore",
-		"<!-- <details> -->\nmore",
-		"inline `<!--` in code\nmore",
-	} {
-		m := phaseMap()
-		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
-		if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
-			t.Errorf("content %q: want no findings:\n%s", ok, res.Format())
-		}
-	}
-}
-
 func TestCheckLineBreaksInSingleLineFields(t *testing.T) {
 	t.Run("named entry name with newline", func(t *testing.T) {
 		m := implPlanMap()
@@ -945,4 +866,101 @@ func TestCheckLineBreaksInSingleLineFields(t *testing.T) {
 		m.Title = "[PLAN-00112-1] A\rB"
 		wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "title", "more than one line", "single line")
 	})
+}
+
+const banFix = "backticks"
+
+// Raw HTML that could open a comment, a collapsible or a raw block is
+// banned outright outside code, whether or not it is closed.
+func TestCheckRawHTMLIsBanned(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		line    int
+		tag     string
+	}{
+		{"unclosed comment", "text\n<!-- note to self\nmore", 2, "<!--"},
+		{"closed comment", "<!-- x -->\ntext", 1, "<!--"},
+		{"comment after text", "a <!-- x --> b", 1, "<!--"},
+		{"closed details", "<details>\n<summary>S</summary>\nbody\n</details>", 1, "<details>"},
+		{"details with attributes", "x\n<details open>\nbody", 2, "<details"},
+		{"closing details alone", "a\nb\n</details>", 3, "</details>"},
+		{"uppercase pre", "<PRE class=\"x\">\nstuff", 1, "<PRE"},
+		{"closed pre", "<pre>one line</pre>", 1, "<pre>"},
+		{"script", "intro\n<script>\nx\n", 2, "<script>"},
+		{"style", "<style>a{}</style>", 1, "<style>"},
+		{"textarea", "t\n<textarea>\nx", 2, "<textarea>"},
+		{"comment after an inline tag, then details", "<kbd>x</kbd> <!-- a\n<details>\n-->", 1, "<!--"},
+		{"after a closed pre on the same line", "</pre> <!-- c", 1, "</pre>"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			guardCase(t, c.content, c.line, "raw HTML", `"`+c.tag, "swallow", banFix, "remove")
+		})
+	}
+}
+
+func TestCheckRawHTMLInCodeOrHarmlessTagsIsFine(t *testing.T) {
+	for name, ok := range map[string]string{
+		"inline code":         "Mention `<details>` and `<!--` in prose.",
+		"double backticks":    "Use `<pre>` here.",
+		"fenced block":        "```html\n<details>\n<!-- x -->\n<pre>\n```",
+		"kbd":                 "Press <kbd>Ctrl</kbd>+C.",
+		"autolink":            "See <https://example.com/docs> for more.",
+		"similar tag name":    "<prefix>x</prefix> and <stylesheet>",
+		"br":                  "line<br>break",
+		"a comment-like text": "<! not a comment",
+	} {
+		m := phaseMap()
+		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
+		if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
+			t.Errorf("%s: content %q: want no findings:\n%s", name, ok, res.Format())
+		}
+	}
+}
+
+func TestCheckRawHTMLInNamedEntryContent(t *testing.T) {
+	m := implPlanMap()
+	m.Sections["component"] = []tmpl.Entry{{Name: "A", Content: "x\n<details>\ny", Line: 12}}
+	wantOne(t, check(t, "impl-plan", m), tmpl.SeverityError, "section:component", "raw HTML", `"<details>"`, "line 2 of the section", banFix)
+}
+
+func TestCheckRawHTMLInMetadataNameAndTitle(t *testing.T) {
+	t.Run("metadata value", func(t *testing.T) {
+		m := implPlanMap()
+		m.Metadata["Objective"] = tmpl.Field{Value: "Collapse verbose logs into <details> blocks", Line: 3}
+		res := check(t, "impl-plan", m)
+		wantOne(t, res, tmpl.SeverityError, "metadata:Objective", "raw HTML", `"<details>"`, "swallow", banFix, `"Objective"`, `edit "Objective" under "metadata:"`)
+		if res.Findings[0].Line != 3 {
+			t.Errorf("line = %d, want 3", res.Findings[0].Line)
+		}
+	})
+	t.Run("metadata value, markdown", func(t *testing.T) {
+		m := mdPhaseMap()
+		m.Metadata["Status"] = tmpl.Field{Value: "<!-- hidden", Line: 4}
+		wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "metadata:Status", "raw HTML", `"<!--"`, `"**Status:**"`)
+	})
+	t.Run("entry name", func(t *testing.T) {
+		m := implPlanMap()
+		m.Sections["component"] = []tmpl.Entry{{Name: "Use <details> here", Content: "x", Line: 12}}
+		wantOne(t, check(t, "impl-plan", m), tmpl.SeverityError, "section:component", "raw HTML", `"<details>"`, "name", banFix)
+	})
+	t.Run("title", func(t *testing.T) {
+		m := phaseMap()
+		m.Title = "[PLAN-00112-1] Add <script> support"
+		wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "title", "raw HTML", `"<script>"`, banFix)
+	})
+	t.Run("inline code is fine in metadata", func(t *testing.T) {
+		m := implPlanMap()
+		m.Metadata["Objective"] = tmpl.Field{Value: "Collapse logs into `<details>` blocks", Line: 3}
+		if res := check(t, "impl-plan", m); len(res.Findings) != 0 {
+			t.Fatalf("want no findings:\n%s", res.Format())
+		}
+	})
+}
+
+// The setext rule runs on every line of content now that no HTML state can
+// skip lines.
+func TestCheckSetextAppliesAfterInlineHTML(t *testing.T) {
+	guardCase(t, "<kbd>x</kbd> <https://example.com>\n---", 1, "---", "horizontal rule")
 }

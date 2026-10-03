@@ -361,7 +361,8 @@ var (
 )
 
 // FindH2Lines returns, for each "## " heading line of body that is outside a
-// fenced code block, its zero-based line index and trimmed text. Fences follow
+// fenced code block, its one-based line number and its text without the "##"
+// marker, trimmed (the same convention as SectionMap.UnknownHeadings). Fences follow
 // CommonMark: an opening run of three or more backticks or tildes (up to three
 // spaces of indent) closes only on a run of the same character that is at
 // least as long and carries nothing but whitespace after it. Markdown parsers
@@ -386,7 +387,8 @@ func FindH2Lines(body string) []Heading {
 			}
 		}
 		if fenceCh == 0 && h2Re.MatchString(line) {
-			out = append(out, Heading{Text: strings.TrimSpace(line), Line: i})
+			text := strings.TrimSpace(strings.TrimLeft(line, " ")[2:])
+			out = append(out, Heading{Text: text, Line: i + 1})
 		}
 	}
 	return out
@@ -395,7 +397,7 @@ func FindH2Lines(body string) []Heading {
 // fencedH2 returns the first "## " line outside a fenced code block.
 func fencedH2(content string) (string, bool) {
 	if hs := FindH2Lines(content); len(hs) > 0 {
-		return hs[0].Text, true
+		return strings.TrimSpace("## " + hs[0].Text), true
 	}
 	return "", false
 }

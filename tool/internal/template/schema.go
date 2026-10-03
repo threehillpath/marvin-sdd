@@ -23,8 +23,11 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 	if err := yaml.Unmarshal(data, &sc); err != nil {
 		return nil, fmt.Errorf("%sparsing schema: %w", pre, err)
 	}
+	if strings.TrimSpace(sc.Type) == "" {
+		return nil, fmt.Errorf("%smissing \"type\". Add a line like type: quick-task. The built-in types are %s", pre, strings.Join(builtInTypes, ", "))
+	}
 	if strings.TrimSpace(sc.TitlePrefix) == "" {
-		return nil, fmt.Errorf("%smissing \"title_prefix\". Add a line like title_prefix: \"[PLAN-XXXXX] <Title>\" (XXXXX is the issue number, N a phase ordinal)", pre)
+		return nil, fmt.Errorf("%smissing \"title_prefix\" for type %q. %s", pre, sc.Type, titlePrefixHint(sc.Type))
 	}
 	for _, sec := range sc.Sections {
 		if sec.Numbered && sec.Named == nil {
@@ -37,6 +40,21 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 	}
 	sc.ExpectedKind = kind
 	return &sc, nil
+}
+
+// builtInTypes lists the built-in schema names.
+var builtInTypes = []string{"arch-plan", "impl-plan", "impl-phase", "quick-task"}
+
+// titlePrefixHint tells the caller what to add for a missing title_prefix:
+// the built-in prefix for typ when there is one, else every accepted form.
+func titlePrefixHint(typ string) string {
+	if data, ok := DefaultSchema(typ); ok {
+		var built Schema
+		if err := yaml.Unmarshal(data, &built); err == nil && strings.TrimSpace(built.TitlePrefix) != "" {
+			return fmt.Sprintf("Add a line like title_prefix: %q (the built-in prefix for this type; XXXXX is the issue number, N a phase ordinal)", built.TitlePrefix)
+		}
+	}
+	return "Add a title_prefix starting with one of [PLAN-XXXXX-ARCH] (arch), [PLAN-XXXXX] (impl), [PLAN-XXXXX-N] (phase) or [TASK-XXXXX] (task), followed by a title placeholder like <Title>. XXXXX is the issue number, N a phase ordinal"
 }
 
 var (

@@ -814,3 +814,29 @@ func TestCheckUnclosedDetailsIsError(t *testing.T) {
 	// One of two nested blocks left open is still an error.
 	guardCase(t, "<details>\n<details>\ninner\n</details>", 1, "<details>", "</details>")
 }
+
+func TestCheckUnclosedRawHTMLBlockIsError(t *testing.T) {
+	for _, tag := range []string{"pre", "script", "style", "textarea"} {
+		t.Run(tag, func(t *testing.T) {
+			guardCase(t, "intro\n<"+tag+">\ncode\n", 2, "<"+tag+">", "</"+tag+">", "never closed", "every later section")
+		})
+	}
+	guardCase(t, "<PRE class=\"x\">\nstuff", 1, "<pre>", "</pre>")
+
+	for _, ok := range []string{
+		"<pre>\ncode\n</pre>",
+		"<pre>one line</pre>",
+		"<script>\nx\n</SCRIPT>",
+		"<style>a{}</style>",
+		"Mention `<pre>` in prose.",
+		"```html\n<pre>\n```",
+		"<prefix>not a raw block</prefix>",
+		"<textarea>\nx\n</textarea>",
+	} {
+		m := phaseMap()
+		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
+		if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
+			t.Errorf("content %q: want no findings:\n%s", ok, res.Format())
+		}
+	}
+}

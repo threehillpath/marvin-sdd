@@ -153,15 +153,12 @@ func Render(sc *Schema, origin string, m *SectionMap) (string, Result) {
 
 // Skeleton returns an empty YAML draft for sc: a double-quoted title
 // placeholder from title_prefix, every metadata key as "", and every section
-// key with an empty block (an empty one-item list for repeatable sections),
-// each section's guidance as comments above its key. It is itself a loadable
-// draft; Check then reports what is still empty.
+// key with its empty shape (an empty block, a list of blocks, or a list of
+// {name, content} entries). It contains no comments, because drafts take
+// none; Guidance prints the how-to-fill text separately. It is itself a
+// loadable draft; Check then reports what is still empty.
 func Skeleton(sc *Schema) string {
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "# marvin draft for schema %s. Fill it in, then render it to markdown.\n", sc.Type)
-	sb.WriteString("# Keep the title and every metadata value in double quotes (write \\\" for a quote and \\\\ for a backslash inside them).\n")
-	sb.WriteString("# Write section content as | blocks, indenting every line at least as far as the block's first line.\n")
-	sb.WriteString("# Use ### (never ##) for sub-headings inside content.\n")
 	fmt.Fprintf(&sb, "title: %s\n", yamlQuote(sc.TitlePrefix))
 	sb.WriteString("metadata:\n")
 	for _, key := range sc.Metadata {
@@ -169,14 +166,6 @@ func Skeleton(sc *Schema) string {
 	}
 	sb.WriteString("sections:\n")
 	for _, sec := range sc.Sections {
-		req := "optional"
-		if sec.Required {
-			req = "required"
-		}
-		fmt.Fprintf(&sb, "\n  # %s (%s)\n", sectionDisplay(sec), req)
-		for _, line := range wrapComment(sec.Guidance, 76) {
-			fmt.Fprintf(&sb, "  # %s\n", line)
-		}
 		switch {
 		case isNamed(sec):
 			fmt.Fprintf(&sb, "  %s:\n    - name: \"\"\n      content: |\n", sec.ID)
@@ -189,13 +178,50 @@ func Skeleton(sc *Schema) string {
 	return sb.String()
 }
 
-// sectionDisplay names a section for a skeleton comment: its heading, or for
-// a named section (whose heading is a placeholder) a description.
-func sectionDisplay(sec SchemaSection) string {
-	if isNamed(sec) {
-		return fmt.Sprintf("%s, one entry per heading; each entry's name becomes the heading text", strings.Trim(sec.Heading, "<>"))
+// Guidance returns plain-text help for filling in a draft of sc: the rules
+// for writing a draft, then, per section in schema order, its heading,
+// whether it is required, repeatable, numbered or named, the draft key shape
+// and the schema's guidance text.
+func Guidance(sc *Schema) string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "schema: %s\n\n", sc.Type)
+	sb.WriteString("Rules for writing a draft:\n")
+	sb.WriteString("- Keep the title and every metadata value in double quotes; write \\\" for a quote and \\\\ for a backslash inside them.\n")
+	sb.WriteString("- Write section content as | blocks, indenting every line at least as far as the block's first line.\n")
+	sb.WriteString("- Use ### for sub-headings inside content, never ##: a ## line would start a new section.\n")
+	sb.WriteString("- Write no # comments anywhere in the draft: YAML drops them, and a # line meant as content would be lost.\n")
+	sb.WriteString("- Use no --- or ... at column 0: they are YAML document markers. Indent a horizontal rule to the block's level.\n")
+	fmt.Fprintf(&sb, "\nMetadata keys (each required, one line): %s\n", strings.Join(sc.Metadata, ", "))
+	sb.WriteString("\nSections, in render order:\n")
+	for _, sec := range sc.Sections {
+		attrs := []string{"optional"}
+		if sec.Required {
+			attrs = []string{"required"}
+		}
+		if sec.Repeatable {
+			attrs = append(attrs, "repeatable")
+		}
+		if sec.Numbered {
+			attrs = append(attrs, "numbered")
+		}
+		if isNamed(sec) {
+			attrs = append(attrs, "named")
+		}
+		heading := strings.Trim(sec.Heading, "<>")
+		fmt.Fprintf(&sb, "\n%s (%s)\n", heading, strings.Join(attrs, ", "))
+		switch {
+		case isNamed(sec):
+			fmt.Fprintf(&sb, "  %s: a list of entries with name: and content: |; each name becomes the heading text\n", sec.ID)
+		case sec.Repeatable:
+			fmt.Fprintf(&sb, "  %s: a list of | blocks, each starting with - |\n", sec.ID)
+		default:
+			fmt.Fprintf(&sb, "  %s: a single | block\n", sec.ID)
+		}
+		for _, line := range wrapComment(sec.Guidance, 76) {
+			fmt.Fprintf(&sb, "  %s\n", line)
+		}
 	}
-	return sec.Heading
+	return sb.String()
 }
 
 // wrapComment folds text to lines of at most width characters.
@@ -216,9 +242,4 @@ func wrapComment(text string, width int) []string {
 		lines = append(lines, line)
 	}
 	return lines
-}
-
-// Guidance returns plain-text help for filling in a draft of sc.
-func Guidance(sc *Schema) string {
-	return ""
 }

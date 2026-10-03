@@ -325,10 +325,17 @@ func runParsePhaseList(stdin io.Reader, stdout, stderr io.Writer, jsonOut bool) 
 	return enc.Encode(out)
 }
 
-// runTemplateRender emits the schema's empty YAML draft (--skeleton). Rendering
-// a filled-in draft arrives with --draft in a later phase; until then a
-// render without --skeleton has nothing to render and says so.
-func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton bool) error {
+// runTemplateRender prints a schema's empty YAML draft (--skeleton) or its
+// plain-text guidance (--guidance). Rendering a filled-in draft arrives with
+// --draft in a later phase; until then a render with neither flag has nothing
+// to do and says so.
+func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, guidance bool) error {
+	if skeleton && guidance {
+		return &CLIError{Code: 1, Msg: fmt.Sprintf("--skeleton and --guidance cannot be combined: pass only one. Run \"marvin template render %s --skeleton\" for the empty YAML draft, or \"marvin template render %s --guidance\" for the help text", schemaName, schemaName)}
+	}
+	if !skeleton && !guidance {
+		return &CLIError{Code: 1, Msg: fmt.Sprintf("nothing to render for %s: the JSON input (--sections, --meta) was removed and draft input is not available yet. Run \"marvin template render %s --skeleton\" to get an empty YAML draft, or \"marvin template render %s --guidance\" for how to fill it in", schemaName, schemaName, schemaName)}
+	}
 	schemaYAML, origin, err := resolveSchema(schemaName)
 	if err != nil {
 		return &CLIError{Code: 1, Msg: err.Error()}
@@ -337,8 +344,9 @@ func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton boo
 	if err != nil {
 		return &CLIError{Code: 1, Msg: err.Error()}
 	}
-	if !skeleton {
-		return &CLIError{Code: 1, Msg: fmt.Sprintf("nothing to render for %s: the JSON input (--sections, --meta) was removed and draft input is not available yet. Run \"marvin template render %s --skeleton\" to get an empty YAML draft", schemaName, schemaName)}
+	if guidance {
+		fmt.Fprint(stdout, tmplpkg.Guidance(sc))
+		return nil
 	}
 	fmt.Fprint(stdout, tmplpkg.Skeleton(sc))
 	return nil

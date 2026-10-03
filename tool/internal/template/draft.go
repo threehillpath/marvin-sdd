@@ -19,6 +19,8 @@ type draftLoader struct {
 	m        *SectionMap
 	findings []Finding
 	lines    []string            // raw draft lines, to locate head and foot comments
+	code     []string            // the same lines with block-scalar content blanked
+	used     map[int]bool        // comment lines already reported
 	handled  map[*yaml.Node]bool // nodes whose line comment already has a finding
 }
 
@@ -34,7 +36,7 @@ func LoadDraft(sc *Schema, data []byte) (*SectionMap, []Finding) {
 		Source:   SourceYAML,
 		Metadata: map[string]Field{},
 		Sections: map[string][]Entry{},
-	}, lines: strings.Split(string(data), "\n"), handled: map[*yaml.Node]bool{}}
+	}, lines: strings.Split(string(data), "\n"), handled: map[*yaml.Node]bool{}, code: rawLines(data), used: map[int]bool{}}
 	// Drafts never use document markers: a column-0 "---" or "..." ends the
 	// open block and starts a document the loader would drop.
 	for i, line := range strings.Split(string(data), "\n") {
@@ -212,8 +214,9 @@ func (l *draftLoader) entries(sec SchemaSection, v *yaml.Node) []Entry {
 }
 
 // cutComment returns the comment yaml.v3 attached to a scalar pair, and
-// whether the value was plain (so the comment cut it) rather than quoted. A
-// comment after a literal "|" header is harmless and not reported.
+// whether the value was plain (so the comment cut it) rather than quoted. It
+// returns no comment for a literal or folded block: a comment after a "|"
+// header cannot cut anything, and the general comment walk reports it.
 func cutComment(kv pair) (comment string, plain bool) {
 	v := kv.val
 	if v.Kind != yaml.ScalarNode || v.Style&(yaml.LiteralStyle|yaml.FoldedStyle) != 0 {
@@ -440,37 +443,55 @@ func (l *draftLoader) expectMapping(n *yaml.Node, what, keys string) bool {
 	return false
 }
 
-// comments reports every YAML comment the parser attached to any node. Drafts
-// take no comments: YAML would drop the text, and a "#" line that was meant as
-// content (a markdown heading, an issue reference) would be lost silently.
+// comments reports every YAML comment the parser attached to any node, one
+// finding per comment line. Drafts take no comments: YAML would drop the text,
+// and a "#" line that was meant as content (a markdown heading, an issue
+// reference) would be lost silently.
 func (l *draftLoader) comments(n *yaml.Node) {
 	for _, c := range []struct{ text, kind string }{{n.HeadComment, "head"}, {n.LineComment, "line"}, {n.FootComment, "foot"}} {
 		if c.text == "" || (c.kind == "line" && l.handled[n]) {
 			continue
 		}
-		line := l.commentLine(c.text, n.Line)
-		text := strings.TrimSpace(strings.SplitN(c.text, "\n", 2)[0])
-		if c.kind == "line" {
-			l.fail(line, "%q is a YAML comment: YAML treats a # at this position as a comment and would drop it. Drafts do not take comments, so delete it", text)
-			continue
+		for _, text := range strings.Split(c.text, "\n") {
+			text = strings.TrimSpace(text)
+			if text == "" {
+				continue
+			}
+			line := l.commentLine(text, n.Line, c.kind == "line")
+			if c.kind == "line" {
+				l.fail(line, "%q is a YAML comment: YAML treats a # at this position as a comment and would drop it. Drafts do not take comments, so delete it", text)
+				continue
+			}
+			l.fail(line, "%q is a YAML comment: YAML treats a # at this position as a comment and would drop it. If the line is part of section content, indent it to the level of the | block's text. If it continues a title, metadata value or name, put the whole value in double quotes. Otherwise delete it: drafts don't take comments", text)
 		}
-		l.fail(line, "%q is a YAML comment: YAML treats a # at this position as a comment and would drop it. If the line is part of section content, indent it to the level of the | block's text. If it continues a title, metadata value or name, put the whole value in double quotes. Otherwise delete it: drafts don't take comments", text)
 	}
 	for _, c := range n.Content {
 		l.comments(c)
 	}
 }
 
-// commentLine finds the raw line, nearest to hint, that holds the first line
-// of a comment; 0 when it cannot be located.
-func (l *draftLoader) commentLine(comment string, hint int) int {
-	first := strings.TrimSpace(strings.SplitN(comment, "\n", 2)[0])
+// commentLine finds the raw line, nearest to hint, that holds a comment line
+// and has not been reported yet; 0 when it cannot be located. An own-line
+// comment must be the whole trimmed line and a line comment must end the
+// line; lines inside a block scalar are content and never match.
+func (l *draftLoader) commentLine(text string, hint int, trailing bool) int {
 	if hint < 1 {
 		hint = 1
 	}
+	match := func(i int) bool {
+		raw := strings.TrimSpace(l.code[i-1])
+		if l.used[i] || raw == "" {
+			return false
+		}
+		if trailing {
+			return strings.HasSuffix(raw, text)
+		}
+		return raw == text
+	}
 	for d := 0; d < len(l.lines); d++ {
-		for _, i := range []int{hint - d, hint + d} {
-			if i >= 1 && i <= len(l.lines) && strings.Contains(l.lines[i-1], first) {
+		for _, i := range []int{hint + d, hint - d} {
+			if i >= 1 && i <= len(l.lines) && match(i) {
+				l.used[i] = true
 				return i
 			}
 		}

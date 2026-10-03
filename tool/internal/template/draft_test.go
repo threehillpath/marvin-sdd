@@ -187,3 +187,36 @@ func TestLoadDraftRepeatedKeyIsFinding(t *testing.T) {
 		wantDraftFinding(t, "impl-plan", d, 14, `"name"`, "line 13", "Remove")
 	})
 }
+
+func TestLoadDraftNonLiteralContentIsFinding(t *testing.T) {
+	t.Run("folded scope", func(t *testing.T) {
+		d := patch(t, phaseDraft, "scope: |\n    Includes:\n    - one\n    - two", "scope: >\n    Includes:\n    - one\n    - two")
+		wantDraftFinding(t, "impl-phase", d, 10, `"scope"`, "folded", "reflow", "scope: |")
+	})
+	t.Run("plain scalar", func(t *testing.T) {
+		d := patch(t, phaseDraft, "components: |\n    Stuff.", "components: Stuff.")
+		wantDraftFinding(t, "impl-phase", d, 14, `"components"`, "plain", "components: |")
+	})
+	t.Run("double quoted", func(t *testing.T) {
+		d := patch(t, phaseDraft, "components: |\n    Stuff.", `components: "Stuff.\n- a"`)
+		wantDraftFinding(t, "impl-phase", d, 14, `"components"`, "double-quoted", "components: |")
+	})
+	t.Run("single quoted", func(t *testing.T) {
+		d := patch(t, phaseDraft, "components: |\n    Stuff.", "components: 'Stuff.'")
+		wantDraftFinding(t, "impl-phase", d, 14, `"components"`, "single-quoted", "components: |")
+	})
+	t.Run("named entry content", func(t *testing.T) {
+		d := patch(t, planDraft, "content: |\n        Body one.", "content: Body one.")
+		wantDraftFinding(t, "impl-plan", d, 14, `"content"`, `"First one"`, "plain", "content: |")
+	})
+	t.Run("list item", func(t *testing.T) {
+		d := patch(t, planDraft, "- |\n      Run the tests.", "- >\n      Run the tests.")
+		wantDraftFinding(t, "impl-plan", d, 20, `"verification_steps"`, "folded", "- |")
+	})
+	t.Run("literal block with a header comment is fine", func(t *testing.T) {
+		d := patch(t, phaseDraft, "objective: |", "objective: | # the goal")
+		if m, fs := loadDraft(t, "impl-phase", d); m == nil || len(fs) != 0 {
+			t.Fatalf("a comment after the | header is harmless: %+v", fs)
+		}
+	})
+}

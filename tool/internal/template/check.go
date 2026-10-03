@@ -1,5 +1,7 @@
 package template
 
+import "fmt"
+
 // Source says which input produced a SectionMap.
 type Source int
 
@@ -65,7 +67,18 @@ type Result struct {
 
 // Check applies the conformance rules to m.
 func Check(sc *Schema, origin string, m *SectionMap) Result {
-	return Result{}
+	res := Result{Type: sc.Type, Origin: origin}
+	for _, sec := range sc.Sections {
+		if sec.Required && len(m.Sections[sec.ID]) == 0 {
+			res.Findings = append(res.Findings, Finding{
+				Severity: SeverityError,
+				Location: "section:" + sec.ID,
+				Message: fmt.Sprintf("required section %q is missing. Add a %q block under \"sections:\" in the draft.",
+					sec.Heading, sec.ID+": |"),
+			})
+		}
+	}
+	return res
 }
 
 // Format renders the result as plain text.

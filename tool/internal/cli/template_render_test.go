@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 const overrideSchemaFixture = `
 type: quick-task
+title_prefix: "[TASK-XXXXX] <Title>"
 metadata:
   - Source Issue
 sections:
@@ -21,6 +23,7 @@ sections:
     required: false
     repeatable: false
     numbered: false
+    named: false
 `
 
 // TestTemplateRenderProjectOverrideWinsOverEmbeddedDefault verifies that a
@@ -141,5 +144,50 @@ func TestTemplateRenderUnreadableOverrideFails(t *testing.T) {
 	}
 	if strings.Contains(stdout.String(), "Problem Statement") {
 		t.Errorf("expected no output from the embedded default when the override is unreadable, got:\n%s", stdout.String())
+	}
+}
+
+// TestTemplateRenderSkeletonRejectsMalformedOverride verifies that a project
+// override missing title_prefix fails the render with exit 1 and a message
+// that names the origin and the field, rather than rendering from a schema
+// the conformance check could not use.
+func TestTemplateRenderSkeletonRejectsMalformedOverride(t *testing.T) {
+	dir := t.TempDir()
+	overrideDir := filepath.Join(dir, ".claude", "plan-workflow-templates")
+	if err := os.MkdirAll(overrideDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bad := "type: quick-task\nmetadata:\n  - Source Issue\nsections: []\n"
+	if err := os.WriteFile(filepath.Join(overrideDir, "quick-task.yml"), []byte(bad), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(orig) })
+
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"template", "render", "quick-task", "--skeleton"})
+
+	err = root.Execute()
+	var cliErr *cli.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("want *CLIError, got %T: %v", err, err)
+	}
+	if cliErr.Code != 1 {
+		t.Errorf("Code = %d, want 1", cliErr.Code)
+	}
+	for _, w := range []string{"project override", "title_prefix"} {
+		if !strings.Contains(cliErr.Msg, w) {
+			t.Errorf("message %q missing %q", cliErr.Msg, w)
+		}
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("want no stdout, got %q", stdout.String())
 	}
 }

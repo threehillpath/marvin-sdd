@@ -345,17 +345,17 @@ func TestLoadDraftDocumentMarkersAreFindings(t *testing.T) {
 			t.Fatalf("an indented --- is block content: %+v", fs)
 		}
 	})
-	t.Run("a second document is never silently dropped", func(t *testing.T) {
+	t.Run("a marker followed by text is still a marker", func(t *testing.T) {
 		d := phaseDraft + "--- extra\n"
-		m, fs := loadDraft(t, "impl-phase", d)
-		if m != nil || len(fs) != 1 {
-			t.Fatalf("want exactly one finding, got %+v", fs)
-		}
-		for _, w := range []string{"second YAML document", "one document", "dropped"} {
-			if !strings.Contains(fs[0].Message, w) {
-				t.Errorf("message %q missing %q", fs[0].Message, w)
-			}
-		}
+		wantDraftFinding(t, "impl-phase", d, 20, `"--- extra"`, "document marker", "blank line", fix)
+	})
+	t.Run("document end marker followed by text", func(t *testing.T) {
+		d := patch(t, phaseDraft, "    - two\n", "    - two\n... text\n")
+		wantDraftFinding(t, "impl-phase", d, 14, `"... text"`, "document marker", "blank line")
+	})
+	t.Run("the fix does not lead into a setext error", func(t *testing.T) {
+		d := patch(t, phaseDraft, "    - two\n", "    - two\n---\n")
+		wantDraftFinding(t, "impl-phase", d, 14, "indent it to the same level as the text of its | block", "blank line above it")
 	})
 }
 

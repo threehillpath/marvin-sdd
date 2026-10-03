@@ -94,7 +94,11 @@ func TestLoadSchemaMalformedOverrides(t *testing.T) {
 		want []string
 	}{
 		{"missing title_prefix", "type: quick-task\nmetadata: [A]\nsections: []\n",
-			[]string{overrideOrigin, "title_prefix", "Add"}},
+			[]string{overrideOrigin, "title_prefix", "Add", `"[TASK-XXXXX] <Title>"`}},
+		{"missing title_prefix, custom type", "type: my-type\nmetadata: [A]\n",
+			[]string{overrideOrigin, "title_prefix", "[PLAN-XXXXX-ARCH]", "[PLAN-XXXXX] ", "[PLAN-XXXXX-N]", "[TASK-XXXXX]"}},
+		{"missing type", "title_prefix: \"[TASK-XXXXX] <T>\"\n",
+			[]string{overrideOrigin, `"type"`, "Add", "arch-plan", "impl-plan", "impl-phase", "quick-task"}},
 		{"numbered section missing named", `type: impl-plan
 title_prefix: "[PLAN-XXXXX] <T>"
 sections:

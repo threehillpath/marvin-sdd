@@ -429,7 +429,8 @@ func TestCheckMarkdownUnknownHeadingWarns(t *testing.T) {
 	m := mdPhaseMap()
 	m.UnknownHeadings = []tmpl.Heading{{Text: "Extras", Line: 60}}
 	res := check(t, "impl-phase", m)
-	wantOne(t, res, tmpl.SeverityWarning, "draft", `"## Extras"`, "Rename")
+	wantOne(t, res, tmpl.SeverityWarning, "draft", `"## Extras"`, "Rename",
+		`"## Objective"`, `"## Scope"`, `"## Verification"`, `"## Success Criteria"`)
 	if res.Findings[0].Line != 60 {
 		t.Errorf("line = %d, want 60", res.Findings[0].Line)
 	}
@@ -444,7 +445,11 @@ func TestCheckMarkdownUnknownMetadataWarns(t *testing.T) {
 func TestCheckMarkdownSectionsOutOfOrderWarns(t *testing.T) {
 	m := mdPhaseMap()
 	m.Sections["objective"] = []tmpl.Entry{{Content: "c", Line: 70}}
-	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityWarning, "section:objective", `"Objective"`, "Move")
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityWarning, "section:objective", `"## Objective"`, "Move", `before "## Scope"`)
+
+	m = mdPhaseMap()
+	m.Sections["scope"] = []tmpl.Entry{{Content: "c", Line: 70}}
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityWarning, "section:scope", `"## Scope"`, "Move", `after "## Objective"`)
 }
 
 func TestCheckYAMLOrderIsIrrelevant(t *testing.T) {
@@ -541,4 +546,25 @@ func TestCheckEmptyOptionalSectionOffersRemove(t *testing.T) {
 	m := phaseMap()
 	m.Sections["tdd_entry_point"] = []tmpl.Entry{{Content: "", Line: 20}}
 	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityWarning, "section:tdd_entry_point", "or remove it")
+}
+
+func TestCheckMarkdownUnknownHeadingListsNumberedForms(t *testing.T) {
+	m := mdImplPlanMap()
+	m.UnknownHeadings = []tmpl.Heading{{Text: "Extras", Line: 90}}
+	wantOne(t, check(t, "impl-plan", m), tmpl.SeverityWarning, "draft", `"## Extras"`,
+		`"## Scope"`, `"## <n>. <Name>"`, `"## <n>. Verification Steps"`, `"## Design Notes"`)
+}
+
+func TestCheckMarkdownInterleavedEntriesOutOfOrderWarns(t *testing.T) {
+	m := mdImplPlanMap()
+	// Lines: A(11) Verification(25) B(30): the second component follows Verification Steps.
+	m.Sections["component"] = []tmpl.Entry{{Name: "A", Content: "c", Line: 11, Number: 1}, {Name: "B", Content: "c", Line: 30, Number: 3}}
+	m.Sections["verification_steps"] = []tmpl.Entry{{Content: "c", Line: 25, Number: 2}}
+	m.Sections["design_notes"][0].Line = 40
+	m.Sections["success_criteria"][0].Line = 50
+	res := check(t, "impl-plan", m)
+	wantOne(t, res, tmpl.SeverityWarning, "section:component", `"## 3. B"`, "Move", `after "## 1. A"`)
+	if res.Findings[0].Line != 30 {
+		t.Errorf("line = %d, want 30", res.Findings[0].Line)
+	}
 }

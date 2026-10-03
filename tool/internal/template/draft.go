@@ -1,7 +1,9 @@
 package template
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"regexp"
 	"strconv"
 	"strings"
@@ -31,9 +33,26 @@ func LoadDraft(sc *Schema, data []byte) (*SectionMap, []Finding) {
 		Metadata: map[string]Field{},
 		Sections: map[string][]Entry{},
 	}}
+	// Drafts never use document markers: a column-0 "---" or "..." ends the
+	// open block and starts a document the loader would drop.
+	for i, line := range strings.Split(string(data), "\n") {
+		if t := strings.TrimRight(line, " \t\r"); t == "---" || t == "..." {
+			l.fail(i+1, "%q at column 0 is a YAML document marker, which drafts never use: it ends the draft's document, so everything after it would be dropped. If it is a horizontal rule in section content, indent it to the same level as the text of its | block; otherwise delete the line", t)
+		}
+	}
+	if len(l.findings) > 0 {
+		return nil, l.findings
+	}
+	dec := yaml.NewDecoder(bytes.NewReader(data))
 	var doc yaml.Node
-	if err := yaml.Unmarshal(data, &doc); err != nil {
+	if err := dec.Decode(&doc); err != nil && err != io.EOF {
 		return nil, l.parseError(data, err)
+	}
+	var second yaml.Node
+	if err := dec.Decode(&second); err != io.EOF {
+		line := second.Line
+		l.fail(line, "the draft contains a second YAML document, which would be dropped. A draft is exactly one document: remove the \"---\" or \"...\" that starts it and put everything under the single title:, metadata: and sections: keys")
+		return nil, l.findings
 	}
 	root := &doc
 	if root.Kind == yaml.DocumentNode && len(root.Content) == 1 {

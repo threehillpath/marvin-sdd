@@ -19,7 +19,19 @@ const (
 )
 
 // String returns the lowercase name of the kind.
-func (k Kind) String() string { return "" }
+func (k Kind) String() string {
+	switch k {
+	case Arch:
+		return "arch"
+	case Impl:
+		return "impl"
+	case Phase:
+		return "phase"
+	case Task:
+		return "task"
+	}
+	return fmt.Sprintf("Kind(%d)", int(k))
+}
 
 // PlanNumber formats a GitHub issue number as a zero-padded 5-digit plan number.
 // Example: 42 → "PLAN-00042"

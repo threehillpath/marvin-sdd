@@ -9,7 +9,6 @@ import (
 	"threehillpath.com/marvin-sdd/tool/internal/config"
 	"threehillpath.com/marvin-sdd/tool/internal/exec"
 	"threehillpath.com/marvin-sdd/tool/internal/gh"
-	"threehillpath.com/marvin-sdd/tool/internal/names"
 	"threehillpath.com/marvin-sdd/tool/internal/parse"
 )
 
@@ -30,15 +29,7 @@ type Node struct {
 // back to "impl" defensively.
 func kindOf(title string) string {
 	if k, ok := parse.Classify(title); ok {
-		switch k {
-		case names.Arch:
-			return "arch"
-		case names.Phase:
-			return "phase"
-		case names.Task:
-			return "task"
-		}
-		return "impl"
+		return k.String()
 	}
 	ident, ok := parse.PlanIdent(title)
 	if !ok {

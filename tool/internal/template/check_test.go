@@ -703,7 +703,7 @@ func TestCheckUnclosedFenceIsError(t *testing.T) {
 					return
 				}
 				wantOne(t, res, tmpl.SeverityError, "section:scope",
-					`"scope"`, `"`+c.fence+`"`, "never closed", "every later section", "matching fence line")
+					`"Scope"`, `"`+c.fence+`"`, "never closed", "every later section", "matching fence line")
 				if res.Findings[0].Line != 9 {
 					t.Errorf("line = %d, want 9", res.Findings[0].Line)
 				}

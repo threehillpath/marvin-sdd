@@ -289,11 +289,13 @@ func sprintfLine(line int, format string, args ...any) string {
 }
 
 var (
-	yamlLineRe   = regexp.MustCompile(`^yaml: (?:line (\d+): )?(.*)$`)
-	titleRawRe   = regexp.MustCompile(`^title:\s*\[`)
-	blockHeadRe  = regexp.MustCompile(`^(\s*)(?:-\s+)?(?:[^#\s][^:]*:\s+)?[|>][+-]?\d?\s*(?:#.*)?$`)
-	innerQuoteRe = regexp.MustCompile(`^\s*(?:-\s+)?(?:[^\s:"'#][^:]*:\s+)?"(?:[^"\\]|\\.)*"[ \t]*[^\s#]`)
-	badEscapeRe  = regexp.MustCompile(`\\[^"0abtnvfre NLP_xuU/\t]`)
+	yamlLineRe  = regexp.MustCompile(`^yaml: (?:line (\d+): )?(.*)$`)
+	titleRawRe  = regexp.MustCompile(`^title:\s*\[`)
+	blockHeadRe = regexp.MustCompile(`^(\s*)(?:-\s+)?(?:[^#\s][^:]*:\s+)?[|>][+-]?\d?\s*(?:#.*)?$`)
+	// quotedValueRe splits a line whose value starts with a double quote
+	// into everything before that quote (never a quoted key) and the rest.
+	quotedValueRe = regexp.MustCompile(`^(\s*(?:-\s+)?(?:[^\s:"'#][^:]*:\s+)?)"(.*)$`)
+	badEscapeRe   = regexp.MustCompile(`\\[^"0abtnvfre NLP_xuU/\t]`)
 )
 
 // rawLines returns the draft's lines with those inside a block scalar blanked,
@@ -338,20 +340,33 @@ func (l *draftLoader) parseError(data []byte, err error) []Finding {
 		}
 	}
 	for i, line := range lines {
-		if !innerQuoteRe.MatchString(line) {
+		// yaml.v3 names the line before the offending one, and for "did not
+		// find expected key" often a wrong line; that message gets no limit.
+		// Any other message names a line the cause cannot lie beyond.
+		if parserLine > 0 && !strings.Contains(text, "did not find expected key") && i+1 > parserLine+1 {
+			break
+		}
+		m := quotedValueRe.FindStringSubmatch(line)
+		if m == nil || !failsAlone(line) {
 			continue
 		}
-		fix := ""
-		if trimmed := strings.TrimRight(line, " \t"); strings.HasSuffix(trimmed, `"`) {
-			if open := strings.Index(trimmed, `"`); open >= 0 && open < len(trimmed)-1 {
-				inner := strings.ReplaceAll(trimmed[open+1:len(trimmed)-1], `"`, `\"`)
-				fix = fmt.Sprintf(" For example: %s", trimmed[:open]+`"`+inner+`"`)
-			}
+		prefix, rest := m[1], m[2]
+		closeAt := closingQuote(rest)
+		if closeAt < 0 || strings.TrimSpace(rest[closeAt+1:]) == "" {
+			continue
 		}
-		l.fail(i+1, "this double-quoted value contains an unescaped \" that ends the string early. Inside double quotes write \\\" (backslash, quote) for each quote character in the text, or wrap the whole value in single quotes instead.%s", fix)
+		after := rest[closeAt+1:]
+		var example string
+		if trimmed := strings.TrimRight(rest, " \t"); strings.HasSuffix(trimmed, `"`) && len(trimmed)-1 > closeAt {
+			example = prefix + `"` + escapeQuotes(trimmed[:len(trimmed)-1]) + `"`
+		} else {
+			example = prefix + `"` + escapeQuotes(rest[:closeAt]+after) + `"`
+		}
+		l.fail(i+1, "the closing quote of this double-quoted value comes before the end of the value: the string ends at %q and %q follows, which YAML cannot parse. Put the whole value in one pair of double quotes, writing \\\" for any quote character that is part of the text, or wrap the whole value in single quotes. For example: %s",
+			`"`+rest[:closeAt]+`"`, strings.TrimSpace(after), strings.TrimSpace(example))
 		return l.findings
 	}
-	if strings.Contains(text, "unknown escape character") {
+	if strings.Contains(text, "unknown escape character") || strings.Contains(text, "hexdecimal number") {
 		line := parserLine
 		if line == 0 {
 			for i, raw := range lines {
@@ -361,7 +376,11 @@ func (l *draftLoader) parseError(data []byte, err error) []Finding {
 				}
 			}
 		}
-		l.fail(line, "a double-quoted value contains a backslash that YAML reads as an escape sequence it does not know (%s). Inside double quotes write \\\\ for a literal backslash (\"\\\\d{5}\" for \\d{5}), or wrap the value in single quotes, where backslashes are literal.", text)
+		offending := ""
+		if line >= 1 && line <= len(lines) {
+			offending = strings.TrimSpace(lines[line-1])
+		}
+		l.fail(line, "the double-quoted value on the line \"%s\" has a backslash that YAML reads as an escape sequence it cannot read (%s). Inside double quotes write \\\\ for each literal backslash, for example: %s. Or wrap the value in single quotes, where backslashes are literal.", offending, text, fixEscapes(offending))
 		return l.findings
 	}
 	l.fail(parserLine, "the draft is not valid YAML (%s). Check: section content uses \"|\" block scalars indented consistently; the title and metadata values are double-quoted with inner \" and \\ escaped; no tabs.", text)
@@ -457,4 +476,80 @@ func (l *draftLoader) commentLine(comment string, hint int) int {
 		}
 	}
 	return 0
+}
+
+// failsAlone reports whether a single raw line is not valid YAML on its own.
+func failsAlone(line string) bool {
+	var n yaml.Node
+	return yaml.Unmarshal([]byte(strings.TrimSpace(line)), &n) != nil
+}
+
+// closingQuote returns the index in s of the first unescaped double quote,
+// or -1.
+func closingQuote(s string) int {
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			i++
+		case '"':
+			return i
+		}
+	}
+	return -1
+}
+
+// escapeQuotes escapes each unescaped double quote in s.
+func escapeQuotes(s string) string {
+	var sb strings.Builder
+	for i := 0; i < len(s); i++ {
+		switch {
+		case s[i] == '\\' && i+1 < len(s):
+			sb.WriteByte(s[i])
+			i++
+			sb.WriteByte(s[i])
+		case s[i] == '"':
+			sb.WriteString(`\"`)
+		default:
+			sb.WriteByte(s[i])
+		}
+	}
+	return sb.String()
+}
+
+// fixEscapes doubles every backslash in line that does not begin a valid
+// YAML double-quoted escape.
+func fixEscapes(line string) string {
+	var sb strings.Builder
+	for i := 0; i < len(line); i++ {
+		if line[i] != '\\' {
+			sb.WriteByte(line[i])
+			continue
+		}
+		if i+1 >= len(line) {
+			sb.WriteString(`\\`)
+			continue
+		}
+		next := line[i+1]
+		valid := strings.IndexByte("\\\"0abtnvfre NLP_/\t", next) >= 0
+		if hex := map[byte]int{'x': 2, 'u': 4, 'U': 8}[next]; hex > 0 {
+			valid = i+2+hex <= len(line) && isHex(line[i+2:i+2+hex])
+		}
+		if valid {
+			sb.WriteByte('\\')
+			sb.WriteByte(next)
+			i++
+		} else {
+			sb.WriteString(`\\`)
+		}
+	}
+	return sb.String()
+}
+
+func isHex(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if !strings.ContainsRune("0123456789abcdefABCDEF", rune(s[i])) {
+			return false
+		}
+	}
+	return true
 }

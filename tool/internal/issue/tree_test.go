@@ -239,7 +239,8 @@ func TestTreeArchRootFansOutToAllImpls(t *testing.T) {
 }
 
 // TestTreeTaskSubIssueKind verifies a TASK sub-issue under a plan is labelled
-// "task" (it was mislabelled "impl"), while a phase sibling keeps "phase".
+// "task" (before classification it was labelled "phase", via the plan ident
+// trailing in its title), while a phase sibling keeps "phase".
 // Membership stays on PlanIdent, so the task title references a plan ident.
 func TestTreeTaskSubIssueKind(t *testing.T) {
 	fake := &exectest.FakeRunner{}
@@ -273,5 +274,48 @@ func TestTreeTaskSubIssueKind(t *testing.T) {
 	}
 	if kinds[39] != "phase" || kinds[36] != "impl" {
 		t.Errorf("expected #39 phase and #36 impl, got #39=%q #36=%q", kinds[39], kinds[36])
+	}
+}
+
+// TestTreeArchRootTaskSubIssueKind covers an arch-rooted tree whose impl plan
+// has a phase sub-issue and a plain TASK sub-issue (no plan ident in its
+// title): the TASK node is labelled "task" and the phase stays "phase".
+func TestTreeArchRootTaskSubIssueKind(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	archTitle := "[PLAN-00140-ARCH] Arch plan"
+	implTitle := "[PLAN-00140] Impl plan"
+	phaseTitle := "[PLAN-00140-1] Phase one"
+	taskTitle := "[TASK-00140] Fix X"
+
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(issueRefResponse("ID_140", 140, archTitle, "OPEN"))})
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(issueRefResponse("ID_140", 140, archTitle, "OPEN"))})
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"data":{"node":{"parent":null}}}`)})
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(issueRefResponse("ID_140", 140, archTitle, "OPEN"))})
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(
+		`{"data":{"node":{"subIssues":{"nodes":[{"number":141,"title":"` + implTitle + `","state":"OPEN"}]}}}}`,
+	)})
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(issueRefResponse("ID_141", 141, implTitle, "OPEN"))})
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(
+		`{"data":{"node":{"subIssues":{"nodes":[` +
+			`{"number":142,"title":"` + phaseTitle + `","state":"OPEN"},` +
+			`{"number":143,"title":"` + taskTitle + `","state":"OPEN"}` +
+			`]}}}}`,
+	)})
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"items":[]}`)})
+
+	cfg := buildConfig()
+	nodes, err := issue.Tree(context.Background(), fake, cfg, cfg.Repo, 140)
+	if err != nil {
+		t.Fatalf("Tree returned error: %v", err)
+	}
+	kinds := map[int]string{}
+	for _, n := range nodes {
+		kinds[n.Number] = n.Kind
+	}
+	if kinds[143] != "task" {
+		t.Errorf("expected #143 Kind \"task\", got %q (nodes: %v)", kinds[143], nodes)
+	}
+	if kinds[142] != "phase" || kinds[141] != "impl" || kinds[140] != "arch" {
+		t.Errorf("expected #142 phase, #141 impl, #140 arch, got %q %q %q", kinds[142], kinds[141], kinds[140])
 	}
 }

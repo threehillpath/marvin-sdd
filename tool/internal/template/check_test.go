@@ -568,3 +568,35 @@ func TestCheckMarkdownInterleavedEntriesOutOfOrderWarns(t *testing.T) {
 		t.Errorf("line = %d, want 30", res.Findings[0].Line)
 	}
 }
+
+func TestCheckSectionContentFenceRules(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		want    string // offending line, "" when content is fine
+	}{
+		{"longer fence holds a shorter fence line", "````\n```\n## inside\n```\n````\n### ok", ""},
+		{"info string does not close", "```python\n## inside\n```", ""},
+		{"fence with info string inside a fence does not close it", "```\n```python\n## still inside\n```", ""},
+		{"fence closes only on the same char", "```\n~~~\n## inside\n~~~\n```", ""},
+		{"heading after a properly closed fence", "```\ncode\n```\n## real", "## real"},
+		{"indented H2 is a heading", "text\n  ## Indented", "## Indented"},
+		{"four spaces is code, not a heading", "text\n\n    ## code", ""},
+		{"hash run without space is not an H2", "##tag", ""},
+		{"H3 is fine", "### ok", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := phaseMap()
+			m.Sections["scope"] = []tmpl.Entry{{Content: c.content, Line: 9}}
+			res := check(t, "impl-phase", m)
+			if c.want == "" {
+				if len(res.Findings) != 0 {
+					t.Fatalf("want no findings:\n%s", res.Format())
+				}
+				return
+			}
+			wantOne(t, res, tmpl.SeverityError, "section:scope", "###", `"`+c.want+`"`)
+		})
+	}
+}

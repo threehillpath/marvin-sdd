@@ -86,10 +86,13 @@ func Render(sc *Schema, origin string, m *SectionMap) (string, Result) {
 		fmt.Fprintf(&sb, "**%s:** %s\n", key, strings.TrimSpace(m.Metadata[key].Value))
 	}
 
-	type emitted struct{ id, heading string }
+	type emitted struct {
+		id, heading string
+		line        int
+	}
 	var want []emitted
-	emit := func(sec SchemaSection, heading, content string) {
-		want = append(want, emitted{sec.ID, heading})
+	emit := func(sec SchemaSection, heading, content string, line int) {
+		want = append(want, emitted{sec.ID, heading, line})
 		content = strings.Trim(strings.TrimRight(content, " \t\r\n"), "\n")
 		if content == "" {
 			fmt.Fprintf(&sb, "\n## %s\n", heading)
@@ -110,7 +113,7 @@ func Render(sc *Schema, origin string, m *SectionMap) (string, Result) {
 				}
 				heading = fmt.Sprintf("%d. %s", ordinal, heading)
 			}
-			emit(sec, heading, e.Content)
+			emit(sec, heading, e.Content, e.Line)
 		}
 	}
 
@@ -125,7 +128,7 @@ func Render(sc *Schema, origin string, m *SectionMap) (string, Result) {
 		for _, h := range hs {
 			texts = append(texts, fmt.Sprintf("%q", h.Text))
 		}
-		res.Findings = append(res.Findings, Finding{Severity: SeverityError, Location: "section:" + w.id, Message: fmt.Sprintf("the heading Render builds for section %q, %q, would be rendered as %d headings (%s). Section content must never change the document's structure: keep every entry name on a single line, and use \"###\" for sub-headings.", w.id, w.heading, len(hs), strings.Join(texts, ", "))})
+		res.Findings = append(res.Findings, Finding{Severity: SeverityError, Location: "section:" + w.id, Line: w.line, Message: fmt.Sprintf("the heading Render builds for section %q, %q, would be rendered as %d headings (%s). Section content must never change the document's structure: keep every entry name on a single line, and use \"###\" for sub-headings.", w.id, w.heading, len(hs), strings.Join(texts, ", "))})
 		return "", res
 	}
 
@@ -141,7 +144,7 @@ func Render(sc *Schema, origin string, m *SectionMap) (string, Result) {
 			if i < len(got) {
 				found = fmt.Sprintf("the heading %q (line %d of the rendered body)", got[i].Text, got[i].Line)
 			}
-			res.Findings = append(res.Findings, Finding{Severity: SeverityError, Location: "section:" + want[i].id, Message: fmt.Sprintf("rendering section %q did not produce the heading Render emitted: expected the rendered body's heading #%d to be %q but found %s. Section content must never change the document's structure: use \"###\" for sub-headings and keep every entry name on a single line.", want[i].id, i+1, want[i].heading, found)})
+			res.Findings = append(res.Findings, Finding{Severity: SeverityError, Location: "section:" + want[i].id, Line: want[i].line, Message: fmt.Sprintf("rendering section %q did not produce the heading Render emitted: expected the rendered body's heading #%d to be %q but found %s. Section content must never change the document's structure: use \"###\" for sub-headings and keep every entry name on a single line.", want[i].id, i+1, want[i].heading, found)})
 			return "", res
 		}
 	}

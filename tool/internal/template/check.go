@@ -115,7 +115,7 @@ func (c *checker) checkTitle() {
 			c.fix("Set \"title:\" in the draft.", "Supply the issue title with --title."))
 		return
 	}
-	if strings.Contains(title, "\n") {
+	if strings.ContainsAny(title, "\r\n") {
 		c.add(SeverityError, "title", line, "title %q spans more than one line. Use a single line.", title)
 	}
 	kind, ok := parse.Classify(title)
@@ -246,7 +246,7 @@ func (c *checker) checkMetadata() {
 					fmt.Sprintf("Set \"**%s:**\" to a value.", key)))
 			continue
 		}
-		if strings.Contains(v, "\n") {
+		if strings.ContainsAny(v, "\r\n") {
 			c.add(SeverityError, loc, f.Line, "metadata value %q for %q spans more than one line. Use a single line.", v, key)
 		}
 	}
@@ -342,6 +342,11 @@ func (c *checker) checkSections() {
 					what = fmt.Sprintf("entry %q of section %s", n, label(sec))
 				}
 				c.add(sev, loc, e.Line, "%s %s is empty. %s", word, what, c.emptyFix(sec, e))
+			}
+			if isNamed(sec) && strings.ContainsAny(e.Name, "\r\n") {
+				c.add(SeverityError, loc, e.Line, "the name %q of an entry of numbered section %s contains a line break, so it would render as more than one heading. %s", e.Name, label(sec),
+					c.fix(fmt.Sprintf("Set \"name:\" of that %q entry to a single line of text.", sec.ID),
+						"Put the heading text on a single line."))
 			}
 			if isNamed(sec) && strings.TrimSpace(e.Name) == "" {
 				c.add(SeverityError, loc, e.Line, "an entry of numbered section %s has an empty name. The schema expects each entry to be named. %s", label(sec),

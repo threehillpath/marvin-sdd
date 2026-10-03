@@ -74,3 +74,13 @@ func TestCheckPhaseMissingVerification(t *testing.T) {
 		t.Fatalf("conformant map should have no findings:\n%s", res.Format())
 	}
 }
+
+func TestBuiltInSchemasDeriveExpectedKinds(t *testing.T) {
+	want := map[string]string{"arch-plan": "arch", "impl-plan": "impl", "impl-phase": "phase", "quick-task": "task"}
+	for name, kind := range want {
+		sc := loadBuiltIn(t, name)
+		if got := sc.ExpectedKind.String(); got != kind {
+			t.Errorf("%s: ExpectedKind = %s, want %s", name, got, kind)
+		}
+	}
+}

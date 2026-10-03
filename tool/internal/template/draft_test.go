@@ -157,3 +157,33 @@ func TestLoadDraftCommentCutsAreFindings(t *testing.T) {
 		wantDraftFinding(t, "impl-phase", d, 1, `"title"`, "cut", "#1", "double quotes")
 	})
 }
+
+func TestLoadDraftRepeatedKeyIsFinding(t *testing.T) {
+	t.Run("repeatable section written once per entry", func(t *testing.T) {
+		d := patch(t, planDraft, "  verification_steps:", `  component:
+    - name: "Third one"
+      content: |
+        Body three.
+  verification_steps:`)
+		wantDraftFinding(t, "impl-plan", d, 19, `"component"`, "line 12", "one list")
+	})
+	t.Run("top level", func(t *testing.T) {
+		d := patch(t, phaseDraft, "sections:\n", "title: \"[PLAN-00112-1] Again\"\nsections:\n")
+		wantDraftFinding(t, "impl-phase", d, 6, `"title"`, "line 1", "Remove")
+	})
+	t.Run("metadata", func(t *testing.T) {
+		d := patch(t, phaseDraft, "  Plan Number:", "  Status: \"Done\"\n  Plan Number:")
+		wantDraftFinding(t, "impl-phase", d, 4, `"Status"`, "line 3", "Remove")
+	})
+	t.Run("section", func(t *testing.T) {
+		d := patch(t, phaseDraft, "  verification: |", "  scope: |\n    again\n  verification: |")
+		wantDraftFinding(t, "impl-phase", d, 16, `"scope"`, "line 10", "Merge")
+	})
+	t.Run("named entry", func(t *testing.T) {
+		d := patch(t, planDraft, `      content: |
+        Body one.`, `      name: "again"
+      content: |
+        Body one.`)
+		wantDraftFinding(t, "impl-plan", d, 14, `"name"`, "line 13", "Remove")
+	})
+}

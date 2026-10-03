@@ -294,6 +294,7 @@ func sprintfLine(line int, format string, args ...any) string {
 
 var (
 	yamlLineRe  = regexp.MustCompile(`^yaml: (?:line (\d+): )?(.*)$`)
+	indicatorRe = regexp.MustCompile(`[|>][+-]?(\d)?[+-]?\s*(?:#.*)?$`)
 	markerRe    = regexp.MustCompile(`^(?:---|\.\.\.)(?:[ \t]|$)`)
 	titleRawRe  = regexp.MustCompile(`^title:\s*\[`)
 	blockHeadRe = regexp.MustCompile(`^(\s*)(?:-\s+)?(?:[^#\s][^:]*:\s+)?[|>][+-]?\d?\s*(?:#.*)?$`)
@@ -307,19 +308,33 @@ var (
 // so a quote or a bracket in content is never mistaken for a YAML value.
 func rawLines(data []byte) []string {
 	lines := strings.Split(string(data), "\n")
-	inBlock, blockIndent := false, 0
+	inBlock := false
+	parentIndent, contentIndent := 0, 0 // contentIndent 0: not known yet
 	for i, line := range lines {
 		line = strings.TrimRight(line, "\r")
 		indent := len(line) - len(strings.TrimLeft(line, " "))
 		if inBlock {
-			if strings.TrimSpace(line) == "" || indent > blockIndent {
+			switch {
+			case strings.TrimSpace(line) == "":
+				lines[i] = ""
+				continue
+			case contentIndent == 0 && indent > parentIndent:
+				// The first non-blank line sets the block's indentation.
+				contentIndent = indent
+				lines[i] = ""
+				continue
+			case contentIndent > 0 && indent >= contentIndent:
 				lines[i] = ""
 				continue
 			}
 			inBlock = false
 		}
 		if m := blockHeadRe.FindStringSubmatch(line); m != nil {
-			inBlock, blockIndent = true, len(m[1])
+			inBlock, parentIndent, contentIndent = true, len(m[1]), 0
+			// An explicit indentation indicator is relative to the parent.
+			if d := indicatorRe.FindStringSubmatch(line); d != nil && d[1] != "" {
+				contentIndent = parentIndent + int(d[1][0]-'0')
+			}
 		}
 		lines[i] = line
 	}

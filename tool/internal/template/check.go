@@ -100,7 +100,8 @@ func (c *checker) checkTitle() {
 	title := strings.TrimSpace(c.m.Title)
 	line := c.m.TitleLine
 	if title == "" {
-		c.add(SeverityError, "title", line, "title is missing. The schema expects a title like %q. Set \"title:\" in the draft.", c.sc.TitlePrefix)
+		c.add(SeverityError, "title", line, "title is missing. The schema expects a title like %q. %s", c.sc.TitlePrefix,
+			c.fix("Set \"title:\" in the draft.", "Supply the issue title with --title."))
 		return
 	}
 	if strings.Contains(title, "\n") {

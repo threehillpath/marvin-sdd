@@ -364,6 +364,14 @@ type openFence struct {
 	Line int    // one-based line the fence opens on
 }
 
+// setextHit is a paragraph line directly followed by a "===" or "---" line,
+// which Markdown renders as a heading.
+type setextHit struct {
+	Text      string // the line that becomes the heading
+	Line      int    // its one-based line
+	Underline string // the "===" or "---" line
+}
+
 // openBlock is a raw HTML construct that the end of the scanned text left
 // open: Tag is what opened it ("<!--", "<pre>", ...), Line where.
 type openBlock struct {
@@ -376,6 +384,7 @@ type contentScan struct {
 	Headings []Heading  // "## " headings outside fences
 	Fence    *openFence // fence left open at the end, if any
 	Comment  *openBlock // block-level "<!--" never closed by "-->"
+	Setext   *setextHit // first paragraph line turned into a heading by an underline
 	Raw      *openBlock // "<pre>", "<script>", "<style>" or "<textarea>" never closed
 	Details  *openBlock // outermost "<details>" never closed by "</details>"
 }
@@ -385,7 +394,13 @@ var (
 	detailsTagRe  = regexp.MustCompile(`(?i)<(/?)details(?:\s[^>]*)?>`)
 	rawOpenRe     = regexp.MustCompile(`(?i)^ {0,3}<(pre|script|style|textarea)(?:\s|>|$)`)
 	rawCloseRe    = regexp.MustCompile(`(?i)</(?:pre|script|style|textarea)>`)
-	inlineCodeRe  = regexp.MustCompile("`[^`]*`")
+	setextRe      = regexp.MustCompile(`^ {0,3}(?:=+|-+)[ \t]*$`)
+	// nonParagraphStartRe matches lines that cannot be the text of a setext
+	// heading: indented code (four or more spaces or a tab), ATX headings,
+	// quotes, list items and HTML.
+	nonParagraphStartRe = regexp.MustCompile(`^(?: {4,}|\t|\s{0,3}(?:#|>|<|[-*+]\s|\d+[.)]\s))`)
+	listOrQuoteRe       = regexp.MustCompile(`^\s{0,3}(?:>|[-*+]\s|\d+[.)]\s)`)
+	inlineCodeRe        = regexp.MustCompile("`[^`]*`")
 )
 
 // scanContent walks body once, tracking CommonMark fences: an opening run of
@@ -398,9 +413,13 @@ func scanContent(body string) contentScan {
 	var fenceCh byte
 	fenceLen := 0
 	inComment := false
-	var details []int // lines of <details> not yet closed
+	var details []int         // lines of <details> not yet closed
+	prevText, prevNo := "", 0 // candidate paragraph line directly above
+	inQuoteOrList := false    // until the next blank line, lines are lazy continuations
 	for i, line := range strings.Split(body, "\n") {
 		line = strings.TrimRight(line, "\r")
+		prev, prevLineNo := prevText, prevNo
+		prevText = ""
 		if m := fenceRe.FindStringSubmatch(line); m != nil {
 			run, rest := m[1], m[2]
 			switch {
@@ -449,6 +468,18 @@ func scanContent(body string) contentScan {
 				out.Raw = &openBlock{Tag: "<" + strings.ToLower(m[1]) + ">", Line: i + 1}
 			}
 			continue
+		}
+		switch {
+		case strings.TrimSpace(line) == "":
+			inQuoteOrList = false
+		case setextRe.MatchString(line) && prev != "":
+			if out.Setext == nil {
+				out.Setext = &setextHit{Text: strings.TrimSpace(prev), Line: prevLineNo, Underline: strings.TrimSpace(line)}
+			}
+		case nonParagraphStartRe.MatchString(line):
+			inQuoteOrList = listOrQuoteRe.MatchString(line)
+		case !inQuoteOrList && !setextRe.MatchString(line):
+			prevText, prevNo = line, i+1
 		}
 		for _, m := range detailsTagRe.FindAllStringSubmatch(inlineCodeRe.ReplaceAllString(line, ""), -1) {
 			if m[1] == "" {
@@ -508,6 +539,10 @@ func (c *checker) checkContentStructure(sec SchemaSection, e Entry) {
 	}
 	if len(hs) > 0 {
 		c.add(SeverityError, loc, e.Line, "content of section %s contains the heading %q on line %d of the section, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), contentLine(e.Content, hs[0].Line), hs[0].Line)
+	}
+	if h := scan.Setext; h != nil {
+		c.add(SeverityError, loc, e.Line, "content of section %s has the line %q on line %d of the section directly above the underline %q, which makes it a heading when rendered and would split the section. If you meant a horizontal rule, put a blank line before %q; otherwise remove the underline, or write the heading as \"### %s\" %s.",
+			label(sec), h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
 	}
 	if b := scan.Raw; b != nil {
 		c.add(SeverityError, loc, e.Line, "content of section %s opens a %q block on line %d of the section that is never closed by %q, so every later section would render as part of that block. Add a %q line %s, or remove the block.",

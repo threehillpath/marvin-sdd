@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"threehillpath.com/marvin-sdd/tool/internal/names"
 )
 
 // Kind distinguishes an arch plan from an impl plan or phase.
@@ -141,4 +142,65 @@ func PhaseListFromComment(comment string) ([]int, bool) {
 		return nil, false
 	}
 	return nums, true
+}
+
+// leadingBracketRe captures the bracket token at the start of a title
+// (optional whitespace, then "["), the same anchoring TitleSlug uses.
+var leadingBracketRe = regexp.MustCompile(`^\s*(\[[^\]]*\])`)
+
+// taskIdentRe matches a whole [TASK-XXXXX] bracket token.
+var taskIdentRe = regexp.MustCompile(`^\[TASK-(\d{5})\]$`)
+
+// planTokenRe matches exactly the accepted whole-token plan forms:
+// [PLAN-XXXXX], [PLAN-XXXXX-ARCH], [PLAN-XXXXX-<letters>], [PLAN-XXXXX-N], and
+// [PLAN-XXXXX-<letters>-N] (N a positive integer without a leading zero).
+var planTokenRe = regexp.MustCompile(`^\[PLAN-\d{5}(-[A-Za-z]+)?(-[1-9]\d*)?\]$`)
+
+// Classify classifies a title by its leading bracket token only; a later
+// bracket never affects the result. Plan tokens are judged by PlanIdent so the
+// two never disagree. The bool is the only "not found" signal: names.Kind's
+// zero value is Arch.
+func Classify(title string) (names.Kind, bool) {
+	m := leadingBracketRe.FindStringSubmatch(title)
+	if m == nil {
+		return names.Arch, false
+	}
+	tok := m[1]
+	if taskIdentRe.MatchString(tok) {
+		return names.Task, true
+	}
+	if !strings.HasPrefix(tok, "[PLAN-") {
+		return names.Arch, false
+	}
+	if !planTokenRe.MatchString(tok) {
+		return names.Arch, false
+	}
+	ident, ok := PlanIdent(tok)
+	if !ok {
+		return names.Arch, false
+	}
+	switch {
+	case ident.Phase != 0:
+		return names.Phase, true
+	case ident.Kind == KindArch:
+		return names.Arch, true
+	}
+	return names.Impl, true
+}
+
+// TaskIdent returns the task number from a leading [TASK-XXXXX] bracket.
+func TaskIdent(title string) (int, bool) {
+	m := leadingBracketRe.FindStringSubmatch(title)
+	if m == nil {
+		return 0, false
+	}
+	tm := taskIdentRe.FindStringSubmatch(m[1])
+	if tm == nil {
+		return 0, false
+	}
+	n, err := strconv.Atoi(tm[1])
+	if err != nil {
+		return 0, false
+	}
+	return n, true
 }

@@ -391,3 +391,51 @@ func TestLoadDraftCommentsAreFindings(t *testing.T) {
 		wantDraftFinding(t, "impl-plan", d, 20, `"# first"`, "YAML comment", "delete it")
 	})
 }
+
+func TestLoadDraftInnerQuoteCauseIsPrecise(t *testing.T) {
+	t.Run("a valid quoted key is never the cause", func(t *testing.T) {
+		d := patch(t, phaseDraft, `  Status: "Upcoming"`, `  "Status": "Upcoming"`) + "tabbed:\n\tx: 1\n"
+		m, fs := loadDraft(t, "impl-phase", d)
+		if m != nil || len(fs) != 1 {
+			t.Fatalf("want one finding, got %+v", fs)
+		}
+		if !strings.Contains(fs[0].Message, "tab") || !strings.Contains(fs[0].Message, "not valid YAML") {
+			t.Errorf("want the tab error via the fallback, got line %d: %s", fs[0].Line, fs[0].Message)
+		}
+		if strings.Contains(fs[0].Message, "closing quote") || strings.Contains(fs[0].Message, `"Status"`) {
+			t.Errorf("a valid quoted key must not be blamed: %s", fs[0].Message)
+		}
+	})
+	t.Run("text after the closing quote gets a move-the-quote fix", func(t *testing.T) {
+		d := patch(t, phaseDraft, `Implementation Plan: "#132 ([PLAN-00112])"`, `Implementation Plan: "#132" ([PLAN-00112])`)
+		wantDraftFinding(t, "impl-phase", d, 5, "closing quote", "before the end of the value", `"([PLAN-00112])"`, "one pair of double quotes", `Implementation Plan: "#132 ([PLAN-00112])"`)
+	})
+	t.Run("a bad-quote line after the parser's line is not the cause", func(t *testing.T) {
+		d := "title: \"[PLAN-00112-1] X\"\nmetadata:\n\tStatus: a\nsections:\n  scope: |\n    x\n  Foo: \"a\"b\n"
+		m, fs := loadDraft(t, "impl-phase", d)
+		if m != nil || len(fs) != 1 {
+			t.Fatalf("want one finding, got %+v", fs)
+		}
+		if fs[0].Line != 3 || !strings.Contains(fs[0].Message, "not valid YAML") {
+			t.Errorf("want the line-3 tab error via the fallback, got line %d: %s", fs[0].Line, fs[0].Message)
+		}
+	})
+}
+
+func TestLoadDraftUnknownEscapeQuotesTheLineAndFixesIt(t *testing.T) {
+	t.Run("unknown escapes", func(t *testing.T) {
+		d := patch(t, phaseDraft, `Status: "Upcoming"`, `Status: "C:\data\q"`)
+		wantDraftFinding(t, "impl-phase", d, 3, `Status: "C:\data\q"`, `Status: "C:\\data\\q"`, "single quotes")
+	})
+	t.Run("invalid hex escapes", func(t *testing.T) {
+		d := patch(t, phaseDraft, `Status: "Upcoming"`, `Status: "C:\Users\x"`)
+		wantDraftFinding(t, "impl-phase", d, 3, `Status: "C:\Users\x"`, `Status: "C:\\Users\\x"`, "single quotes")
+	})
+	t.Run("no hard-coded example", func(t *testing.T) {
+		d := patch(t, phaseDraft, `Status: "Upcoming"`, `Status: "C:\data\q"`)
+		_, fs := loadDraft(t, "impl-phase", d)
+		if len(fs) != 1 || strings.Contains(fs[0].Message, `d{5}`) {
+			t.Errorf("the example must come from the offending line: %+v", fs)
+		}
+	})
+}

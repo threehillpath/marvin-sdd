@@ -344,8 +344,8 @@ func (l *draftLoader) parseError(data []byte, err error) []Finding {
 	return l.findings
 }
 
-// yamlQuote returns s as a YAML double-quoted scalar, unquoting a value that
-// already carries its own quotes first.
+// yamlQuote returns s as a YAML double-quoted scalar, escaping backslashes and
+// quotes.
 func yamlQuote(s string) string {
 	s = strings.ReplaceAll(s, `\`, `\\`)
 	s = strings.ReplaceAll(s, `"`, `\"`)

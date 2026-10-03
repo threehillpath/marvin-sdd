@@ -28,12 +28,6 @@ func DefaultSchema(name string) ([]byte, bool) {
 	return data, true
 }
 
-// KV is an ordered metadata key-value pair.
-type KV struct {
-	Key   string
-	Value string
-}
-
 // SchemaSection mirrors the YAML section definition.
 type SchemaSection struct {
 	ID         string `yaml:"id"`

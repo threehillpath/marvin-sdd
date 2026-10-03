@@ -138,7 +138,8 @@ func TestBuiltInImplPlanNamedFlags(t *testing.T) {
 	}
 }
 
-func archMap() *tmpl.SectionMap {
+func archMap(t *testing.T) *tmpl.SectionMap {
+	t.Helper()
 	sec := func(c string) []tmpl.Entry { return []tmpl.Entry{{Content: c}} }
 	m := &tmpl.SectionMap{
 		Source:    tmpl.SourceYAML,
@@ -150,26 +151,20 @@ func archMap() *tmpl.SectionMap {
 		},
 		Sections: map[string][]tmpl.Entry{},
 	}
-	sc, _ := tmpl.LoadSchema(builtIn, mustSchema("arch-plan"))
-	for _, s := range sc.Sections {
+	for _, s := range loadBuiltIn(t, "arch-plan").Sections {
 		m.Sections[s.ID] = sec("content")
 	}
 	return m
 }
 
-func mustSchema(name string) []byte {
-	b, _ := tmpl.DefaultSchema(name)
-	return b
-}
-
 func TestCheckConformantArchMap(t *testing.T) {
-	if res := check(t, "arch-plan", archMap()); len(res.Findings) != 0 {
+	if res := check(t, "arch-plan", archMap(t)); len(res.Findings) != 0 {
 		t.Fatalf("want no findings:\n%s", res.Format())
 	}
 }
 
 func TestCheckArchPlaceholderTitleFailsAtTitle(t *testing.T) {
-	m := archMap()
+	m := archMap(t)
 	m.Title = "[PLAN-XXXXX-ARCH] X"
 	wantOne(t, check(t, "arch-plan", m), tmpl.SeverityError, "title", `"[PLAN-XXXXX-ARCH] X"`, "identifier", "[PLAN-00112-ARCH]")
 }
@@ -191,13 +186,15 @@ func TestCheckTitleKindMismatch(t *testing.T) {
 	m.Title = "[PLAN-00112-ARCH] X"
 	m.Metadata["Plan Number"] = tmpl.Field{Value: "PLAN-00112", Line: 3}
 	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "title",
-		`"[PLAN-00112-ARCH] X"`, "arch", "phase", "[PLAN-XXXXX-N] <Phase Title>")
+		`"[PLAN-00112-ARCH] X"`, "an arch title", "a phase title", "[PLAN-XXXXX-N] <Phase Title>",
+		"Change the title's identifier to match", `e.g. "[PLAN-00112-1] <Phase Title>"`)
 }
 
 func TestCheckTitleMultiLine(t *testing.T) {
 	m := phaseMap()
 	m.Title = "[PLAN-00112-1] X\nsecond line"
-	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "title", "more than one line", "single line")
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "title",
+		`"[PLAN-00112-1] X\nsecond line"`, "more than one line", "Use a single line")
 }
 
 func TestCheckMetadataKeyAbsent(t *testing.T) {
@@ -452,13 +449,10 @@ func TestCheckMarkdownNumberingNotConsecutiveWarns(t *testing.T) {
 	m.Source = tmpl.SourceMarkdown
 	m.Sections["component"] = []tmpl.Entry{{Name: "A", Content: "c", Line: 10, Number: 1}, {Name: "B", Content: "c", Line: 20, Number: 3}}
 	m.Sections["verification_steps"] = []tmpl.Entry{{Content: "c", Line: 30, Number: 4}}
-	for i, id := range []string{"scope", "design_notes", "success_criteria"} {
-		m.Sections[id] = []tmpl.Entry{{Content: "c", Line: 1 + i}}
-	}
-	// scope(1) < component(10) < verification(30) < design_notes(2)? keep schema order monotonic:
-	m.Sections["scope"][0].Line = 5
-	m.Sections["design_notes"][0].Line = 40
-	m.Sections["success_criteria"][0].Line = 50
+	// Lines keep the schema order monotonic so only numbering is reported.
+	m.Sections["scope"] = []tmpl.Entry{{Content: "c", Line: 5}}
+	m.Sections["design_notes"] = []tmpl.Entry{{Content: "c", Line: 40}}
+	m.Sections["success_criteria"] = []tmpl.Entry{{Content: "c", Line: 50}}
 	res := check(t, "impl-plan", m)
 	wantOne(t, res, tmpl.SeverityWarning, "section:component", `"## 3. B"`, "## 2.")
 	if res.Findings[0].Line != 20 {

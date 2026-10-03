@@ -243,3 +243,31 @@ func TestLoadDraftUnknownKeysAreFindings(t *testing.T) {
 		wantDraftFinding(t, "impl-plan", d, 16, `"Note"`, `"component"`, "name, content", "under-indented")
 	})
 }
+
+func TestLoadDraftWrongNodeTypeIsFinding(t *testing.T) {
+	cases := []struct {
+		name  string
+		typ   string
+		draft string
+		line  int
+		want  []string
+	}{
+		{"draft is a list", "impl-phase", "- a\n- b\n", 1, []string{"the draft", "mapping", "list", "title:", "metadata:", "sections:"}},
+		{"draft is empty", "impl-phase", "# nothing\n", 0, []string{"empty", "title:", "marvin template render impl-phase --skeleton"}},
+		{"title is a list", "impl-phase", patch(t, phaseDraft, `title: "[PLAN-00112-1] Add the thing"`, "title:\n  - a"), 2, []string{`"title"`, "single line of text", "list"}},
+		{"metadata is text", "impl-phase", patch(t, phaseDraft, "metadata:\n  Status: \"Upcoming\"\n  Plan Number: \"PLAN-00112\"\n  Implementation Plan: \"#132 ([PLAN-00112])\"\n", "metadata: nope\n"), 2, []string{`"metadata"`, "mapping", "text"}},
+		{"metadata value is a list", "impl-phase", patch(t, phaseDraft, `Status: "Upcoming"`, "Status:\n    - a"), 4, []string{`"Status"`, "single line of text", "list"}},
+		{"sections is a list", "impl-phase", "title: \"[PLAN-00112-1] X\"\nsections:\n  - a\n", 3, []string{`"sections"`, "mapping", "list"}},
+		{"non-repeatable section is a list", "impl-phase", patch(t, phaseDraft, "objective: |\n    Do the thing.", "objective:\n    - Do the thing."), 9, []string{`"objective"`, "not repeatable", "list", "objective: |"}},
+		{"repeatable section is text", "impl-plan", patch(t, planDraft, "verification_steps:\n    - |\n      Run the tests.", "verification_steps: |\n    Run the tests."), 19, []string{`"verification_steps"`, "repeatable", "list of | blocks", "- |"}},
+		{"named section is text", "impl-plan", patch(t, planDraft, planDraft[strings.Index(planDraft, "  component:"):strings.Index(planDraft, "  verification_steps:")], "  component: |\n    Body.\n"), 12, []string{`"component"`, "list of entries", "name:", "content: |"}},
+		{"named entry is text", "impl-plan", patch(t, planDraft, "    - name: \"First one\"\n      content: |\n        Body one.\n", "    - just text\n"), 13, []string{`"component"`, "mapping", "name:", "content: |"}},
+		{"unnamed item is a mapping", "impl-plan", patch(t, planDraft, "    - |\n      Run the tests.", "    - step: 1"), 20, []string{`"verification_steps"`, "- |", "mapping"}},
+		{"name is a list", "impl-plan", patch(t, planDraft, `name: "First one"`, "name:\n        - a"), 14, []string{`"name"`, "single line of text", "list"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			wantDraftFinding(t, c.typ, c.draft, c.line, c.want...)
+		})
+	}
+}

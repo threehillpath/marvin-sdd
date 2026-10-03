@@ -971,3 +971,32 @@ func TestCheckRawHTMLInMetadataNameAndTitle(t *testing.T) {
 func TestCheckSetextAppliesAfterInlineHTML(t *testing.T) {
 	guardCase(t, "<kbd>x</kbd> <https://example.com>\n---", 1, "---", "horizontal rule")
 }
+
+func TestCheckRawHTMLInUnknownMarkdownMetadata(t *testing.T) {
+	m := mdPhaseMap()
+	m.Metadata["Notes"] = tmpl.Field{Value: "wrap logs in <details>", Line: 5}
+	res := check(t, "impl-phase", m)
+	var sawErr, sawWarn bool
+	for _, f := range res.Findings {
+		if f.Location != "metadata:Notes" {
+			t.Errorf("unexpected finding: %+v", f)
+		}
+		switch f.Severity {
+		case tmpl.SeverityError:
+			sawErr = true
+			for _, w := range []string{"raw HTML", `"<details>"`, `"Notes"`, "backticks", `"**Notes:**"`} {
+				if !strings.Contains(f.Message, w) {
+					t.Errorf("error %q missing %q", f.Message, w)
+				}
+			}
+			if f.Line != 5 {
+				t.Errorf("line = %d, want 5", f.Line)
+			}
+		case tmpl.SeverityWarning:
+			sawWarn = true
+		}
+	}
+	if !sawErr || !sawWarn {
+		t.Fatalf("want the raw-HTML error and the not-in-schema warning:\n%s", res.Format())
+	}
+}

@@ -164,6 +164,11 @@ func TestClassify(t *testing.T) {
 		{"[PLAN-XXXXX-ARCH] X", names.Arch, false, 0},
 		{"[TASK-XXXXX] X", names.Arch, false, 0},
 		{"[OTHER-00001] X", names.Arch, false, 0},
+		{"[PLAN-000421] X", names.Arch, false, 0},
+		{"[PLAN-00042-] X", names.Arch, false, 0},
+		{"[PLAN-00042-0] X", names.Arch, false, 0},
+		{"[PLAN-00042-A1] X", names.Arch, false, 0},
+		{"[PLAN-00042-1-2] X", names.Arch, false, 0},
 	}
 	for _, tc := range tests {
 		kind, ok := parse.Classify(tc.title)

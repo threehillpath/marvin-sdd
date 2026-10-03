@@ -364,16 +364,32 @@ type openFence struct {
 	Line int    // one-based line the fence opens on
 }
 
-// scanFences walks body once, tracking CommonMark fences: an opening run of
+// openBlock is a raw HTML construct that the end of the scanned text left
+// open: Tag is what opened it ("<!--", "<pre>", ...), Line where.
+type openBlock struct {
+	Tag  string
+	Line int // one-based
+}
+
+// contentScan is what scanContent learns about a piece of section content.
+type contentScan struct {
+	Headings []Heading  // "## " headings outside fences
+	Fence    *openFence // fence left open at the end, if any
+	Comment  *openBlock // block-level "<!--" never closed by "-->"
+}
+
+var commentOpenRe = regexp.MustCompile(`^ {0,3}<!--`)
+
+// scanContent walks body once, tracking CommonMark fences: an opening run of
 // three or more backticks or tildes (up to three spaces of indent) closes only
 // on a run of the same character that is at least as long and carries nothing
-// but whitespace after it. It returns the "## " headings outside fences and,
-// when the text ends inside a fence, that fence.
-func scanFences(body string) ([]Heading, *openFence) {
-	var out []Heading
-	var open *openFence
+// but whitespace after it. Outside fences it records the "## " headings and
+// the raw HTML blocks that are never closed.
+func scanContent(body string) contentScan {
+	var out contentScan
 	var fenceCh byte
 	fenceLen := 0
+	inComment := false
 	for i, line := range strings.Split(body, "\n") {
 		line = strings.TrimRight(line, "\r")
 		if m := fenceRe.FindStringSubmatch(line); m != nil {
@@ -382,21 +398,44 @@ func scanFences(body string) ([]Heading, *openFence) {
 			case fenceCh == 0:
 				if run[0] != '`' || !strings.Contains(rest, "`") {
 					fenceCh, fenceLen = run[0], len(run)
-					open = &openFence{Run: run, Line: i + 1}
+					out.Fence = &openFence{Run: run, Line: i + 1}
 				}
 				continue
 			case run[0] == fenceCh && len(run) >= fenceLen && strings.TrimSpace(rest) == "":
 				fenceCh, fenceLen = 0, 0
-				open = nil
+				out.Fence = nil
 				continue
 			}
 		}
-		if fenceCh == 0 && h2Re.MatchString(line) {
+		if fenceCh != 0 {
+			continue
+		}
+		if h2Re.MatchString(line) {
 			text := strings.TrimSpace(strings.TrimLeft(line, " ")[2:])
-			out = append(out, Heading{Text: text, Line: i + 1})
+			out.Headings = append(out.Headings, Heading{Text: text, Line: i + 1})
+		}
+		rest := line
+		if !inComment {
+			if !commentOpenRe.MatchString(line) {
+				continue
+			}
+			rest = line[strings.Index(line, "<!--")+len("<!--"):]
+			out.Comment = &openBlock{Tag: "<!--", Line: i + 1}
+			inComment = true
+		}
+		if strings.Contains(rest, "-->") {
+			inComment = false
+			out.Comment = nil
 		}
 	}
-	return out, open
+	return out
+}
+
+// scanFences returns the "## " headings outside fences and, when the text
+// ends inside a fence, that fence.
+func scanFences(body string) ([]Heading, *openFence) {
+	s := scanContent(body)
+	return s.Headings, s.Fence
 }
 
 // FindH2Lines returns, for each "## " heading line of body that is outside a
@@ -424,16 +463,21 @@ func contentLine(content string, n int) string {
 // section.
 func (c *checker) checkContentStructure(sec SchemaSection, e Entry) {
 	loc := "section:" + sec.ID
-	hs, open := scanFences(e.Content)
+	scan := scanContent(e.Content)
+	hs, open := scan.Headings, scan.Fence
+	where := fmt.Sprintf("inside the %q block", sec.ID)
+	if c.m.Source == SourceMarkdown {
+		where = "under that heading"
+	}
+	if b := scan.Comment; b != nil {
+		c.add(SeverityError, loc, e.Line, "content of section %s opens an HTML comment %q on line %d of the section that is never closed by \"-->\", so every later section would be hidden when rendered. Close it with \"-->\" %s, or remove the comment.",
+			label(sec), b.Tag, b.Line, where)
+	}
 	if len(hs) > 0 {
 		c.add(SeverityError, loc, e.Line, "content of section %s contains the heading %q on line %d of the section, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), contentLine(e.Content, hs[0].Line), hs[0].Line)
 	}
 	if open != nil {
 		ch := fmt.Sprintf("%q", string(open.Run[0]))
-		where := fmt.Sprintf("inside the %q block", sec.ID)
-		if c.m.Source == SourceMarkdown {
-			where = "under that heading"
-		}
 		c.add(SeverityError, loc, e.Line, "content of section %s opens a code fence %q on line %d of the section that is never closed, so every later section would render as code and be lost to the parser. Close it with a matching fence line (the same character, %s, at least %d long, nothing else on the line) %s.",
 			label(sec), open.Run, open.Line, ch, len(open.Run), where)
 	}

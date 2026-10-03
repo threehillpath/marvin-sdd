@@ -404,19 +404,74 @@ var (
 	// rawHTMLRe matches the constructs that can hide or swallow later
 	// sections: comments and the details, pre, script, style and textarea
 	// tags, opening or closing, in any case.
-	rawHTMLRe    = regexp.MustCompile(`(?i)<!--|</?(?:details|pre|script|style|textarea)(?:>|[\s/]|$)`)
-	inlineCodeRe = regexp.MustCompile("`[^`]*`")
+	rawHTMLRe = regexp.MustCompile(`(?i)<!--|</?(?:details|pre|script|style|textarea)(?:>|[\s/]|$)`)
 )
 
-// rawHTML returns the first banned raw HTML construct in a single line of
-// text outside code, with its closing ">" when it follows directly.
-func rawHTML(line string) (string, bool) {
-	loc := rawHTMLRe.FindStringIndex(inlineCodeRe.ReplaceAllString(line, ""))
-	if loc == nil {
-		return "", false
+// maskCodeSpans returns text with every code span, delimiters included,
+// replaced by spaces (newlines kept), following CommonMark: a run of n
+// backticks closes at the next run of exactly n backticks, an unmatched run
+// is literal text, a backslash makes the next character literal outside code
+// spans (so "\\`" is not a delimiter), and spans may cross lines.
+func maskCodeSpans(text string) string {
+	b := []byte(text)
+	for i := 0; i < len(b); {
+		switch b[i] {
+		case '\\':
+			i += 2
+		case '`':
+			n := 0
+			for i+n < len(b) && b[i+n] == '`' {
+				n++
+			}
+			closeAt := -1
+			for j := i + n; j < len(b); {
+				if b[j] != '`' {
+					j++
+					continue
+				}
+				m := 0
+				for j+m < len(b) && b[j+m] == '`' {
+					m++
+				}
+				if m == n {
+					closeAt = j
+					break
+				}
+				j += m
+			}
+			if closeAt < 0 {
+				i += n
+				continue
+			}
+			for k := i; k < closeAt+n; k++ {
+				if b[k] != '\n' {
+					b[k] = ' '
+				}
+			}
+			i = closeAt + n
+		default:
+			i++
+		}
 	}
-	tok := inlineCodeRe.ReplaceAllString(line, "")[loc[0]:loc[1]]
-	return strings.TrimRight(tok, " \t/"), true
+	return string(b)
+}
+
+// rawHTMLAt returns the first banned raw HTML construct in text (which may
+// span lines of one paragraph) outside code spans, with its closing ">" when
+// it follows directly, and its byte offset.
+func rawHTMLAt(text string) (tag string, off int, ok bool) {
+	masked := maskCodeSpans(text)
+	loc := rawHTMLRe.FindStringIndex(masked)
+	if loc == nil {
+		return "", 0, false
+	}
+	return strings.TrimRight(masked[loc[0]:loc[1]], " \t/"), loc[0], true
+}
+
+// rawHTML is rawHTMLAt for a single-line field.
+func rawHTML(text string) (string, bool) {
+	tag, _, ok := rawHTMLAt(text)
+	return tag, ok
 }
 
 // scanContent walks body once, tracking CommonMark fences: an opening run of
@@ -430,6 +485,16 @@ func scanContent(body string) contentScan {
 	var fenceCh byte
 	fenceLen := 0
 	prevText, prevNo := "", 0 // non-blank line directly above
+	var para []string         // consecutive non-blank lines outside fences
+	paraStart := 0            // one-based line of para[0]
+	flush := func() {
+		if len(para) > 0 && out.HTML == nil {
+			if tag, off, ok := rawHTMLAt(strings.Join(para, "\n")); ok {
+				out.HTML = &htmlHit{Tag: tag, Line: paraStart + strings.Count(strings.Join(para, "\n")[:off], "\n")}
+			}
+		}
+		para = nil
+	}
 	for i, line := range strings.Split(body, "\n") {
 		line = strings.TrimRight(line, "\r")
 		prev, prevLineNo := prevText, prevNo
@@ -439,6 +504,7 @@ func scanContent(body string) contentScan {
 			switch {
 			case fenceCh == 0:
 				if run[0] != '`' || !strings.Contains(rest, "`") {
+					flush()
 					fenceCh, fenceLen = run[0], len(run)
 					out.Fence = &openFence{Run: run, Line: i + 1}
 				}
@@ -456,10 +522,13 @@ func scanContent(body string) contentScan {
 			text := strings.TrimSpace(strings.TrimLeft(line, " ")[2:])
 			out.Headings = append(out.Headings, Heading{Text: text, Line: i + 1})
 		}
-		if out.HTML == nil {
-			if tag, ok := rawHTML(line); ok {
-				out.HTML = &htmlHit{Tag: tag, Line: i + 1}
+		if strings.TrimSpace(line) == "" {
+			flush()
+		} else {
+			if len(para) == 0 {
+				paraStart = i + 1
 			}
+			para = append(para, line)
 		}
 		// Conservative setext rule: an underline-shaped line directly after
 		// any non-blank line is reported, whatever that line contains.
@@ -471,6 +540,7 @@ func scanContent(body string) contentScan {
 			prevText, prevNo = line, i+1
 		}
 	}
+	flush()
 	return out
 }
 

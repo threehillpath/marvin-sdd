@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"threehillpath.com/marvin-sdd/tool/internal/names"
 )
 
 // defaultSchemas embeds the plugin's built-in YAML schemas at compile time,
@@ -34,19 +36,28 @@ type KV struct {
 	Value string
 }
 
-// schemaSection mirrors the YAML section definition.
-type schemaSection struct {
+// SchemaSection mirrors the YAML section definition.
+type SchemaSection struct {
 	ID         string `yaml:"id"`
 	Heading    string `yaml:"heading"`
 	Required   bool   `yaml:"required"`
 	Repeatable bool   `yaml:"repeatable"`
 	Numbered   bool   `yaml:"numbered"`
+	// Named is meaningful only on numbered sections: true means each
+	// instance's heading text comes from content. It is a pointer so a
+	// missing field is distinguishable from an explicit false.
+	Named *bool `yaml:"named"`
 }
 
-// schema is the top-level YAML structure.
-type schema struct {
-	Metadata []string        `yaml:"metadata"`
-	Sections []schemaSection `yaml:"sections"`
+// Schema is the top-level YAML structure.
+type Schema struct {
+	Type        string          `yaml:"type"`
+	TitlePrefix string          `yaml:"title_prefix"`
+	Metadata    []string        `yaml:"metadata"`
+	Sections    []SchemaSection `yaml:"sections"`
+
+	// ExpectedKind is the title kind derived from TitlePrefix by LoadSchema.
+	ExpectedKind names.Kind `yaml:"-"`
 }
 
 // Render assembles a plan issue body from:
@@ -57,7 +68,7 @@ type schema struct {
 // Returns an error if a required section is absent, a non-repeatable section
 // has more than one block, or the schema YAML cannot be parsed.
 func Render(schemaYAML []byte, meta []KV, sections map[string][]string) (string, error) {
-	var sc schema
+	var sc Schema
 	if err := yaml.Unmarshal(schemaYAML, &sc); err != nil {
 		return "", fmt.Errorf("parsing schema: %w", err)
 	}
@@ -123,7 +134,7 @@ func Render(schemaYAML []byte, meta []KV, sections map[string][]string) (string,
 // placeholders followed by empty section headings. Unlike Render, it does not
 // validate required sections or accept section content.
 func Skeleton(schemaYAML []byte) (string, error) {
-	var sc schema
+	var sc Schema
 	if err := yaml.Unmarshal(schemaYAML, &sc); err != nil {
 		return "", fmt.Errorf("parsing schema: %w", err)
 	}

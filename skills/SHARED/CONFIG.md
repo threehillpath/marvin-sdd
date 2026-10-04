@@ -93,7 +93,7 @@ A schema (built-in or override) must declare:
 
 ### Draft format
 
-A draft is YAML with three top-level keys: `title`, `metadata` and `sections`. `marvin template render <type> --skeleton` prints it with every key present and empty (abridged example for `impl-plan`):
+A draft is YAML with three top-level keys: `title`, `metadata` and `sections`. `marvin template render <type> --skeleton` prints it with every key present and empty. This is an abridged `impl-plan` skeleton; it leaves out the metadata keys `Architecture Plan`, `Source Issue`, `Author` and `Last Updated` and the sections `design_notes` and `success_criteria`:
 
 ```yaml
 title: "[PLAN-XXXXX] <Title>"
@@ -107,6 +107,47 @@ sections:
       content: |
   verification_steps:
     - |
+```
+
+A complete, filled `impl-plan` draft that passes `marvin template validate impl-plan --draft`:
+
+```yaml
+title: "[PLAN-00007] Add retry to the sync worker"
+metadata:
+  Objective: "Retry failed syncs with backoff."
+  Architecture Plan: "#7 ([PLAN-00007-ARCH])"
+  Source Issue: "#7"
+  Author: "A. Developer"
+  Status: "upcoming"
+  Last Updated: "2026-10-04"
+sections:
+  scope: |
+    **Includes**
+    - Retry with backoff in the sync worker.
+
+    **Does NOT include**
+    - Changes to the queue.
+  component:
+    - name: "Sync worker: retry loop"
+      content: |
+        **Specifications**
+        - `worker/sync.go`: add `retry(ctx, fn)`.
+
+        **Behavior**
+        - Retry up to 3 times, then return the last error.
+
+        **TDD Entry Point**
+        - A test in `worker/sync_test.go` asserts 3 calls before failure.
+  verification_steps:
+    - |
+      ```bash
+      go test ./worker/...
+      # expected: ok
+      ```
+  design_notes: |
+    Backoff is fixed; see the arch plan for why.
+  success_criteria: |
+    - [ ] A failing sync is retried 3 times.
 ```
 
 Rules. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance; it does not mention the key, tab, tag, anchor and alias rules, which the loader enforces and which are listed here:

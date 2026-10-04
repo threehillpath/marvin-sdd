@@ -555,7 +555,7 @@ func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comm
 
 	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Create a new GitHub issue (--body or --body-file, mutually exclusive)",
+		Short: "Create a GitHub issue (--title with --body/--body-file, or --template with --draft/--body-file to check it first)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
@@ -573,7 +573,7 @@ func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comm
 	}
 	cmd.Flags().StringVar(&tmplType, "template", "", "Check the body against this plan schema (e.g. impl-phase) before creating; exit 3 if it does not conform")
 	cmd.Flags().StringVar(&draft, "draft", "", "YAML draft file (with --template); the title comes from the draft")
-	cmd.Flags().StringVar(&title, "title", "", "Issue title (required)")
+	cmd.Flags().StringVar(&title, "title", "", "Issue title (required unless --template --draft, where it must equal the draft's title)")
 	cmd.Flags().StringVar(&body, "body", "", "Issue body (mutually exclusive with --body-file)")
 	cmd.Flags().StringVar(&bodyFile, "body-file", "", "Path to a file containing the issue body (mutually exclusive with --body)")
 	cmd.Flags().StringVar(&labelsFlag, "label", "", "Comma-separated label names")
@@ -583,7 +583,11 @@ func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comm
 
 // runIssueCreate validates --title/--body/--body-file, resolves the body
 // (reading --body-file's contents when given), creates the issue, and
-// prints the result. jsonOut selects JSON output (--json); by default,
+// prints the result. With --template <type> the input (--draft or
+// --body-file) is checked against that schema first: a non-conforming input
+// exits 3 with the findings on stderr and makes no gh call, and the checked
+// title and body are what gets created. Warnings and the schema line go to
+// stderr. jsonOut selects JSON output (--json); by default,
 // plain-text mode prints the issue number on one line then the URL on the
 // next.
 func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, title string, titleSet bool, body, bodyFile, labelsFlag, tmplType, draft string, jsonOut bool, runner exec.Runner) error {

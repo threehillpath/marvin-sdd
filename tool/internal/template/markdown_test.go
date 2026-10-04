@@ -398,8 +398,8 @@ func TestCheckMarkdownMetadataLikeLinesGitHubDoesNotShowAsMetadata(t *testing.T)
 		want           []string
 	}{
 		{"inside a fence", "```\n" + status + "```\n\n", []string{"code fence", "line 2"}},
-		{"after a quote line", "> Revised note\n" + status + "\n", []string{"directly below", "line 2", "blank line"}},
-		{"after a list item", "- note\n" + status + "\n", []string{"directly below", "line 2", "blank line"}},
+		{"after a quote line", "> Revised note\n" + status + "\n", []string{"follows the line", "line 2", "blank line after line 1"}},
+		{"after a list item", "- note\n" + status + "\n", []string{"follows the line", "line 2", "blank line after line 1"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -597,4 +597,32 @@ func TestCheckMarkdownIndentedMetadata(t *testing.T) {
 			}
 		}
 	})
+}
+
+// A rejected run of metadata lines gives one error per key, naming the first
+// non-metadata line of the run, and no "missing" errors (round 2 N1).
+func TestCheckMarkdownRejectedMetadataRun(t *testing.T) {
+	long := "> **Revised 2026-10-03:** " + strings.Repeat("narrowed scope ", 20)
+	res := checkMD(t, long+"\n"+phaseBody)
+	for _, key := range []string{"Implementation Plan", "Plan Number", "Status"} {
+		errs := errorsAt(res, "metadata:"+key)
+		if len(errs) != 1 {
+			t.Fatalf("metadata:%s: want 1 error, got %d:\n%s", key, len(errs), res.Format())
+		}
+		msg := errs[0].Message
+		for _, w := range []string{`"> **Revised 2026-10-03:** narrowed scope narrowed scope narr..."`, "(line 1)", "Add a blank line after line 1"} {
+			if !strings.Contains(msg, w) {
+				t.Errorf("metadata:%s message %q missing %q", key, msg, w)
+			}
+		}
+		if strings.Contains(msg, "is missing") {
+			t.Errorf("metadata:%s reported as missing: %q", key, msg)
+		}
+		if len(msg) > 700 {
+			t.Errorf("message is %d bytes; the quoted line was not truncated", len(msg))
+		}
+	}
+	if n := len(errorsAt(res, "metadata:Status")) + len(errorsAt(res, "metadata:Plan Number")) + len(errorsAt(res, "metadata:Implementation Plan")); n != 3 {
+		t.Errorf("want 3 metadata errors, got %d", n)
+	}
 }

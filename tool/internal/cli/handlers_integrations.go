@@ -564,6 +564,9 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, title string, 
 		if body != "" {
 			return &CLIError{Code: 1, Msg: "issue create: --template does not accept an inline --body: use --draft <file.yml> or --body-file <file.md>"}
 		}
+		if draft == "" && bodyFile != "" && title == "" {
+			return &CLIError{Code: 1, Msg: "issue create: --template with --body-file requires --title (with --draft the title comes from the draft)"}
+		}
 		sc, origin, err := loadSchema(tmplType)
 		if err != nil {
 			return err
@@ -576,10 +579,13 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, title string, 
 			fmt.Fprint(stderr, res.Format())
 			return clierr.NonConforming(fmt.Sprintf("the issue does not conform to the %s schema; nothing was created. Fix the findings above and run again", tmplType))
 		}
-		fmt.Fprint(stderr, res.Format())
 		if draft != "" {
+			if titleSet && title != checkedTitle {
+				return &CLIError{Code: 1, Msg: fmt.Sprintf("issue create: --title %q does not match the draft's title %q: the title comes from the draft, so remove --title or make it equal to the draft's \"title:\"", title, checkedTitle)}
+			}
 			title, body = checkedTitle, checkedBody
 		}
+		fmt.Fprint(stderr, res.Format())
 	}
 	if title == "" {
 		return &CLIError{Code: 1, Msg: "issue create requires --title"}
@@ -651,6 +657,9 @@ func newIssueEditCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comman
 func runIssueEdit(stderr io.Writer, cfg *config.Config, number int, tmplType, draft, bodyFile string, runner exec.Runner) error {
 	if tmplType == "" {
 		return &CLIError{Code: 1, Msg: "issue edit requires --template <type>: it checks the new body against that plan schema"}
+	}
+	if (draft == "") == (bodyFile == "") {
+		return &CLIError{Code: 1, Msg: "issue edit: pass exactly one of --draft <file.yml> or --body-file <file.md>"}
 	}
 	sc, origin, err := loadSchema(tmplType)
 	if err != nil {

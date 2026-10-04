@@ -1,4 +1,4 @@
-//go:build unix
+//go:build darwin || linux || freebsd || netbsd || openbsd || dragonfly
 
 package cli_test
 

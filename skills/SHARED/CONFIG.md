@@ -124,7 +124,7 @@ Rules. `--guidance` prints the quoting, `|` block, heading, comment, document-ma
 |---|---|
 | 0 | Success. Warnings on stderr do not change this. |
 | 1 | Usage or operational error: unknown type, unreadable file, malformed schema or override, or any usage problem. Several usage problems are reported together in one error with a header like `issue create: 3 problems:` and a bulleted list. If a non-conforming input is present too, the findings are still printed. |
-| 2 | Config missing or malformed. Reported alone; nothing else is collected. |
+| 2 | Config missing or malformed. Only `issue create` and `issue edit` return it (`render` and `validate` read no config). Reported alone; nothing else is collected. |
 | 3 | The draft or body does not conform. Findings are on stderr for `render --draft`, `issue create` and `issue edit`, and on stdout for `validate`. A failed check makes no mutating GitHub call. |
 
 Skills fix and retry a draft on exit 3 (at most 3 attempts), and surface exit 1 and 2 without retrying.

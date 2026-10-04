@@ -129,7 +129,7 @@ Then create the phase issues in phase order, each from its draft file, capturing
 marvin issue create --template impl-phase --draft <project-root>/.claude/cache/<plan>/phase-N-draft.yml --label "<labels>"
 ```
 
-`<labels>` is one comma-joined string of only the labels that exist: `plan:phase`, `status:upcoming`, and each domain label. Leave out any part that is absent; never leave an empty entry or a leading or trailing comma (marvin would pass an empty `--label` to `gh`). Example: `--label "plan:phase,status:upcoming,domain:backend"`.
+`<labels>` is one comma-joined string of only the labels that exist: `plan:phase`, `status:upcoming`, and each domain label. Leave out any part that is absent; never leave an empty entry or a leading or trailing comma (marvin would pass an empty `--label` to `gh`). Put no spaces around the commas. Example: `--label "plan:phase,status:upcoming,domain:backend"`.
 
 The title comes from the draft, so do not pass `--title` or `--body`. On success stdout is the new issue number, then its URL; capture both. Warnings on stderr are fine. Handle the exit code:
 

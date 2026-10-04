@@ -107,7 +107,7 @@ Then create the issue from the approved draft file, capturing the returned numbe
 marvin issue create --template arch-plan --draft <project-root>/.claude/cache/<plan>/arch-draft.yml --label "<labels>"
 ```
 
-`<labels>` is one comma-joined string of only the labels that exist: `plan:arch`, `status:upcoming`, each domain label, and the source issue's type label (`bug` or `enhancement`) if it has one. Leave out any part that is absent; never leave an empty entry or a leading or trailing comma (marvin would pass an empty `--label` to `gh`). Example: `--label "plan:arch,status:upcoming,domain:backend,enhancement"`.
+`<labels>` is one comma-joined string of only the labels that exist: `plan:arch`, `status:upcoming`, each domain label, and the source issue's type label (`bug` or `enhancement`) if it has one. Leave out any part that is absent; never leave an empty entry or a leading or trailing comma (marvin would pass an empty `--label` to `gh`). Put no spaces around the commas. Example: `--label "plan:arch,status:upcoming,domain:backend,enhancement"`.
 
 The title comes from the draft, so do not pass `--title` or `--body`. On success stdout is the new issue number, then its URL; capture both. Warnings on stderr are fine. Handle the exit code:
 

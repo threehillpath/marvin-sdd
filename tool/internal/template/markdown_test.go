@@ -626,3 +626,31 @@ func TestCheckMarkdownRejectedMetadataRun(t *testing.T) {
 		t.Errorf("want 3 metadata errors, got %d", n)
 	}
 }
+
+// The rejection message states the parser's rule, and claims the line is
+// inside a quote or list item only when the line above starts one (round 2 N2).
+func TestCheckMarkdownMisplacedMessageStatesTheRule(t *testing.T) {
+	cases := []struct {
+		above       string
+		inContainer bool
+	}{
+		{"> quote", true}, {"- item", true}, {"* item", true}, {"+ item", true}, {"12. item", true},
+		{"### Heading", false}, {"***", false}, {"plain paragraph", false}, {"<!-- note -->", false},
+	}
+	for _, c := range cases {
+		t.Run(c.above, func(t *testing.T) {
+			res := checkMD(t, c.above+"\n"+phaseBody)
+			errs := errorsAt(res, "metadata:Status")
+			if len(errs) != 1 {
+				t.Fatalf("want 1 error:\n%s", res.Format())
+			}
+			msg := errs[0].Message
+			if !strings.Contains(msg, "must be the first line of the body, follow a blank line, or follow another metadata line") {
+				t.Errorf("message does not state the rule: %q", msg)
+			}
+			if got := strings.Contains(msg, "inside that quote or list item"); got != c.inContainer {
+				t.Errorf("mentions quote or list item = %v, want %v: %q", got, c.inContainer, msg)
+			}
+		})
+	}
+}

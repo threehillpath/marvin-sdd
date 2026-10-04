@@ -163,3 +163,64 @@ func chdir(t *testing.T, dir string) {
 	}
 	t.Cleanup(func() { os.Chdir(orig) })
 }
+
+// TestTemplateValidateReportsOverridePath verifies the origin names the
+// override file that was used.
+func TestTemplateValidateReportsOverridePath(t *testing.T) {
+	dir := t.TempDir()
+	od := filepath.Join(dir, ".claude", "plan-workflow-templates")
+	if err := os.MkdirAll(od, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(od, "quick-task.yml")
+	if err := os.WriteFile(path, []byte(overrideSchemaFixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, dir)
+	draft := writeTemp(t, "d.yml", "title: \"[TASK-00001] x\"\nmetadata:\n  Source Issue: \"#1\"\nsections:\n  override_marker: |\n    hi\n")
+	stdout, _, _ := runCLI(t, "template", "validate", "quick-task", "--draft", draft)
+	first := strings.SplitN(stdout, "\n", 2)[0]
+	// t.TempDir may sit behind a symlink (macOS /var), so compare the suffix.
+	if !strings.HasPrefix(first, "schema: quick-task (project override: ") || !strings.HasSuffix(first, filepath.Join(".claude", "plan-workflow-templates", "quick-task.yml")+")") {
+		t.Errorf("first line = %q", first)
+	}
+}
+
+// TestTemplateRenderDraft verifies render --draft prints markdown on success
+// and, on an error, exits 3 with the findings on stderr and nothing on stdout.
+func TestTemplateRenderDraft(t *testing.T) {
+	stdout, stderr, err := runCLI(t, "template", "render", "impl-phase", "--draft", writeTemp(t, "ok.yml", phaseDraftOK))
+	if err != nil {
+		t.Fatalf("want success, got %v\n%s", err, stderr)
+	}
+	for _, w := range []string{"**Plan Number:** PLAN-00112", "## Objective", "## Verification"} {
+		if !strings.Contains(stdout, w) {
+			t.Errorf("markdown missing %q:\n%s", w, stdout)
+		}
+	}
+	if strings.Contains(stdout, "schema:") {
+		t.Errorf("stdout must be the body only:\n%s", stdout)
+	}
+
+	stdout, stderr, err = runCLI(t, "template", "render", "impl-phase", "--draft", writeTemp(t, "bad.yml", phaseDraftNoVerification))
+	wantCode(t, err, 3)
+	if stdout != "" {
+		t.Errorf("want no stdout on error, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "error section:verification") {
+		t.Errorf("findings missing from stderr:\n%s", stderr)
+	}
+}
+
+// TestTemplateRenderDraftWarningsGoToStderr verifies warnings do not stop the
+// render and are not mixed into the markdown.
+func TestTemplateRenderDraftWarningsGoToStderr(t *testing.T) {
+	draft := writeTemp(t, "d.yml", strings.Replace(phaseDraftOK, "  components: |", "  tdd_entry_point: |\n  components: |", 1))
+	stdout, stderr, err := runCLI(t, "template", "render", "impl-phase", "--draft", draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(stdout, "warning") || !strings.Contains(stderr, "warning section:tdd_entry_point") {
+		t.Errorf("stdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+}

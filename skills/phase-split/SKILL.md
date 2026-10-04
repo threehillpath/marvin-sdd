@@ -127,7 +127,7 @@ The title comes from the draft, so do not pass `--title` or `--body`. On success
 - **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry.
 - **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry.
 
-If a create stops the run (exit 1, 2, or 3 after the retries), tell the user which phase issues were already created (number and title for each) and which phases are not, so the split can be finished by hand. Do not delete the created issues and do not start over: step 3's existing-phase check would refuse a second run.
+If a create stops the run (exit 1, 2, or 3 after the retries), tell the user: which phase issues were already created (number and title for each) and whether `link-parent` ran for each; which phases were not created, with each one's draft file path; and that steps 3b (title/body check), 4 (phases-created comment) and 5 (board moves) did not run. That lets the split be finished by hand. Do not delete the created issues and do not start over: step 3's existing-phase check would refuse a second run.
 
 Immediately after each phase issue is created, set a real GitHub-native sub-issue link so `marvin issue tree` can resolve this plan's hierarchy without relying on title matching:
 

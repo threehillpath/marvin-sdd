@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"threehillpath.com/marvin-sdd/tool/internal/board"
+	"threehillpath.com/marvin-sdd/tool/internal/clierr"
 	"threehillpath.com/marvin-sdd/tool/internal/config"
 	"threehillpath.com/marvin-sdd/tool/internal/exec"
 	"threehillpath.com/marvin-sdd/tool/internal/findings"
@@ -524,7 +525,7 @@ type issueCreateOutput struct {
 }
 
 func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
-	var title, body, bodyFile, labelsFlag string
+	var title, body, bodyFile, labelsFlag, tmplType, draft string
 	var jsonOut bool
 
 	cmd := &cobra.Command{
@@ -536,9 +537,11 @@ func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comm
 			if err != nil {
 				return err
 			}
-			return runIssueCreate(stdout, stderr, cfg, title, body, bodyFile, labelsFlag, jsonOut, runner)
+			return runIssueCreate(stdout, stderr, cfg, title, cmd.Flags().Changed("title"), body, bodyFile, labelsFlag, tmplType, draft, jsonOut, runner)
 		},
 	}
+	cmd.Flags().StringVar(&tmplType, "template", "", "Check the body against this plan schema (e.g. impl-phase) before creating; exit 3 if it does not conform")
+	cmd.Flags().StringVar(&draft, "draft", "", "YAML draft file (with --template); the title comes from the draft")
 	cmd.Flags().StringVar(&title, "title", "", "Issue title (required)")
 	cmd.Flags().StringVar(&body, "body", "", "Issue body (mutually exclusive with --body-file)")
 	cmd.Flags().StringVar(&bodyFile, "body-file", "", "Path to a file containing the issue body (mutually exclusive with --body)")
@@ -552,7 +555,27 @@ func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comm
 // prints the result. jsonOut selects JSON output (--json); by default,
 // plain-text mode prints the issue number on one line then the URL on the
 // next.
-func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, title, body, bodyFile, labelsFlag string, jsonOut bool, runner exec.Runner) error {
+func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, title string, titleSet bool, body, bodyFile, labelsFlag, tmplType, draft string, jsonOut bool, runner exec.Runner) error {
+	if tmplType == "" && draft != "" {
+		return &CLIError{Code: 1, Msg: "issue create: --draft requires --template <type>: pass --template, or use --title with --body/--body-file"}
+	}
+	if tmplType != "" {
+		if body != "" {
+			return &CLIError{Code: 1, Msg: "issue create: --template does not accept an inline --body: use --draft <file.yml> or --body-file <file.md>"}
+		}
+		sc, origin, err := loadSchema(tmplType)
+		if err != nil {
+			return err
+		}
+		_, res, err := checkInput(sc, origin, draft, bodyFile, title, false)
+		if err != nil {
+			return err
+		}
+		if res.HasErrors() {
+			fmt.Fprint(stderr, res.Format())
+			return clierr.NonConforming(fmt.Sprintf("the issue does not conform to the %s schema; nothing was created. Fix the findings above and run again", tmplType))
+		}
+	}
 	if title == "" {
 		return &CLIError{Code: 1, Msg: "issue create requires --title"}
 	}

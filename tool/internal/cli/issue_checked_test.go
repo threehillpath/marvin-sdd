@@ -273,3 +273,45 @@ func TestIssueCreateBadBodyFileExits3WithoutCalls(t *testing.T) {
 		t.Errorf("want zero gh calls, got %v", fake.Calls)
 	}
 }
+
+// TestExplicitEmptyFlagsAreErrors verifies a flag that is passed with an
+// empty value is an exit-1 usage error naming the flag, never a fallback to
+// an unchecked or "neither given" path, and that no gh call is made.
+func TestExplicitEmptyFlagsAreErrors(t *testing.T) {
+	withConfigFixture(t)
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	body := writeTemp(t, "b.md", conformingPhaseBody)
+	const types = "arch-plan, impl-phase, impl-plan, quick-task"
+	for name, tc := range map[string]struct {
+		args []string
+		want string
+	}{
+		"create empty template, body-file": {[]string{"issue", "create", "--template", "", "--title", "T", "--body-file", body}, "--template needs one of " + types + "; it was given an empty value"},
+		"create empty template, draft":     {[]string{"issue", "create", "--template", "", "--draft", draft}, "--template needs one of " + types + "; it was given an empty value"},
+		"create unknown template":          {[]string{"issue", "create", "--template", "bogus", "--draft", draft}, types},
+		"create empty draft":               {[]string{"issue", "create", "--template", "impl-phase", "--draft", ""}, "--draft was given an empty value"},
+		"create empty body-file":           {[]string{"issue", "create", "--template", "impl-phase", "--title", "T", "--body-file", ""}, "--body-file was given an empty value"},
+		"create empty draft with body":     {[]string{"issue", "create", "--template", "impl-phase", "--draft", "", "--body-file", body, "--title", "T"}, "--draft was given an empty value"},
+		"edit empty template":              {[]string{"issue", "edit", "7", "--template", "", "--draft", draft}, "--template needs one of " + types + "; it was given an empty value"},
+		"edit unknown template":            {[]string{"issue", "edit", "7", "--template", "bogus", "--draft", draft}, types},
+		"edit empty draft":                 {[]string{"issue", "edit", "7", "--template", "impl-phase", "--draft", ""}, "--draft was given an empty value"},
+		"edit empty body-file":             {[]string{"issue", "edit", "7", "--template", "impl-phase", "--body-file", ""}, "--body-file was given an empty value"},
+		"edit empty draft with body":       {[]string{"issue", "edit", "7", "--template", "impl-phase", "--draft", "", "--body-file", body}, "--draft was given an empty value"},
+		"validate empty draft":             {[]string{"template", "validate", "impl-phase", "--draft", ""}, "--draft was given an empty value"},
+		"validate empty body-file":         {[]string{"template", "validate", "impl-phase", "--body-file", "", "--title", "T"}, "--body-file was given an empty value"},
+		"validate empty draft with body":   {[]string{"template", "validate", "impl-phase", "--draft", "", "--body-file", body, "--title", "T"}, "--draft was given an empty value"},
+		"render empty draft":               {[]string{"template", "render", "impl-phase", "--draft", ""}, "--draft was given an empty value"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake := &exectest.FakeRunner{}
+			stdout, _, err := runIssue(fake, tc.args...)
+			ce := wantCode(t, err, 1)
+			if !strings.Contains(ce.Msg, tc.want) {
+				t.Errorf("message %q should contain %q", ce.Msg, tc.want)
+			}
+			if len(fake.Calls) != 0 || stdout != "" {
+				t.Errorf("want zero gh calls and empty stdout, got %v / %q", fake.Calls, stdout)
+			}
+		})
+	}
+}

@@ -969,3 +969,20 @@ func TestOverrideMustDeclareTheRequestedType(t *testing.T) {
 		})
 	}
 }
+
+// TestCreateStrayPositionalIsReportedWithOtherProblems verifies a stray
+// positional argument on create is one more reported problem, not a cobra
+// error that hides the rest.
+func TestCreateStrayPositionalIsReportedWithOtherProblems(t *testing.T) {
+	withConfigFixture(t)
+	fake := &exectest.FakeRunner{}
+	code, stdout, stderr := runIssueExit(fake, "issue", "create", "stray", "--template", "bogus", "--draft", "")
+	if code != 1 || stdout != "" || len(fake.Calls) != 0 {
+		t.Fatalf("code=%d stdout=%q calls=%v", code, stdout, fake.Calls)
+	}
+	for _, w := range []string{"issue create: 3 problems:", `takes no positional arguments: got "stray"`, `unknown schema "bogus"`, "--draft was given an empty value"} {
+		if !strings.Contains(stderr, w) {
+			t.Errorf("stderr should contain %q:\n%s", w, stderr)
+		}
+	}
+}

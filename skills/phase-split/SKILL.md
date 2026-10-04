@@ -80,6 +80,20 @@ Each phase gets its own draft file, `/tmp/phase-split-draft-N.yml`. Fill every k
 - No `## ` lines in content; use `###` or deeper.
 - No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
 
+Each phase's title and body live together in its one draft file, so a body cannot drift from its title. Write every phase's draft first, then validate every one of them **before the first `issue create`**:
+
+```bash
+marvin template validate impl-phase --draft /tmp/phase-split-draft-N.yml
+```
+
+`validate` makes no config or GitHub call and creates nothing. Exit codes:
+
+- **0** — the draft conforms.
+- **3** — the draft does not conform. The findings are on stdout, each naming a draft line and the fix. Fix that draft and validate it again. Make at most 3 fix-and-retry attempts per draft; if it still exits 3, show the user the findings and stop, with no issue created.
+- **1** — a usage or operational error (for example an unreadable draft). Show stderr to the user and stop. Do not retry.
+
+Create issues only once every draft has exited 0.
+
 Read `../SHARED/LABELS.md` for label conventions. Infer domain labels from the impl plan content — confirm with the user once before creating all issues ("I'll apply `plan:phase`, `status:upcoming`, `domain:backend` to all phases — correct?").
 
 Ensure all required labels exist before creating issues:
@@ -96,11 +110,20 @@ For any domain labels not covered by `--builtins`, ensure each one individually:
 marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 ```
 
-For each approved phase, create the issue from its draft file, capturing the returned number and URL:
+Then create the phase issues in phase order, each from its draft file, capturing the returned number and URL:
 
 ```bash
 marvin issue create --template impl-phase --draft /tmp/phase-split-draft-N.yml --label "plan:phase,status:upcoming,<domain-labels>"
 ```
+
+The title comes from the draft, so do not pass `--title` or `--body`. On success stdout is the new issue number, then its URL; capture both. Warnings on stderr are fine. Handle the exit code:
+
+- **0** — created.
+- **3** — the draft does not conform; nothing was created. The findings are on stderr, each naming a draft line and the fix. Fix the draft and run the same command again. Make at most 3 fix-and-retry attempts; if it still exits 3, show the user the findings and stop.
+- **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry.
+- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry.
+
+If a create stops the run (exit 1, 2, or 3 after the retries), tell the user which phase issues were already created (number and title for each) and which phases are not, so the split can be finished by hand. Do not delete the created issues and do not start over: step 3's existing-phase check would refuse a second run.
 
 Immediately after each phase issue is created, set a real GitHub-native sub-issue link so `marvin issue tree` can resolve this plan's hierarchy without relying on title matching:
 
@@ -120,7 +143,7 @@ Before moving to step 4, re-fetch every created issue and confirm each one's bod
 gh issue view <issue-number> --repo <repo> --json title,body
 ```
 
-For each issue, check that the `## Objective` and `## Components` sections reference the same phase number and component(s) named in the title. If any issue's body describes a different phase, fix it immediately with `gh issue edit <issue-number> --repo <repo> --body-file <file>` before proceeding — do not defer this to a later skill.
+For each issue, check that the `## Objective` and `## Components` sections reference the same phase number and component(s) named in the title. If any issue's body describes a different phase, fix it immediately: correct that phase's draft file and run `marvin issue edit <issue-number> --template impl-phase --draft <corrected-draft>` (it replaces the body and the title, and handles exit codes 3, 1 and 2 the same way as `issue create`) before proceeding — do not defer this to a later skill.
 
 ### 4. Post the phases-created comment
 

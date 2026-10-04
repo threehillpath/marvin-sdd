@@ -531,3 +531,25 @@ func TestCheckMarkdownRawHTMLInMetadataValueIsReportedOnce(t *testing.T) {
 	res := checkMD(t, body)
 	wantOne(t, res, tmpl.SeverityError, "metadata:Status", `"<details>"`, "backticks", `"**Status:**"`)
 }
+
+// A blank line holds only spaces and tabs (CommonMark): a line with a
+// no-break space does not end a quote, so the metadata after it is inside it
+// (round 2 N4).
+func TestCheckMarkdownNBSPLineIsNotBlank(t *testing.T) {
+	res := checkMD(t, "> Revised note\n \n"+phaseBody)
+	if errs := errorsAt(res, "metadata:Status"); len(errs) == 0 || errs[0].Line == 0 {
+		t.Fatalf("want a located metadata:Status error:\n%s", res.Format())
+	}
+}
+
+// Repeating a key outside the schema is not an error: the not-in-schema
+// warning already covers it (round 2 N5).
+func TestCheckMarkdownRepeatedUnknownKeyIsNotAnError(t *testing.T) {
+	body := strings.Replace(phaseBody, "**Status:** Upcoming", "**Status:** Upcoming\n**Note:** a\n**Note:** b", 1)
+	res := checkMD(t, body)
+	for _, f := range res.Findings {
+		if f.Severity == tmpl.SeverityError {
+			t.Fatalf("want no errors:\n%s", res.Format())
+		}
+	}
+}

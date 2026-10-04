@@ -297,3 +297,33 @@ func TestTemplateValidateJSON(t *testing.T) {
 		t.Errorf("unexpected JSON: %+v", out)
 	}
 }
+
+// conformingPhaseBody is a markdown body that conforms to impl-phase.
+const conformingPhaseBody = "**Implementation Plan:** #132 ([PLAN-00112])\n**Plan Number:** PLAN-00112\n**Status:** upcoming\n\n## Objective\n\nDo it.\n\n## Scope\n\nIn.\n\n## Components\n\nC.\n\n## Verification\n\nV.\n\n## Success Criteria\n\n- [ ] ok\n"
+
+// TestTemplateValidateGoldmarkBackstopOnDraft verifies a draft whose only
+// problem is an HTML block in Scope (which Check alone accepts) is refused.
+func TestTemplateValidateGoldmarkBackstopOnDraft(t *testing.T) {
+	draft := writeTemp(t, "d.yml", strings.Replace(phaseDraftOK, "    In scope.\n", "    In scope.\n\n    <div>\n    hidden\n    </div>\n", 1))
+	stdout, _, err := runCLI(t, "template", "validate", "impl-phase", "--draft", draft)
+	wantCode(t, err, 3)
+	assertScopeHTMLBlock(t, stdout)
+}
+
+// TestTemplateValidateGoldmarkBackstopOnBody is the same for --body-file.
+func TestTemplateValidateGoldmarkBackstopOnBody(t *testing.T) {
+	body := strings.Replace(conformingPhaseBody, "In.\n", "In.\n\n<div>\nhidden\n</div>\n", 1)
+	stdout, _, err := runCLI(t, "template", "validate", "impl-phase", "--body-file", writeTemp(t, "b.md", body), "--title", "[PLAN-00112-5] Phase title")
+	wantCode(t, err, 3)
+	assertScopeHTMLBlock(t, stdout)
+}
+
+func assertScopeHTMLBlock(t *testing.T, stdout string) {
+	t.Helper()
+	for _, l := range strings.Split(stdout, "\n") {
+		if strings.HasPrefix(l, "error section:scope") && strings.Contains(l, "HTML block") {
+			return
+		}
+	}
+	t.Errorf("no \"error section:scope ... HTML block\" line in:\n%s", stdout)
+}

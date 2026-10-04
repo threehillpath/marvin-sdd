@@ -922,3 +922,28 @@ func TestCreateWordingIsConsistent(t *testing.T) {
 }
 
 const exactlyOneWording = "pass exactly one of --draft <file.yml> or --body-file <file.md>"
+
+// TestGoldmarkBackstopOnCreateBodyFileAndEditDraft covers the two remaining
+// input paths: create --body-file and edit --draft refuse an HTML block in
+// Scope, with exit 3, findings on stderr and no mutating gh call.
+func TestGoldmarkBackstopOnCreateBodyFileAndEditDraft(t *testing.T) {
+	withConfigFixture(t)
+	div := strings.Replace(conformingPhaseBody, "In.\n", "In.\n\n<div>\nhidden\n</div>\n", 1)
+	divDraft := strings.Replace(phaseDraftOK, "    In scope.\n", "    In scope.\n\n    <div>\n    hidden\n    </div>\n", 1)
+
+	fake := &exectest.FakeRunner{}
+	stdout, stderr, err := runIssue(fake, "issue", "create", "--template", "impl-phase", "--body-file", writeTemp(t, "b.md", div), "--title", "[PLAN-00112-5] Phase title")
+	wantCode(t, err, 3)
+	if len(fake.Calls) != 0 || stdout != "" {
+		t.Errorf("create: want zero gh calls and empty stdout, got %v / %q", fake.Calls, stdout)
+	}
+	assertScopeHTMLBlockLine(t, stderr)
+
+	fake = &exectest.FakeRunner{}
+	stdout, stderr, err = runIssue(fake, "issue", "edit", "7", "--template", "impl-phase", "--draft", writeTemp(t, "d.yml", divDraft))
+	wantCode(t, err, 3)
+	if len(fake.Calls) != 0 || stdout != "" {
+		t.Errorf("edit: want zero gh calls and empty stdout, got %v / %q", fake.Calls, stdout)
+	}
+	assertScopeHTMLBlockLine(t, stderr)
+}

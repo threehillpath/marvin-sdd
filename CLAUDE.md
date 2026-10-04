@@ -24,8 +24,8 @@ tool/                          ← Go module for the marvin CLI
   cmd/marvin/main.go           ← Entry point; compiled to bin/marvin at install time
   internal/
     board/                     ← GitHub Projects v2 board operations (add, move, list, status)
-    issue/                     ← GitHub issue reads (list with label/prefix/state filters) and checked create/edit
-    cli/                       ← Cobra command handlers
+    issue/                     ← GitHub issue reads (list with label/prefix/state filters), plus plain `gh` create/edit wrappers
+    cli/                       ← Cobra command handlers (issue create/edit run the `template/` check here before calling `issue/`)
     clierr/                    ← Exit-code constants (0 / 1 / 2 / 3)
     config/                    ← YAML config loader, legacy markdown fallback, CWD-walk discovery
     exec/                      ← Runner interface (injectable for tests)

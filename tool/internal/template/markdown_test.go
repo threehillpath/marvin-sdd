@@ -468,11 +468,11 @@ func TestCheckMarkdownGuardsThePreamble(t *testing.T) {
 		want       []string
 		notWant    []string
 	}{
-		{"lone carriage return", "note\r## Fake\n\n" + phaseBody, []string{"carriage return", "line 1"}, nil},
+		{"lone carriage return", "note\r## Fake\n\n" + phaseBody, []string{"carriage return", "line 1 of the body"}, nil},
 		{"setext under the metadata", strings.Replace(phaseBody, "**Status:** Upcoming", "**Status:** Upcoming\n---", 1),
-			[]string{`**Status:** Upcoming`, `underline "---"`, "line 3"}, []string{`\#`}},
-		{"unclosed fence", "```\nnote\n\n" + phaseBody, []string{"never closed", "```", "line 1"}, nil},
-		{"raw html", "<details>\nhidden\n\n" + phaseBody, []string{`"<details>"`, "line 1"}, nil},
+			[]string{`**Status:** Upcoming`, `underline "---"`, "line 3 of the body"}, []string{`\#`}},
+		{"unclosed fence", "```\nnote\n\n" + phaseBody, []string{"never closed", "```", "line 1 of the body"}, nil},
+		{"raw html", "<details>\nhidden\n\n" + phaseBody, []string{`"<details>"`, "line 1 of the body"}, nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -485,6 +485,9 @@ func TestCheckMarkdownGuardsThePreamble(t *testing.T) {
 				if !strings.Contains(msg, w) {
 					t.Errorf("message %q missing %q", msg, w)
 				}
+			}
+			if strings.Contains(msg, "of the section") {
+				t.Errorf("message %q counts lines from the top of the body, so it must not say \"of the section\"", msg)
 			}
 			for _, w := range c.notWant {
 				if strings.Contains(msg, w) {
@@ -519,4 +522,12 @@ func TestCheckMarkdownVerifyFixTextForPreamble(t *testing.T) {
 	if !strings.Contains(errs[0].Message, `Edit it `+aboveFirst+`.`) {
 		t.Errorf("message = %q", errs[0].Message)
 	}
+}
+
+// Raw HTML in a metadata value is reported once, by the metadata check that
+// names the key, not again by the preamble guard.
+func TestCheckMarkdownRawHTMLInMetadataValueIsReportedOnce(t *testing.T) {
+	body := strings.Replace(phaseBody, "**Status:** Upcoming", "**Status:** Use <details> blocks", 1)
+	res := checkMD(t, body)
+	wantOne(t, res, tmpl.SeverityError, "metadata:Status", `"<details>"`, "backticks", `"**Status:**"`)
 }

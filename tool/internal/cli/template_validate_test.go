@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -222,5 +223,77 @@ func TestTemplateRenderDraftWarningsGoToStderr(t *testing.T) {
 	}
 	if strings.Contains(stdout, "warning") || !strings.Contains(stderr, "warning section:tdd_entry_point") {
 		t.Errorf("stdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+}
+
+// TestTemplateHelpListsEmbeddedTypes verifies the Use strings of render and
+// validate name every embedded schema type, quick-task included.
+func TestTemplateHelpListsEmbeddedTypes(t *testing.T) {
+	for _, cmd := range []string{"render", "validate"} {
+		stdout, _, err := runCLI(t, "template", cmd, "--help")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, typ := range []string{"arch-plan", "impl-plan", "impl-phase", "quick-task"} {
+			if !strings.Contains(stdout, typ) {
+				t.Errorf("%s --help does not list %q:\n%s", cmd, typ, stdout)
+			}
+		}
+	}
+}
+
+// TestTemplateValidateInputFlagsAreExclusive verifies neither or both of
+// --draft/--body-file is a usage error (exit 1) naming both flags.
+func TestTemplateValidateInputFlagsAreExclusive(t *testing.T) {
+	f := writeTemp(t, "x", "x")
+	for _, args := range [][]string{
+		{"template", "validate", "impl-phase"},
+		{"template", "validate", "impl-phase", "--draft", f, "--body-file", f},
+	} {
+		stdout, _, err := runCLI(t, args...)
+		ce := wantCode(t, err, 1)
+		if !strings.Contains(ce.Msg, "--draft") || !strings.Contains(ce.Msg, "--body-file") || stdout != "" {
+			t.Errorf("%v: msg %q stdout %q", args, ce.Msg, stdout)
+		}
+	}
+}
+
+// TestTemplateValidateBodyFile verifies the markdown path: a conforming
+// body exits 0, a missing --title is a title error (exit 3), and a missing
+// section is reported.
+func TestTemplateValidateBodyFile(t *testing.T) {
+	body := "**Implementation Plan:** #132 ([PLAN-00112])\n**Plan Number:** PLAN-00112\n**Status:** upcoming\n\n## Objective\n\nDo it.\n\n## Scope\n\nIn.\n\n## Components\n\nC.\n\n## Verification\n\nV.\n\n## Success Criteria\n\n- [ ] ok\n"
+	f := writeTemp(t, "b.md", body)
+	stdout, _, err := runCLI(t, "template", "validate", "impl-phase", "--body-file", f, "--title", "[PLAN-00112-5] Phase title")
+	if err != nil {
+		t.Fatalf("want exit 0, got %v\n%s", err, stdout)
+	}
+	stdout, _, err = runCLI(t, "template", "validate", "impl-phase", "--body-file", f)
+	wantCode(t, err, 3)
+	if !strings.Contains(stdout, "error title") {
+		t.Errorf("want a title error without --title:\n%s", stdout)
+	}
+}
+
+// TestTemplateValidateJSON verifies --json gives schema, origin and findings.
+func TestTemplateValidateJSON(t *testing.T) {
+	draft := writeTemp(t, "d.yml", phaseDraftNoVerification)
+	stdout, _, err := runCLI(t, "template", "validate", "impl-phase", "--draft", draft, "--json")
+	wantCode(t, err, 3)
+	var out struct {
+		Schema   string `json:"schema"`
+		Origin   string `json:"origin"`
+		Findings []struct {
+			Severity string `json:"severity"`
+			Location string `json:"location"`
+			Line     int    `json:"line"`
+			Message  string `json:"message"`
+		} `json:"findings"`
+	}
+	if jerr := json.Unmarshal([]byte(stdout), &out); jerr != nil {
+		t.Fatalf("not JSON: %v\n%s", jerr, stdout)
+	}
+	if out.Schema != "impl-phase" || out.Origin != "built-in" || len(out.Findings) == 0 || out.Findings[0].Severity != "error" || out.Findings[0].Location != "section:verification" {
+		t.Errorf("unexpected JSON: %+v", out)
 	}
 }

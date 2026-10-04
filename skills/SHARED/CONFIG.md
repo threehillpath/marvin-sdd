@@ -72,7 +72,7 @@ Skills never read schema YAML directly. Four commands resolve a plan type's sche
 - `marvin issue create --template <type> --draft <file.yml> --label ...`. The title comes from the draft; `--title` is accepted only if it equals the draft's title, and inline `--body` is rejected. A second mode checks an existing markdown body: `--template <type> --body-file <file.md> --title <t>` (`--title` is required there, and `--draft` and `--body-file` are mutually exclusive). The skills use the draft mode.
 - `marvin issue edit <n> --template <type> (--draft <file.yml> | --body-file <file.md>)`. `--draft` replaces the body and the title; `--body-file` replaces the body only.
 
-`{type}` is one of four built-in types: `arch-plan`, `impl-plan`, `impl-phase`, `quick-task`. Any other value is a usage error (exit 1). Each command reports the schema it used on stderr as `schema: <type> (built-in)` or `schema: <type> (project override: <path>)`.
+`{type}` is one of four built-in types: `arch-plan`, `impl-plan`, `impl-phase`, `quick-task`. Any other value is a usage error (exit 1). The commands that check a draft or body report the schema they used as `schema: <type> (built-in)` or `schema: <type> (project override: <path>)`: on stdout for `validate`, on stderr for `issue create` and `issue edit`, and on stderr for `render --draft` only when it has warnings or findings to print. `render --skeleton` and `--guidance` print no origin line.
 
 Resolution order for the schema:
 
@@ -122,7 +122,7 @@ Rules. `--guidance` prints the quoting, `|` block, heading, comment, document-ma
 
 | Code | Meaning |
 |---|---|
-| 0 | Success. Warnings on stderr do not change this. |
+| 0 | Success. Warnings alone do not change this: they are printed on stderr by `render --draft`, `issue create` and `issue edit`, and on stdout by `validate`. |
 | 1 | Usage or operational error: unknown type, unreadable file, malformed schema or override, or any usage problem. Several usage problems are reported together in one error with a header like `issue create: 3 problems:` and a bulleted list. If a non-conforming input is present too, the findings are still printed. |
 | 2 | Config missing or malformed. Only `issue create` and `issue edit` return it (`render` and `validate` read no config). Reported alone; nothing else is collected. |
 | 3 | The draft or body does not conform. Findings are on stderr for `render --draft`, `issue create` and `issue edit`, and on stdout for `validate`. A failed check makes no mutating GitHub call. |

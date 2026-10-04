@@ -38,10 +38,13 @@ type Entry struct {
 	Number  int
 }
 
-// Heading is a "## " heading found in a markdown body.
+// Heading is a "## " heading found in a markdown body. Content is the text
+// below it, set only for unknown headings so Check can apply the content
+// guards to it.
 type Heading struct {
-	Text string
-	Line int
+	Text    string
+	Line    int
+	Content string
 }
 
 // SectionMap is the input-independent shape the conformance check runs on.
@@ -52,6 +55,39 @@ type SectionMap struct {
 	Metadata        map[string]Field
 	Sections        map[string][]Entry
 	UnknownHeadings []Heading // markdown only
+
+	// RepeatedMetadata lists metadata lines that repeat an earlier key; the
+	// map keeps the first value. Markdown only.
+	RepeatedMetadata []RepeatedField
+
+	// Preamble is the text above the first "## " heading (the whole body when
+	// there is none), markdown only. Check applies the content guards to it.
+	Preamble string
+
+	// MisplacedMetadata lists metadata-shaped lines that GitHub does not show
+	// as metadata (markdown only).
+	MisplacedMetadata []MisplacedField
+}
+
+// MisplacedField is a "**Key:**" line above the first heading that sits in a
+// code fence (InFence) or directly below the non-blank line Above.
+type MisplacedField struct {
+	Key     string
+	Line    int
+	InFence bool
+	// Indented is set for a line indented 4 or more columns after a blank
+	// line, which GitHub shows as code.
+	Indented  bool
+	Above     string // first line of the run that is not metadata
+	AboveLine int
+}
+
+// RepeatedField is a metadata key written a second time, at Line, after
+// FirstLine.
+type RepeatedField struct {
+	Key       string
+	FirstLine int
+	Line      int
 }
 
 // Severity of a finding.
@@ -231,11 +267,27 @@ func (c *checker) fix(yamlFix, mdFix string) string {
 	return yamlFix
 }
 
+// startsContainerRe matches a line that opens a block quote or list item.
+var startsContainerRe = regexp.MustCompile(`^(?:>|[-*+]\s|\d+[.)]\s)`)
+
+// misplaced reports whether key has a metadata-shaped line that was rejected.
+func (c *checker) misplaced(key string) bool {
+	for _, f := range c.m.MisplacedMetadata {
+		if f.Key == key {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *checker) checkMetadata() {
 	for _, key := range c.sc.Metadata {
 		loc := "metadata:" + key
 		f, ok := c.m.Metadata[key]
 		if !ok {
+			if c.misplaced(key) {
+				continue // reported as a misplaced line, which says how to fix it
+			}
 			c.add(SeverityError, loc, 0, "metadata key %q is missing. The schema requires every metadata key. %s",
 				key, c.fix(fmt.Sprintf("Add a %q key under \"metadata:\" in the draft.", key),
 					fmt.Sprintf("Add a line \"**%s:** <value>\" above the first \"## \" heading.", key)))
@@ -361,7 +413,7 @@ func (c *checker) checkSections() {
 					c.fix(fmt.Sprintf("Give every %q entry a non-empty \"name:\" in the draft.", sec.ID),
 						"Give the heading text after the number, like \"## 1. <Name>\"."))
 			}
-			c.checkContentStructure(sec, e)
+			c.checkContentStructure("section:"+sec.ID, "section "+label(sec), e.Content, e.Line)
 		}
 	}
 }
@@ -391,6 +443,8 @@ type contentScan struct {
 	Fence    *openFence // fence left open at the end, if any
 	Setext   *setextHit // first line turned into a heading by an underline
 	HTML     *htmlHit   // first raw HTML construct outside code
+	// InFence[i] is true when line i+1 is a fence line or inside a fence.
+	InFence []bool
 }
 
 // htmlHit is a banned raw HTML construct.
@@ -495,9 +549,12 @@ func scanContent(body string) contentScan {
 		}
 		para = nil
 	}
-	for i, line := range strings.Split(body, "\n") {
+	allLines := strings.Split(body, "\n")
+	out.InFence = make([]bool, len(allLines))
+	for i, line := range allLines {
 		line = strings.TrimRight(line, "\r")
 		prev, prevLineNo := prevText, prevNo
+		out.InFence[i] = fenceCh != 0
 		prevText = ""
 		if m := fenceRe.FindStringSubmatch(line); m != nil {
 			run, rest := m[1], m[2]
@@ -506,6 +563,7 @@ func scanContent(body string) contentScan {
 				if run[0] != '`' || !strings.Contains(rest, "`") {
 					flush()
 					fenceCh, fenceLen = run[0], len(run)
+					out.InFence[i] = true
 					out.Fence = &openFence{Run: run, Line: i + 1}
 				}
 				continue
@@ -574,39 +632,42 @@ func contentLine(content string, n int) string {
 // structure: a "## " heading outside a fence, which would become a new
 // section, and a fence that is never closed, which would swallow every later
 // section.
-func (c *checker) checkContentStructure(sec SchemaSection, e Entry) {
-	loc := "section:" + sec.ID
-	if norm := strings.ReplaceAll(e.Content, "\r\n", "\n"); strings.Contains(norm, "\r") {
+func (c *checker) checkContentStructure(loc, what, content string, line int, whereOverride ...string) {
+	where := c.fix(fmt.Sprintf("inside the %q block", strings.TrimPrefix(loc, "section:")), "under that heading")
+	unit := "the section"
+	if len(whereOverride) > 0 {
+		where, unit = whereOverride[0], "the body" // preamble lines count from the top of the body
+	}
+	add := func(format string, args ...any) {
+		c.add(SeverityError, loc, line, strings.ReplaceAll(format, "of the section", "of "+unit), args...)
+	}
+	if norm := strings.ReplaceAll(content, "\r\n", "\n"); strings.Contains(norm, "\r") {
 		n := strings.Count(norm[:strings.Index(norm, "\r")], "\n") + 1
-		c.add(SeverityError, loc, e.Line, "content of section %s has a lone carriage return on line %d of the section, which GitHub renders as a line break the structure checks cannot see (for example \"a\\r## X\" becomes a heading). Fix: replace the carriage return with a line break (or remove it), %s.",
-			label(sec), n, c.fix(fmt.Sprintf("inside the %q block", sec.ID), "under that heading"))
+		add("content of %s has a lone carriage return on line %d of the section, which GitHub renders as a line break the structure checks cannot see (for example \"a\\r## X\" becomes a heading). Fix: replace the carriage return with a line break (or remove it), %s.",
+			what, n, where)
 	}
-	scan := scanContent(e.Content)
+	scan := scanContent(content)
 	hs, open := scan.Headings, scan.Fence
-	where := fmt.Sprintf("inside the %q block", sec.ID)
-	if c.m.Source == SourceMarkdown {
-		where = "under that heading"
-	}
 	if h := scan.HTML; h != nil {
-		c.add(SeverityError, loc, e.Line, "content of section %s contains raw HTML %q on line %d of the section. Raw HTML could hide or swallow the sections after it when rendered, so drafts don't allow it. Wrap it in backticks as inline code (for example `<details>`) or remove it, %s.",
-			label(sec), h.Tag, h.Line, where)
+		add("content of %s contains raw HTML %q on line %d of the section. Raw HTML could hide or swallow the sections after it when rendered, so drafts don't allow it. Wrap it in backticks as inline code (for example `<details>`) or remove it, %s.",
+			what, h.Tag, h.Line, where)
 	}
 	if len(hs) > 0 {
-		c.add(SeverityError, loc, e.Line, "content of section %s contains the heading %q on line %d of the section, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), contentLine(e.Content, hs[0].Line), hs[0].Line)
+		add("content of %s contains the heading %q on line %d of the section, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", what, contentLine(content, hs[0].Line), hs[0].Line)
 	}
 	if h := scan.Setext; h != nil {
 		if strings.HasPrefix(h.Underline, "=") {
-			c.add(SeverityError, loc, e.Line, "content of section %s has the line %q on line %d of the section directly above the underline %q, which makes it a heading when rendered and would split the section. Remove the %q line, or write the heading as \"### %s\" %s.",
-				label(sec), h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
+			add("content of %s has the line %q on line %d of the section directly above the underline %q, which makes it a heading when rendered and would split the section. Remove the %q line, or write the heading as \"### %s\" %s.",
+				what, h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
 		} else {
-			c.add(SeverityError, loc, e.Line, "content of section %s has the line %q on line %d of the section directly above the underline %q, which makes it a heading when rendered and would split the section. If you meant a horizontal rule, put a blank line before %q; otherwise write the heading as \"### %s\" or remove the underline %s.",
-				label(sec), h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
+			add("content of %s has the line %q on line %d of the section directly above the underline %q, which makes it a heading when rendered and would split the section. If you meant a horizontal rule, put a blank line before %q; otherwise write the heading as \"### %s\" or remove the underline %s.",
+				what, h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
 		}
 	}
 	if open != nil {
 		ch := fmt.Sprintf("%q", string(open.Run[0]))
-		c.add(SeverityError, loc, e.Line, "content of section %s opens a code fence %q on line %d of the section that is never closed, so every later section would render as code and be lost to the parser. Close it with a matching fence line (the same character, %s, at least %d long, nothing else on the line) %s.",
-			label(sec), open.Run, open.Line, ch, len(open.Run), where)
+		add("content of %s opens a code fence %q on line %d of the section that is never closed, so every later section would render as code and be lost to the parser. Close it with a matching fence line (the same character, %s, at least %d long, nothing else on the line) %s.",
+			what, open.Run, open.Line, ch, len(open.Run), where)
 	}
 }
 
@@ -628,12 +689,39 @@ func (c *checker) checkMarkdownOnly() {
 	if c.m.Source != SourceMarkdown {
 		return
 	}
-	for _, h := range c.m.UnknownHeadings {
-		c.add(SeverityWarning, "draft", h.Line, "heading \"## %s\" is not a section of schema %s. Rename it to one of the schema's headings (%s), or remove it.", h.Text, c.sc.Type, c.expectedHeadings())
-	}
 	known := map[string]bool{}
 	for _, key := range c.sc.Metadata {
 		known[key] = true
+	}
+	c.checkContentStructure("draft", "the text above the first \"## \" heading", c.m.Preamble, 1, "above the first \"## \" heading")
+	for _, f := range c.m.MisplacedMetadata {
+		if !known[f.Key] {
+			continue
+		}
+		loc := "metadata:" + f.Key
+		switch {
+		case f.Indented:
+			c.add(SeverityError, loc, f.Line, "the \"**%s:**\" line (line %d) is indented 4 or more spaces, so GitHub shows it as code, not as metadata. Remove the indentation.", f.Key, f.Line)
+		case f.InFence:
+			c.add(SeverityError, loc, f.Line, "the \"**%s:**\" line (line %d) is inside a code fence, so GitHub shows it as code, not as metadata. Move it out of the code fence, above the first \"## \" heading.", f.Key, f.Line)
+		default:
+			quoted := f.Above
+			container := ""
+			if startsContainerRe.MatchString(f.Above) {
+				container = ", so GitHub shows it inside that quote or list item"
+			}
+			if len(quoted) > 60 {
+				quoted = quoted[:60] + "..."
+			}
+			c.add(SeverityError, loc, f.Line, "the \"**%s:**\" line (line %d) follows the line %q (line %d) with no blank line between. Metadata must be the first line of the body, follow a blank line, or follow another metadata line%s. Add a blank line after line %d.", f.Key, f.Line, quoted, f.AboveLine, container, f.AboveLine)
+		}
+	}
+	for _, r := range c.m.RepeatedMetadata {
+		c.add(SeverityError, "metadata:"+r.Key, r.Line, "metadata key %q appears twice (line %d and line %d). Remove the duplicate line or merge its value into the first.", r.Key, r.FirstLine, r.Line)
+	}
+	for _, h := range c.m.UnknownHeadings {
+		c.checkContentStructure("draft", fmt.Sprintf("the unknown heading \"## %s\"", h.Text), h.Content, h.Line)
+		c.add(SeverityWarning, "draft", h.Line, "heading \"## %s\" is not a section of schema %s. Rename it to one of the schema's headings (%s), or remove it.", h.Text, c.sc.Type, c.expectedHeadings())
 	}
 	var extra []string
 	for key := range c.m.Metadata {

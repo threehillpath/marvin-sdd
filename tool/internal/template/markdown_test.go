@@ -591,7 +591,7 @@ func TestCheckMarkdownIndentedMetadata(t *testing.T) {
 		if len(got) != 1 {
 			t.Fatalf("want one located error:\n%s", checkMD(t, body).Format())
 		}
-		for _, w := range []string{`"**Status:**"`, "line 5", "indented 4 or more spaces", "shows it as code", "Remove the indentation"} {
+		for _, w := range []string{`"**Status:**"`, "line 4", "indented 4 or more spaces", "shows it as code", "Remove the indentation"} {
 			if !strings.Contains(got[0].Message, w) {
 				t.Errorf("message %q missing %q", got[0].Message, w)
 			}

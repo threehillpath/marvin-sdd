@@ -189,7 +189,7 @@ func newTemplateCmd(stdout, stderr io.Writer) *cobra.Command {
 
 	renderCmd := &cobra.Command{
 		Use:   "render <" + typeList + ">",
-		Short: "Render a plan template from schema",
+		Short: "Render a skeleton, guidance, or a draft for a plan schema",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTemplateRender(stdout, stderr, args[0], skeleton, guidance, rDraft)

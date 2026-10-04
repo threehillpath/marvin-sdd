@@ -371,8 +371,9 @@ func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, gu
 }
 
 // resolveSchema returns the YAML schema bytes for schemaName and a short
-// label identifying where they came from ("project override" or "built-in
-// schema", used to make render/parse error messages actionable), per the
+// origin string: "project override: <path>" or "built-in". The origin is shown
+// on the "schema:" line and in the JSON "origin" field, and it prefixes schema
+// errors so they are actionable. Lookup follows the
 // precedence documented in skills/SHARED/CONFIG.md:
 //  1. Project override: .claude/plan-workflow-templates/{schemaName}.yml,
 //     found by walking up from cwd (sibling to the config file's own lookup).
@@ -401,7 +402,8 @@ func resolveSchema(schemaName string) (data []byte, origin string, err error) {
 }
 
 // findSchemaOverride walks up from startDir looking for a project-supplied
-// .claude/plan-workflow-templates/{schemaName}.yml. A missing file at a
+// .claude/plan-workflow-templates/{schemaName}.yml and returns its bytes and the
+// path of the override it read. A missing file at a
 // given level is not an error — the walk continues upward — but any other
 // read failure on a file that does exist there (permission denied, a
 // directory in place of a file, ...) is reported rather than silently

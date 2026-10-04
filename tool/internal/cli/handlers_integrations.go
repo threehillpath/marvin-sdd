@@ -719,8 +719,10 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, f issueCreateF
 // a reported usage problem with advice, not a bare unknown-flag error.
 type issueEditFlags struct {
 	tmplType, draft, bodyFile, body string
+	title, label                    string
 	tmplSet, draftSet               bool
 	bodyFileSet, bodySet            bool
+	titleSet, labelSet              bool
 }
 
 func newIssueEditCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
@@ -743,6 +745,8 @@ func newIssueEditCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comman
 			f.draftSet = cmd.Flags().Changed("draft")
 			f.bodyFileSet = cmd.Flags().Changed("body-file")
 			f.bodySet = cmd.Flags().Changed("body")
+			f.titleSet = cmd.Flags().Changed("title")
+			f.labelSet = cmd.Flags().Changed("label")
 			return runIssueEdit(stderr, cfg, args, f, runner)
 		},
 	}
@@ -750,7 +754,11 @@ func newIssueEditCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comman
 	cmd.Flags().StringVar(&f.draft, "draft", "", "YAML draft file: sets the rendered body and the title")
 	cmd.Flags().StringVar(&f.bodyFile, "body-file", "", "Markdown body file: sets the body only, the title is unchanged")
 	cmd.Flags().StringVar(&f.body, "body", "", "Not supported: there is no inline body, use --draft or --body-file")
-	_ = cmd.Flags().MarkHidden("body")
+	cmd.Flags().StringVar(&f.title, "title", "", "Not supported: --draft sets the title")
+	cmd.Flags().StringVar(&f.label, "label", "", "Not supported: edit does not change labels")
+	for _, n := range []string{"body", "title", "label"} {
+		_ = cmd.Flags().MarkHidden(n)
+	}
 	return cmd
 }
 
@@ -789,6 +797,12 @@ func runIssueEdit(stderr io.Writer, cfg *config.Config, args []string, f issueEd
 	}
 	if f.bodySet {
 		p.add("there is no inline --body: use --draft <file.yml> or --body-file <file.md>")
+	}
+	if f.titleSet {
+		p.add("--title is not supported: --draft sets the title from the draft's \"title:\", --body-file keeps the current title")
+	}
+	if f.labelSet {
+		p.add("--label is not supported: issue edit changes the body (and, with --draft, the title) only")
 	}
 	if f.draftSet && f.draft == "" {
 		p.add(emptyFlagMsg("draft"))

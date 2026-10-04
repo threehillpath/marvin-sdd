@@ -436,6 +436,9 @@ func checkInput(sc *tmplpkg.Schema, origin, draftPath, bodyPath, title string) (
 		return "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: "pass exactly one of --draft <file.yml> or --body-file <file.md>"}
 	}
 	if draftPath != "" {
+		if title != "" {
+			return "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: "--title applies only to --body-file: with --draft the title comes from the draft's \"title:\" key. Remove --title, or edit \"title:\" in the draft"}
+		}
 		data, err := os.ReadFile(draftPath)
 		if err != nil {
 			return "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: fmt.Sprintf("reading draft: %v", err)}

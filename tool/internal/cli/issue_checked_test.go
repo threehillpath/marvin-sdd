@@ -536,3 +536,47 @@ func TestBadDraftWithMismatchedTitleReportsBoth(t *testing.T) {
 		})
 	}
 }
+
+// TestTemplateNameMustBeOneOfTheFixedTypes verifies the type name is checked
+// against the fixed built-in set before any override path is built or opened:
+// a name outside the set is an exit-1 error listing the valid types on every
+// command that takes one, even when a file of that name exists under
+// .claude/plan-workflow-templates/, and no gh call is made.
+func TestTemplateNameMustBeOneOfTheFixedTypes(t *testing.T) {
+	withConfigFixture(t)
+	// A directory where the override file would be: opening it as a file
+	// fails with a "reading project template override" error, so any attempt
+	// to look the name up is visible in the message.
+	for _, name := range []string{"bogus.yml", "x.yml"} {
+		if err := os.MkdirAll(filepath.Join(".claude", "plan-workflow-templates", name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	const types = "arch-plan, impl-phase, impl-plan, quick-task"
+	for _, typ := range []string{"bogus", "../x", "a/b", ""} {
+		for cmdName, args := range map[string][]string{
+			"create":   {"issue", "create", "--template", typ, "--draft", draft},
+			"edit":     {"issue", "edit", "7", "--template", typ, "--draft", draft},
+			"validate": {"template", "validate", typ, "--draft", draft},
+			"render":   {"template", "render", typ, "--draft", draft},
+		} {
+			t.Run(cmdName+" "+typ, func(t *testing.T) {
+				fake := &exectest.FakeRunner{}
+				code, stdout, stderr := runIssueExit(fake, args...)
+				if code != 1 {
+					t.Errorf("exit code = %d, want 1\nstderr: %s", code, stderr)
+				}
+				if !strings.Contains(stderr, types) {
+					t.Errorf("stderr should list %q:\n%s", types, stderr)
+				}
+				if strings.Contains(stderr, "override") {
+					t.Errorf("the override path must not be looked up:\n%s", stderr)
+				}
+				if len(fake.Calls) != 0 || stdout != "" {
+					t.Errorf("want zero gh calls and empty stdout, got %v / %q", fake.Calls, stdout)
+				}
+			})
+		}
+	}
+}

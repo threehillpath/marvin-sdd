@@ -1,6 +1,7 @@
 package template
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -18,6 +19,13 @@ var metadataLineRe = regexp.MustCompile(`^\*\*(.+?):\*\*[ \t]*(.*)$`)
 // checker agree on where a section starts and ends. Each section runs from
 // its heading to the next "## " heading.
 func ParseMarkdown(sc *Schema, title, body string) *SectionMap {
+	m, _, _, _ := parseMarkdown(sc, title, body)
+	return m
+}
+
+// parseMarkdown is ParseMarkdown plus what verifyBody needs: the normalized
+// body, where each of its lines came from, and the "## " headings found.
+func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineOrigin, []emittedHeading) {
 	m := &SectionMap{
 		Source:   SourceMarkdown,
 		Title:    title,
@@ -27,33 +35,53 @@ func ParseMarkdown(sc *Schema, title, body string) *SectionMap {
 	body = strings.ReplaceAll(body, "\r\n", "\n")
 	lines := strings.Split(body, "\n")
 	heads := FindH2Lines(body)
+	origins := make([]lineOrigin, len(lines))
+	var emitted []emittedHeading
 
 	end := len(lines)
 	if len(heads) > 0 {
 		end = heads[0].Line - 1
 	}
 	for i, line := range lines[:end] {
+		origins[i] = lineOrigin{loc: "draft", what: "the text above the first \"## \" heading", line: i + 1, where: "edit that text"}
 		if mm := metadataLineRe.FindStringSubmatch(line); mm != nil {
 			m.Metadata[mm[1]] = Field{Value: strings.TrimSpace(mm[2]), Line: i + 1}
+			origins[i] = lineOrigin{loc: "metadata:" + mm[1], what: fmt.Sprintf("metadata value %q", mm[1]), line: i + 1, where: fmt.Sprintf("edit the \"**%s:**\" line", mm[1])}
 		}
 	}
 
 	for i, h := range heads {
+		emitted = append(emitted, emittedHeading{line: h.Line, text: h.Text})
 		stop := len(lines)
 		if i+1 < len(heads) {
 			stop = heads[i+1].Line - 1
 		}
-		content := strings.Trim(strings.Join(lines[h.Line:stop], "\n"), "\n")
+		raw := strings.Join(lines[h.Line:stop], "\n")
+		content := strings.TrimLeft(raw, "\n")
+		lead := strings.Count(raw, "\n") - strings.Count(content, "\n")
 		content = strings.TrimRight(content, " \t\n")
+
+		o := lineOrigin{loc: "draft", what: fmt.Sprintf("the unknown heading \"## %s\"", h.Text), line: h.Line, where: "under that heading"}
 		if id, e, ok := classifyHeading(sc, h.Text); ok {
 			e.Content, e.Line = content, h.Line
 			m.Sections[id] = append(m.Sections[id], e)
-			continue
+			for _, sec := range sc.Sections {
+				if sec.ID == id {
+					o.loc, o.what = "section:"+id, "section "+label(sec)
+				}
+			}
+		} else {
+			h.Content = content
+			m.UnknownHeadings = append(m.UnknownHeadings, h)
 		}
-		h.Content = content
-		m.UnknownHeadings = append(m.UnknownHeadings, h)
+		for j := h.Line - 1; j < stop; j++ {
+			origins[j] = o
+			if c := j - h.Line + 1 - lead; c > 0 {
+				origins[j].content = c
+			}
+		}
 	}
-	return m
+	return m, body, origins, emitted
 }
 
 var numberedRe = regexp.MustCompile(`^(\d+)\.(?:[ \t]+(.*))?$`)
@@ -100,8 +128,13 @@ func literalSection(sc *Schema, text string) (string, bool) {
 
 // CheckMarkdown parses body and checks it. It is the entry point for the
 // markdown path: the Result is Check's, and when Check finds no error the
-// body is also verified the way Render verifies what it emits.
+// body is also verified the way Render verifies what it emits, so a body that
+// GitHub would structure differently from the parser is refused.
 func CheckMarkdown(sc *Schema, origin, title, body string) Result {
-	m := ParseMarkdown(sc, title, body)
-	return Check(sc, origin, m)
+	m, norm, origins, heads := parseMarkdown(sc, title, body)
+	res := Check(sc, origin, m)
+	if !res.HasErrors() {
+		res.Findings = append(res.Findings, verifyBody(norm, origins, heads)...)
+	}
+	return res
 }

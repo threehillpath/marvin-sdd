@@ -335,20 +335,24 @@ func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, gu
 	if err != nil {
 		return err
 	}
+	p := problems{prefix: "template render: "}
 	if draftSet && draftPath == "" {
-		return &CLIError{Code: 1, Msg: emptyFlagMsg("draft")}
+		p.add(emptyFlagMsg("draft"))
 	}
 	modes := 0
-	for _, on := range []bool{skeleton, guidance, draftPath != ""} {
+	for _, on := range []bool{skeleton, guidance, draftSet} {
 		if on {
 			modes++
 		}
 	}
 	if modes > 1 {
-		return &CLIError{Code: 1, Msg: fmt.Sprintf("--skeleton, --guidance and --draft cannot be combined: pass only one. Run \"marvin template render %s --skeleton\" for the empty YAML draft, \"marvin template render %s --guidance\" for the help text, or \"marvin template render %s --draft <file.yml>\" to render a draft", schemaName, schemaName, schemaName)}
+		p.add(fmt.Sprintf("--skeleton, --guidance and --draft cannot be combined: pass only one. Run \"marvin template render %s --skeleton\" for the empty YAML draft, \"marvin template render %s --guidance\" for the help text, or \"marvin template render %s --draft <file.yml>\" to render a draft", schemaName, schemaName, schemaName))
 	}
 	if modes == 0 {
-		return &CLIError{Code: 1, Msg: fmt.Sprintf("nothing to render for %s: pass --draft <file.yml> to render a draft, \"marvin template render %s --skeleton\" to get an empty YAML draft, or \"marvin template render %s --guidance\" for how to fill it in", schemaName, schemaName, schemaName)}
+		p.add(fmt.Sprintf("nothing to render for %s: pass --draft <file.yml> to render a draft, \"marvin template render %s --skeleton\" to get an empty YAML draft, or \"marvin template render %s --guidance\" for how to fill it in", schemaName, schemaName, schemaName))
+	}
+	if err := p.err(); err != nil {
+		return err
 	}
 	if guidance {
 		fmt.Fprint(stdout, tmplpkg.Guidance(sc))

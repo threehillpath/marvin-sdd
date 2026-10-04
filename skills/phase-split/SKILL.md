@@ -84,7 +84,7 @@ Fill every key of the skeleton with phase-specific content, except that `tdd_ent
 
 Once a phase's sections are filled in, `Write` it to that phase's own draft file, `<project-root>/.claude/cache/<plan>/phase-N-draft.yml`, where `<project-root>` is the repo root, `<plan>` is the lowercase PLAN-XXXXX number (for example `plan-00112`) and `N` is the phase number (for a multi-impl track use `phase-<suffix>-N-draft.yml`, e.g. `phase-A-1-draft.yml`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use each phase's own path in every command below.
 
-Each phase's title and body live together in its one draft file, so a body cannot drift from its title. Write every phase's draft first, then validate every one of them **before the first `issue create`**:
+Write each phase's title and body together in its one draft file, never as two separate lists. Write every phase's draft first, then validate every one of them **before the first `issue create`**:
 
 ```bash
 marvin template validate impl-phase --draft <project-root>/.claude/cache/<plan>/phase-N-draft.yml

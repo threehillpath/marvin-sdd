@@ -2,6 +2,7 @@ package template
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -44,13 +45,45 @@ func ParseMarkdown(sc *Schema, title, body string) *SectionMap {
 		}
 		content := strings.Trim(strings.Join(lines[h.Line:stop], "\n"), "\n")
 		content = strings.TrimRight(content, " \t\n")
-		if id, ok := literalSection(sc, h.Text); ok {
-			m.Sections[id] = append(m.Sections[id], Entry{Content: content, Line: h.Line})
+		if id, e, ok := classifyHeading(sc, h.Text); ok {
+			e.Content, e.Line = content, h.Line
+			m.Sections[id] = append(m.Sections[id], e)
 			continue
 		}
 		m.UnknownHeadings = append(m.UnknownHeadings, h)
 	}
 	return m
+}
+
+var numberedRe = regexp.MustCompile(`^(\d+)\.(?:[ \t]+(.*))?$`)
+
+// classifyHeading maps a heading's text to a section id and the entry's name
+// and number. A numbered heading ("N. Text") goes to the non-named numbered
+// section whose literal heading is Text, else to the schema's only named
+// numbered section with name Text, else it is unknown. Any other heading
+// must equal a non-numbered section's heading.
+func classifyHeading(sc *Schema, text string) (id string, e Entry, ok bool) {
+	if nm := numberedRe.FindStringSubmatch(text); nm != nil {
+		n, _ := strconv.Atoi(nm[1])
+		rest := strings.TrimSpace(nm[2])
+		var named []SchemaSection
+		for _, sec := range sc.Sections {
+			switch {
+			case isNamed(sec):
+				named = append(named, sec)
+			case sec.Numbered && sec.Heading == rest:
+				return sec.ID, Entry{Number: n}, true
+			}
+		}
+		if len(named) == 1 {
+			return named[0].ID, Entry{Name: rest, Number: n}, true
+		}
+		return "", Entry{}, false
+	}
+	if id, ok := literalSection(sc, text); ok {
+		return id, Entry{}, true
+	}
+	return "", Entry{}, false
 }
 
 // literalSection returns the id of the non-numbered section whose heading

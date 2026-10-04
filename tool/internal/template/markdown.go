@@ -49,7 +49,7 @@ func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineO
 	if len(heads) > 0 {
 		end = heads[0].Line - 1
 	}
-	m.Preamble = strings.Join(lines[:end], "\n")
+	pre := append([]string(nil), lines[:end]...) // the preamble the content guards see
 	prevBlank, prevAccepted := true, false
 	for i, line := range lines[:end] {
 		origins[i] = lineOrigin{loc: "draft", what: "the text above the first \"## \" heading", line: i + 1, where: `above the first "## " heading`}
@@ -69,11 +69,18 @@ func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineO
 				} else {
 					m.Metadata[key] = Field{Value: strings.TrimSpace(mm[2]), Line: i + 1}
 				}
+				if _, bad := rawHTML(mm[2]); bad {
+					// The metadata check reports it, naming the key; keep the
+					// preamble guard from reporting it a second time.
+					pre[i] = line[:len(line)-len(mm[2])]
+				}
 				origins[i] = lineOrigin{loc: "metadata:" + key, what: fmt.Sprintf("metadata value %q", key), line: i + 1, where: fmt.Sprintf("in the \"**%s:**\" line", key)}
 			}
 		}
 		prevBlank, prevAccepted = blank, accepted
 	}
+
+	m.Preamble = strings.Join(pre, "\n")
 
 	for i, h := range heads {
 		emitted = append(emitted, emittedHeading{line: h.Line, text: h.Text})

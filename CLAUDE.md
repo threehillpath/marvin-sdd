@@ -36,7 +36,7 @@ tool/                          ← Go module for the marvin CLI
     names/                     ← Plan name derivation (PLAN-XXXXX, branch, worktree path, prefix)
     parse/                     ← Identifier parsing (issue titles → plan numbers)
     pr/                        ← PR discovery and target resolution
-    template/                  ← Plan-template render and validation (draft check) from YAML schemas
+    template/                  ← Plan-template render, and validation of YAML drafts and markdown bodies, from YAML schemas
       schemas/                 ← Built-in schemas, embedded into the binary (go:embed) — canonical source
         arch-plan.yml          ← Schema for arch plan issues (sections, validation)
         impl-plan.yml          ← Schema for implementation plan issues

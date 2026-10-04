@@ -116,6 +116,13 @@ Then create the issue from the approved draft file, capturing the returned numbe
 marvin issue create --template quick-task --draft /tmp/quick-task-draft.yml --label "plan:task,status:upcoming,<domain-labels>,<type-label>"
 ```
 
+The title comes from the draft, so do not pass `--title` or `--body`. On success stdout is the new issue number, then its URL; capture both. Warnings on stderr are fine. Handle the exit code:
+
+- **0** — created.
+- **3** — the draft does not conform; nothing was created. The findings are on stderr, each naming a draft line and the fix. Fix the draft and run the same command again. Make at most 3 fix-and-retry attempts; if it still exits 3, show the user the findings and stop.
+- **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry.
+- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry.
+
 Comment-link the source issue — informational only, not a GitHub-native sub-issue link, since Tasks are deliberately outside the arch/impl/phase hierarchy `marvin issue tree` walks:
 
 ```bash

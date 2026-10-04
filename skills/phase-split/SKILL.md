@@ -93,11 +93,19 @@ marvin template validate impl-phase --draft <project-root>/.claude/cache/<plan>/
 
 `validate` makes no config or GitHub call and creates nothing. Exit codes:
 
-- **0** — the draft conforms.
+- **0** — the draft conforms. Any warnings are printed on stdout after the `schema:` line; a warning alone does not fail the draft.
 - **3** — the draft does not conform. The findings are on stdout, most naming a draft line, all saying how to fix it. Rewrite that draft file with `Write` to fix the findings and validate it again. Make at most 3 fix-and-retry attempts per draft; if it still exits 3, show the user the findings and stop, with no issue created.
 - **1** — a usage or operational error (for example an unreadable draft). Show stderr to the user and stop. Do not retry.
 
 Create issues only once every draft has exited 0.
+
+Do not show phase bodies by default; the user approved the phase list in step 2. If any draft produced warnings, or the user asks, show that phase's rendered markdown and wait for approval before the first create:
+
+```bash
+marvin template render impl-phase --draft <project-root>/.claude/cache/<plan>/phase-N-draft.yml
+```
+
+Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`). If the user asks for changes, rewrite that draft file with `Write` and validate it again.
 
 Read `../SHARED/LABELS.md` for label conventions. Infer domain labels from the impl plan content — confirm with the user once before creating all issues ("I'll apply `plan:phase`, `status:upcoming`, `domain:backend` to all phases — correct?").
 

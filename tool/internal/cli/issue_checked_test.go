@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
@@ -167,16 +168,21 @@ func TestIssueEditBadBodyFileMakesNoMutatingCall(t *testing.T) {
 	fake := &exectest.FakeRunner{}
 	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"id":"I_1","number":7,"title":"[PLAN-00112-5] Phase title","state":"OPEN"}`)})
 
-	_, _, err := runIssue(fake, "issue", "edit", "7", "--template", "impl-phase", "--body-file", writeTemp(t, "b.md", bad))
+	stdout, stderr, err := runIssue(fake, "issue", "edit", "7", "--template", "impl-phase", "--body-file", writeTemp(t, "b.md", bad))
 
 	wantCode(t, err, 3)
-	if len(fake.Calls) != 1 || fake.Calls[0].Args[1] != "view" {
-		t.Errorf("want only the gh issue view call, got %v", fake.Calls)
+	if len(fake.Calls) != 1 || fake.Calls[0].Args[1] != "view" || stdout != "" {
+		t.Errorf("want only the gh issue view call and empty stdout, got %v / %q", fake.Calls, stdout)
+	}
+	if !strings.Contains(stderr, "error section:verification") {
+		t.Errorf("want the verification finding on stderr:\n%s", stderr)
 	}
 }
 
 // TestIssueEditUsageErrorsMakeNoCalls verifies the exit-1 usage errors on
-// edit, none of which may touch gh.
+// edit, none of which may touch gh. The inline --body case is rejected by
+// cobra as an unknown flag (a plain error, not a CLIError), so it is checked
+// through RunWithStreams.
 func TestIssueEditUsageErrorsMakeNoCalls(t *testing.T) {
 	withConfigFixture(t)
 	draft := writeTemp(t, "d.yml", phaseDraftOK)
@@ -186,23 +192,30 @@ func TestIssueEditUsageErrorsMakeNoCalls(t *testing.T) {
 		"no input":         {"issue", "edit", "7", "--template", "impl-phase"},
 		"both inputs":      {"issue", "edit", "7", "--template", "impl-phase", "--draft", draft, "--body-file", body},
 		"unknown type":     {"issue", "edit", "7", "--template", "nope", "--draft", draft},
-		"inline body":      {"issue", "edit", "7", "--template", "impl-phase", "--body", "x"},
 		"non-numeric item": {"issue", "edit", "seven", "--template", "impl-phase", "--draft", draft},
 	} {
 		t.Run(name, func(t *testing.T) {
 			fake := &exectest.FakeRunner{}
 			_, _, err := runIssue(fake, args...)
-			if err == nil {
-				t.Fatal("want an error")
-			}
-			if ce, ok := err.(*cli.CLIError); ok && ce.Code != 1 {
-				t.Errorf("code = %d, want 1", ce.Code)
-			}
+			wantCode(t, err, 1)
 			if len(fake.Calls) != 0 {
 				t.Errorf("want zero gh calls, got %v", fake.Calls)
 			}
 		})
 	}
+
+	t.Run("inline body", func(t *testing.T) {
+		fake := &exectest.FakeRunner{}
+		var stdout, stderr bytes.Buffer
+		root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, fake)
+		root.SetArgs([]string{"issue", "edit", "7", "--template", "impl-phase", "--body", "x"})
+		if code := cli.RunWithStreams(&stdout, &stderr, root.Execute); code != 1 {
+			t.Errorf("exit code = %d, want 1\nstderr: %s", code, stderr.String())
+		}
+		if len(fake.Calls) != 0 {
+			t.Errorf("want zero gh calls, got %v", fake.Calls)
+		}
+	})
 }
 
 // TestIssueCreateTemplateUsageErrorsMakeNoCalls verifies the exit-1 usage
@@ -257,6 +270,12 @@ func TestIssueCreateTitleMatchingDraftIsAccepted(t *testing.T) {
 			if len(fake.Calls) != 1 {
 				t.Fatalf("want 1 gh call, got %v", fake.Calls)
 			}
+			if name == "body-file with title" {
+				want := []string{"issue", "create", "--repo", "threehillpath/marvin-sdd", "--title", "[PLAN-00112-5] Phase title", "--body", conformingPhaseBody}
+				if got := fake.Calls[0].Args; strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+					t.Errorf("args = %q\nwant   %q", got, want)
+				}
+			}
 		})
 	}
 }
@@ -267,10 +286,13 @@ func TestIssueCreateBadBodyFileExits3WithoutCalls(t *testing.T) {
 	withConfigFixture(t)
 	bad := strings.Replace(conformingPhaseBody, "## Verification\n\nV.\n\n", "", 1)
 	fake := &exectest.FakeRunner{}
-	_, _, err := runIssue(fake, "issue", "create", "--template", "impl-phase", "--body-file", writeTemp(t, "b.md", bad), "--title", "[PLAN-00112-5] Phase title")
+	stdout, stderr, err := runIssue(fake, "issue", "create", "--template", "impl-phase", "--body-file", writeTemp(t, "b.md", bad), "--title", "[PLAN-00112-5] Phase title")
 	wantCode(t, err, 3)
-	if len(fake.Calls) != 0 {
-		t.Errorf("want zero gh calls, got %v", fake.Calls)
+	if len(fake.Calls) != 0 || stdout != "" {
+		t.Errorf("want zero gh calls and empty stdout, got %v / %q", fake.Calls, stdout)
+	}
+	if !strings.Contains(stderr, "error section:verification") {
+		t.Errorf("want the verification finding on stderr:\n%s", stderr)
 	}
 }
 
@@ -311,6 +333,79 @@ func TestExplicitEmptyFlagsAreErrors(t *testing.T) {
 			}
 			if len(fake.Calls) != 0 || stdout != "" {
 				t.Errorf("want zero gh calls and empty stdout, got %v / %q", fake.Calls, stdout)
+			}
+		})
+	}
+}
+
+// assertScopeHTMLBlockLine asserts stderr carries the goldmark backstop's
+// "error section:scope ... HTML block" finding.
+func assertScopeHTMLBlockLine(t *testing.T, stderr string) {
+	t.Helper()
+	for _, l := range strings.Split(stderr, "\n") {
+		if strings.HasPrefix(l, "error section:scope") && strings.Contains(l, "HTML block") {
+			return
+		}
+	}
+	t.Errorf("no \"error section:scope ... HTML block\" line on stderr:\n%s", stderr)
+}
+
+// TestIssueCreateGoldmarkBackstopOnDraft verifies a draft whose only problem
+// is an HTML block in Scope (which Check alone accepts) is refused on create.
+func TestIssueCreateGoldmarkBackstopOnDraft(t *testing.T) {
+	withConfigFixture(t)
+	draft := writeTemp(t, "d.yml", strings.Replace(phaseDraftOK, "    In scope.\n", "    In scope.\n\n    <div>\n    hidden\n    </div>\n", 1))
+	fake := &exectest.FakeRunner{}
+
+	stdout, stderr, err := runIssue(fake, "issue", "create", "--template", "impl-phase", "--draft", draft)
+
+	wantCode(t, err, 3)
+	if len(fake.Calls) != 0 || stdout != "" {
+		t.Errorf("want zero gh calls and empty stdout, got %v / %q", fake.Calls, stdout)
+	}
+	assertScopeHTMLBlockLine(t, stderr)
+}
+
+// TestIssueEditGoldmarkBackstopOnBodyFile verifies a body whose only problem
+// is an HTML block under Scope is refused on edit, after only the read call.
+func TestIssueEditGoldmarkBackstopOnBodyFile(t *testing.T) {
+	withConfigFixture(t)
+	body := strings.Replace(conformingPhaseBody, "In.\n", "In.\n\n<div>\nhidden\n</div>\n", 1)
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"id":"I_1","number":7,"title":"[PLAN-00112-5] Phase title","state":"OPEN"}`)})
+
+	stdout, stderr, err := runIssue(fake, "issue", "edit", "7", "--template", "impl-phase", "--body-file", writeTemp(t, "b.md", body))
+
+	wantCode(t, err, 3)
+	if len(fake.Calls) != 1 || fake.Calls[0].Args[1] != "view" || stdout != "" {
+		t.Errorf("want only the gh issue view call and empty stdout, got %v / %q", fake.Calls, stdout)
+	}
+	assertScopeHTMLBlockLine(t, stderr)
+}
+
+// TestIssueCreateAndEditWithoutConfigExit2 verifies a missing config exits 2
+// with zero gh calls on both checked commands.
+func TestIssueCreateAndEditWithoutConfigExit2(t *testing.T) {
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(orig) })
+
+	for name, args := range map[string][]string{
+		"create": {"issue", "create", "--template", "impl-phase", "--draft", draft},
+		"edit":   {"issue", "edit", "7", "--template", "impl-phase", "--draft", draft},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake := &exectest.FakeRunner{}
+			_, _, err := runIssue(fake, args...)
+			wantCode(t, err, 2)
+			if len(fake.Calls) != 0 {
+				t.Errorf("want zero gh calls, got %v", fake.Calls)
 			}
 		})
 	}

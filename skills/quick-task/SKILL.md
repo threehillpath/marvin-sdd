@@ -55,7 +55,7 @@ marvin template render quick-task --guidance
 
 If either command exits 1 (for example a malformed project override, or an unknown type), show stderr to the user and stop. Neither command reads the config, so neither returns exit 2.
 
-Fill every key of the skeleton (six required sections). In `title:`, replace `[TASK-XXXXX]` with `<title_prefix.task>` as returned by A2 (it already includes the brackets) and `<Title>` with the real title. The draft rules below are the ones to follow. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance, but it does not mention the rules the loader enforces on keys, tabs, tags, anchors and aliases; those are in the list too. `../SHARED/CONFIG.md` describes the format:
+Fill every key of the skeleton (six required sections). In `title:`, replace `[TASK-XXXXX]` with `<title_prefix.task>` as returned by A2 (it already includes the brackets) and `<Title>` with the real title. Follow every rule `--guidance` prints (its code-fence, heading-underline and HTML rules are not repeated here), plus the loader's key, tab, tag, anchor and alias rules, which `--guidance` does not print and which are in the list below. `../SHARED/CONFIG.md` describes the format. The rules most often broken:
 
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
 - The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.

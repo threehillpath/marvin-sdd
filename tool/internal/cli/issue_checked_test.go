@@ -789,3 +789,30 @@ func TestEditBodyFileIsCheckedDespiteOtherProblems(t *testing.T) {
 		}
 	})
 }
+
+// TestValidateReadsInputsEvenWithoutASchema verifies validate reports an
+// unreadable input together with an unknown schema or both inputs given.
+func TestValidateReadsInputsEvenWithoutASchema(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "nope.yml")
+	missingBody := filepath.Join(t.TempDir(), "nope.md")
+	for name, tc := range map[string]struct {
+		args []string
+		want []string
+	}{
+		"unknown schema and missing draft":     {[]string{"template", "validate", "bogus", "--draft", missing}, []string{`unknown schema "bogus"`, `reading --draft "` + missing + `"`}},
+		"both inputs and both unreadable":      {[]string{"template", "validate", "impl-phase", "--draft", missing, "--body-file", missingBody}, []string{"mutually exclusive", `reading --draft "` + missing + `"`, `reading --body-file "` + missingBody + `"`}},
+		"unknown schema and missing body-file": {[]string{"template", "validate", "bogus", "--body-file", missingBody, "--title", "T"}, []string{`unknown schema "bogus"`, `reading --body-file "` + missingBody + `"`}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			code, stdout, stderr := runIssueExit(&exectest.FakeRunner{}, tc.args...)
+			if code != 1 || stdout != "" {
+				t.Errorf("code=%d stdout=%q", code, stdout)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(stderr, w) {
+					t.Errorf("stderr should contain %q:\n%s", w, stderr)
+				}
+			}
+		})
+	}
+}

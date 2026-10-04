@@ -65,13 +65,20 @@ If any phase issues are found by either method, show the existing phases and sto
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Render the phase issue template:
+Get the empty YAML draft and the rules for filling it:
 
 ```bash
 marvin template render impl-phase --skeleton
+marvin template render impl-phase --guidance
 ```
 
-Use the rendered skeleton as the structural frame for each phase issue body, filling in phase-specific content.
+Each phase gets its own draft file, `/tmp/phase-split-draft-N.yml`. Fill every key of the skeleton with phase-specific content. In `title:`, replace `XXXXX`, `N` and `<Phase Title>` with the real plan number, phase number and title. `Write` the filled draft to its file. The draft rules (`--guidance` lists them all; `skills/SHARED/CONFIG.md` describes the format):
+
+- Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
+- The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
+- Each key appears once. Indent with spaces, never tabs.
+- No `## ` lines in content; use `###` or deeper.
+- No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
 
 Read `../SHARED/LABELS.md` for label conventions. Infer domain labels from the impl plan content — confirm with the user once before creating all issues ("I'll apply `plan:phase`, `status:upcoming`, `domain:backend` to all phases — correct?").
 

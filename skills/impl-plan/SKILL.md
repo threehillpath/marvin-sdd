@@ -58,15 +58,22 @@ Evaluate: component sequencing, schema changes, layer boundaries, edge cases, ve
 
 Read `SUPPLEMENTS/CONVENTIONS.md` for what to include and exclude.
 
-Render the impl plan template:
+Get the empty YAML draft and the rules for filling it:
 
 ```bash
 marvin template render impl-plan --skeleton
+marvin template render impl-plan --guidance
 ```
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Use the rendered skeleton as the structural frame for the draft, filling in each section with substantive content from the arch plan analysis.
+Fill every key of the skeleton with substantive content from the arch plan analysis. In `title:`, replace `XXXXX` and `<Title>` with the real plan number and title. `Write` the filled draft to `/tmp/impl-plan-draft.yml`. The draft rules (`--guidance` lists them all; `skills/SHARED/CONFIG.md` describes the format):
+
+- Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated (`component:` is a list of entries, each with `name: ""` and `content: |`).
+- The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
+- Each key appears once. Indent with spaces, never tabs.
+- No `## ` lines in content; use `###` or deeper.
+- No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
 
 **TDD**: Each component section must include a TDD Entry Point. The only exemption is for **rendered controls** — the JSX/template markup, styling, and rendering itself. All logic that lives inside a component (event handlers, derived state, validation, formatting, conditional-render predicates) must be extracted to a non-component module and given a TDD entry point. The litmus test: if it can be tested with the DOM removed, it is logic. See `SUPPLEMENTS/TDD.md` for full scope.
 

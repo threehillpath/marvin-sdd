@@ -51,15 +51,22 @@ For what qualifies as an ADR candidate, see `SUPPLEMENTS/ADR.md`.
 
 ### 5. Draft the plan
 
-Render the arch plan template:
+Get the empty YAML draft and the rules for filling it:
 
 ```bash
 marvin template render arch-plan --skeleton
+marvin template render arch-plan --guidance
 ```
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Use the rendered skeleton as the structural frame for the draft, filling in each section with substantive content from the arch analysis.
+Fill every key of the skeleton with substantive content from the arch analysis. In `title:`, replace `XXXXX` and `<Title>` with the real plan number and title. `Write` the filled draft to `/tmp/arch-plan-draft.yml`. The draft rules (`--guidance` lists them all; `skills/SHARED/CONFIG.md` describes the format):
+
+- Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
+- The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
+- Each key appears once. Indent with spaces, never tabs.
+- No `## ` lines in content; use `###` or deeper.
+- No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
 
 ### 6. Present for review
 

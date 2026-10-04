@@ -46,11 +46,22 @@ Capture `task_branch`, `worktree_path` (repo-root-relative, not yet absolute), a
 
 ### A3. Draft the Task issue
 
+Get the empty YAML draft and the rules for filling it:
+
 ```bash
 marvin template render quick-task --skeleton
+marvin template render quick-task --guidance
 ```
 
-Use the rendered skeleton (six required sections) as the structural frame:
+Fill every key of the skeleton (six required sections). In `title:`, replace `XXXXX` and `<Title>` with the real `<title_prefix.task>` and title. `Write` the filled draft to `/tmp/quick-task-draft.yml`. The draft rules (`--guidance` lists them all; `skills/SHARED/CONFIG.md` describes the format):
+
+- Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
+- The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
+- Each key appears once. Indent with spaces, never tabs.
+- No `## ` lines in content; use `###` or deeper.
+- No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
+
+Content of the six sections:
 
 - **Problem Statement** and **Scope** — filled from `$0`'s body.
 - **Technical Analysis** — identify the paths of source files likely relevant to `$0` (do not read them yourself), then spawn an **Explore** sub-agent to digest them, following the same pattern `impl-plan/SKILL.md` uses for its own code digest, at smaller scope:

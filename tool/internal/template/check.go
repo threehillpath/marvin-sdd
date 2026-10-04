@@ -364,7 +364,7 @@ func (c *checker) checkSections() {
 					c.fix(fmt.Sprintf("Give every %q entry a non-empty \"name:\" in the draft.", sec.ID),
 						"Give the heading text after the number, like \"## 1. <Name>\"."))
 			}
-			c.checkContentStructure(sec, e)
+			c.checkContentStructure("section:"+sec.ID, "section "+label(sec), e.Content, e.Line)
 		}
 	}
 }
@@ -577,39 +577,35 @@ func contentLine(content string, n int) string {
 // structure: a "## " heading outside a fence, which would become a new
 // section, and a fence that is never closed, which would swallow every later
 // section.
-func (c *checker) checkContentStructure(sec SchemaSection, e Entry) {
-	loc := "section:" + sec.ID
-	if norm := strings.ReplaceAll(e.Content, "\r\n", "\n"); strings.Contains(norm, "\r") {
+func (c *checker) checkContentStructure(loc, what, content string, line int) {
+	where := c.fix(fmt.Sprintf("inside the %q block", strings.TrimPrefix(loc, "section:")), "under that heading")
+	if norm := strings.ReplaceAll(content, "\r\n", "\n"); strings.Contains(norm, "\r") {
 		n := strings.Count(norm[:strings.Index(norm, "\r")], "\n") + 1
-		c.add(SeverityError, loc, e.Line, "content of section %s has a lone carriage return on line %d of the section, which GitHub renders as a line break the structure checks cannot see (for example \"a\\r## X\" becomes a heading). Fix: replace the carriage return with a line break (or remove it), %s.",
-			label(sec), n, c.fix(fmt.Sprintf("inside the %q block", sec.ID), "under that heading"))
+		c.add(SeverityError, loc, line, "content of %s has a lone carriage return on line %d of the section, which GitHub renders as a line break the structure checks cannot see (for example \"a\\r## X\" becomes a heading). Fix: replace the carriage return with a line break (or remove it), %s.",
+			what, n, where)
 	}
-	scan := scanContent(e.Content)
+	scan := scanContent(content)
 	hs, open := scan.Headings, scan.Fence
-	where := fmt.Sprintf("inside the %q block", sec.ID)
-	if c.m.Source == SourceMarkdown {
-		where = "under that heading"
-	}
 	if h := scan.HTML; h != nil {
-		c.add(SeverityError, loc, e.Line, "content of section %s contains raw HTML %q on line %d of the section. Raw HTML could hide or swallow the sections after it when rendered, so drafts don't allow it. Wrap it in backticks as inline code (for example `<details>`) or remove it, %s.",
-			label(sec), h.Tag, h.Line, where)
+		c.add(SeverityError, loc, line, "content of %s contains raw HTML %q on line %d of the section. Raw HTML could hide or swallow the sections after it when rendered, so drafts don't allow it. Wrap it in backticks as inline code (for example `<details>`) or remove it, %s.",
+			what, h.Tag, h.Line, where)
 	}
 	if len(hs) > 0 {
-		c.add(SeverityError, loc, e.Line, "content of section %s contains the heading %q on line %d of the section, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", label(sec), contentLine(e.Content, hs[0].Line), hs[0].Line)
+		c.add(SeverityError, loc, line, "content of %s contains the heading %q on line %d of the section, which would become a new top-level section when rendered. The schema expects sub-headings below \"## \". Use \"###\" instead.", what, contentLine(content, hs[0].Line), hs[0].Line)
 	}
 	if h := scan.Setext; h != nil {
 		if strings.HasPrefix(h.Underline, "=") {
-			c.add(SeverityError, loc, e.Line, "content of section %s has the line %q on line %d of the section directly above the underline %q, which makes it a heading when rendered and would split the section. Remove the %q line, or write the heading as \"### %s\" %s.",
-				label(sec), h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
+			c.add(SeverityError, loc, line, "content of %s has the line %q on line %d of the section directly above the underline %q, which makes it a heading when rendered and would split the section. Remove the %q line, or write the heading as \"### %s\" %s.",
+				what, h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
 		} else {
-			c.add(SeverityError, loc, e.Line, "content of section %s has the line %q on line %d of the section directly above the underline %q, which makes it a heading when rendered and would split the section. If you meant a horizontal rule, put a blank line before %q; otherwise write the heading as \"### %s\" or remove the underline %s.",
-				label(sec), h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
+			c.add(SeverityError, loc, line, "content of %s has the line %q on line %d of the section directly above the underline %q, which makes it a heading when rendered and would split the section. If you meant a horizontal rule, put a blank line before %q; otherwise write the heading as \"### %s\" or remove the underline %s.",
+				what, h.Text, h.Line, h.Underline, h.Underline, h.Text, where)
 		}
 	}
 	if open != nil {
 		ch := fmt.Sprintf("%q", string(open.Run[0]))
-		c.add(SeverityError, loc, e.Line, "content of section %s opens a code fence %q on line %d of the section that is never closed, so every later section would render as code and be lost to the parser. Close it with a matching fence line (the same character, %s, at least %d long, nothing else on the line) %s.",
-			label(sec), open.Run, open.Line, ch, len(open.Run), where)
+		c.add(SeverityError, loc, line, "content of %s opens a code fence %q on line %d of the section that is never closed, so every later section would render as code and be lost to the parser. Close it with a matching fence line (the same character, %s, at least %d long, nothing else on the line) %s.",
+			what, open.Run, open.Line, ch, len(open.Run), where)
 	}
 }
 
@@ -632,6 +628,7 @@ func (c *checker) checkMarkdownOnly() {
 		return
 	}
 	for _, h := range c.m.UnknownHeadings {
+		c.checkContentStructure("draft", fmt.Sprintf("the unknown heading \"## %s\"", h.Text), h.Content, h.Line)
 		c.add(SeverityWarning, "draft", h.Line, "heading \"## %s\" is not a section of schema %s. Rename it to one of the schema's headings (%s), or remove it.", h.Text, c.sc.Type, c.expectedHeadings())
 	}
 	known := map[string]bool{}

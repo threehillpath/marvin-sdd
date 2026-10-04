@@ -50,6 +50,7 @@ func ParseMarkdown(sc *Schema, title, body string) *SectionMap {
 			m.Sections[id] = append(m.Sections[id], e)
 			continue
 		}
+		h.Content = content
 		m.UnknownHeadings = append(m.UnknownHeadings, h)
 	}
 	return m

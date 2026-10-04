@@ -60,13 +60,15 @@ marvin template render arch-plan --guidance
 
 If either command exits 1 (for example a malformed project override, or an unknown type), show stderr to the user and stop. Neither command reads the config, so neither returns exit 2.
 
-Fill every key of the skeleton with substantive content from the arch analysis. In `title:`, replace `XXXXX` and `<Title>` with the real plan number and title. `Write` the filled draft to `<project-root>/.claude/cache/<plan>/arch-draft.yml`, where `<project-root>` is the repo root and `<plan>` is the lowercase plan number from step 3 (for example `plan-00112`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below. The draft rules below are the ones to follow. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance, but it does not mention the rules the loader enforces on keys, tabs, tags, anchors and aliases; those are in the list too. `skills/SHARED/CONFIG.md` describes the format:
+Fill every key of the skeleton with substantive content from the arch analysis. In `title:`, replace `XXXXX` and `<Title>` with the real plan number and title. The draft rules below are the ones to follow. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance, but it does not mention the rules the loader enforces on keys, tabs, tags, anchors and aliases; those are in the list too. `skills/SHARED/CONFIG.md` describes the format:
 
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
 - The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
 - Each key appears once. Indent with spaces, never tabs.
 - No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`.
 - No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
+
+Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<plan>/arch-draft.yml`, where `<project-root>` is the repo root and `<plan>` is the lowercase plan number from step 3 (for example `plan-00112`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below.
 
 ### 6. Present for review
 

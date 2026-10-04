@@ -67,7 +67,7 @@ marvin template render impl-plan --guidance
 
 If either command exits 1 (for example a malformed project override, or an unknown type), show stderr to the user and stop. Neither command reads the config, so neither returns exit 2.
 
-Fill every key of the skeleton with substantive content from the arch plan analysis. In `title:`, replace `XXXXX` and `<Title>` with the real plan number and title. `Write` the filled draft to `<project-root>/.claude/cache/<plan>/impl-draft.yml`, where `<project-root>` is the repo root and `<plan>` is the lowercase PLAN-XXXXX number from the arch plan (for example `plan-00112`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below. The draft rules below are the ones to follow. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance, but it does not mention the rules the loader enforces on keys, tabs, tags, anchors and aliases; those are in the list too. `skills/SHARED/CONFIG.md` describes the format:
+Fill every key of the skeleton with substantive content from the arch plan analysis. In `title:`, replace `XXXXX` and `<Title>` with the real plan number and title. The draft rules below are the ones to follow. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance, but it does not mention the rules the loader enforces on keys, tabs, tags, anchors and aliases; those are in the list too. `skills/SHARED/CONFIG.md` describes the format:
 
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated (`component:` is a list of entries, each with `name: ""` and `content: |`).
 - The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
@@ -76,6 +76,8 @@ Fill every key of the skeleton with substantive content from the arch plan analy
 - No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
 
 **TDD**: Each component section must include a TDD Entry Point. The only exemption is for **rendered controls** — the JSX/template markup, styling, and rendering itself. All logic that lives inside a component (event handlers, derived state, validation, formatting, conditional-render predicates) must be extracted to a non-component module and given a TDD entry point. The litmus test: if it can be tested with the DOM removed, it is logic. See `SUPPLEMENTS/TDD.md` for full scope.
+
+Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<plan>/impl-draft.yml`, where `<project-root>` is the repo root and `<plan>` is the lowercase PLAN-XXXXX number from the arch plan (for example `plan-00112`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below.
 
 ### 4. Present for review
 

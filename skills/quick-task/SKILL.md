@@ -55,7 +55,7 @@ marvin template render quick-task --guidance
 
 If either command exits 1 (for example a malformed project override, or an unknown type), show stderr to the user and stop. Neither command reads the config, so neither returns exit 2.
 
-Fill every key of the skeleton (six required sections). In `title:`, replace `[TASK-XXXXX]` with `<title_prefix.task>` as returned by A2 (it already includes the brackets) and `<Title>` with the real title. `Write` the filled draft to `<project-root>/.claude/cache/<task>/task-draft.yml`, where `<project-root>` is the repo root and `<task>` is `task_number` from A2 in lowercase (for example `task-00151`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below. The draft rules below are the ones to follow. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance, but it does not mention the rules the loader enforces on keys, tabs, tags, anchors and aliases; those are in the list too. `skills/SHARED/CONFIG.md` describes the format:
+Fill every key of the skeleton (six required sections). In `title:`, replace `[TASK-XXXXX]` with `<title_prefix.task>` as returned by A2 (it already includes the brackets) and `<Title>` with the real title. The draft rules below are the ones to follow. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance, but it does not mention the rules the loader enforces on keys, tabs, tags, anchors and aliases; those are in the list too. `skills/SHARED/CONFIG.md` describes the format:
 
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
 - The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
@@ -87,6 +87,8 @@ Content of the six sections:
 
   Use the digest to draft Technical Analysis; you do not need to read the underlying files yourself unless the digest flags something needing deeper inspection.
 - **TDD Entry Point** and **Implementation Notes** — drafted from the digest and `$0`'s content.
+
+Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<task>/task-draft.yml`, where `<project-root>` is the repo root and `<task>` is `task_number` from A2 in lowercase (for example `task-00151`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below.
 
 ### A4. Present for review
 

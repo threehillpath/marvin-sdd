@@ -147,7 +147,12 @@ Before moving to step 4, re-fetch every created issue and confirm each one's bod
 gh issue view <issue-number> --repo <repo> --json title,body
 ```
 
-For each issue, check that the `## Objective` and `## Components` sections reference the same phase number and component(s) named in the title. If any issue's body describes a different phase, fix it immediately: rewrite that phase's draft file with `Write` and run `marvin issue edit <issue-number> --template impl-phase --draft <corrected-draft>` (it replaces the body and the title, and prints nothing on stdout when it succeeds; you handle its exit code, the same way as for `issue create`) before proceeding — do not defer this to a later skill.
+For each issue, check that the `## Objective` and `## Components` sections reference the same phase number and component(s) named in the title. If any issue's body describes a different phase, fix it immediately: rewrite that phase's draft file with `Write` and run `marvin issue edit <issue-number> --template impl-phase --draft <corrected-draft>` (it replaces the body and the title, and prints nothing on stdout when it succeeds) before proceeding — do not defer this to a later skill. You handle the exit code of the fix-up:
+
+- **0** — fixed.
+- **3** — the corrected draft does not conform; nothing was changed. The findings are on stderr. Rewrite the draft file with `Write` to fix them and run the same command again. Make at most 3 fix attempts; if it still exits 3, show the user the findings and stop.
+- **1** — a usage or operational error. Show stderr to the user and stop. Do not retry.
+- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry.
 
 ### 4. Post the phases-created comment
 

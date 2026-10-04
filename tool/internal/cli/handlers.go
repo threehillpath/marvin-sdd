@@ -432,8 +432,9 @@ func findSchemaOverride(startDir, schemaName string) ([]byte, string, bool, erro
 // checkInput checks a YAML draft (draftPath) or a markdown body (bodyPath,
 // with title) against sc. Exactly one of the two paths must be set. For a
 // draft it renders, so the goldmark verification backstop runs too; the
-// rendered body is returned when the draft conforms. The returned title is the
-// draft's "title:" for a draft and the title argument for a markdown body.
+// rendered body is returned when the draft conforms; for a markdown body it is
+// the file's contents unchanged. The returned title is the draft's "title:" for
+// a draft and the title argument for a markdown body.
 func checkInput(sc *tmplpkg.Schema, origin, draftPath, bodyPath, title string, titleSet bool) (string, string, tmplpkg.Result, error) {
 	if (draftPath == "") == (bodyPath == "") {
 		return "", "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: "pass exactly one of --draft <file.yml> or --body-file <file.md>"}
@@ -457,7 +458,7 @@ func checkInput(sc *tmplpkg.Schema, origin, draftPath, bodyPath, title string, t
 	if err != nil {
 		return "", "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: fmt.Sprintf("reading body file: %v", err)}
 	}
-	return "", title, tmplpkg.CheckMarkdown(sc, origin, title, string(data)), nil
+	return string(data), title, tmplpkg.CheckMarkdown(sc, origin, title, string(data)), nil
 }
 
 // loadSchema resolves and loads the schema for schemaName; any failure is

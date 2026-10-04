@@ -656,9 +656,20 @@ func runIssueEdit(stderr io.Writer, cfg *config.Config, number int, tmplType, dr
 	if err != nil {
 		return err
 	}
-	body, title, res, err := checkInput(sc, origin, draft, bodyFile, "", false)
+	// A markdown body is checked against the issue's current title, which is
+	// read here and left unchanged by the edit.
+	var currentTitle string
+	if bodyFile != "" {
+		if currentTitle, err = issue.Title(context.Background(), runner, cfg, number); err != nil {
+			return &CLIError{Code: 1, Msg: err.Error()}
+		}
+	}
+	body, title, res, err := checkInput(sc, origin, draft, bodyFile, currentTitle, false)
 	if err != nil {
 		return err
+	}
+	if bodyFile != "" {
+		title = ""
 	}
 	if res.HasErrors() {
 		fmt.Fprint(stderr, res.Format())

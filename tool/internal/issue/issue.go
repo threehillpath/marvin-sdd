@@ -48,6 +48,15 @@ func List(ctx context.Context, runner exec.Runner, cfg *config.Config, label, ti
 	return result, nil
 }
 
+// Title returns the current title of an issue in the project repo.
+func Title(ctx context.Context, runner exec.Runner, cfg *config.Config, number int) (string, error) {
+	ref, _, err := gh.New(runner).IssueRef(ctx, cfg.Repo, number)
+	if err != nil {
+		return "", fmt.Errorf("issue title: %w", err)
+	}
+	return ref.Title, nil
+}
+
 // Edit sets an existing issue's body in the project repo, and its title when
 // title is non-empty.
 func Edit(ctx context.Context, runner exec.Runner, cfg *config.Config, number int, title, body string) error {

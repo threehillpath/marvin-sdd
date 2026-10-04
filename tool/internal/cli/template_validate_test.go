@@ -345,6 +345,22 @@ func TestTemplateValidateDraftRejectsTitleFlag(t *testing.T) {
 			t.Errorf("message %q missing %q", ce.Msg, w)
 		}
 	}
+	// An explicitly empty --title is still a supplied flag.
+	stdout, _, err = runCLI(t, "template", "validate", "impl-phase", "--draft", draft, "--title", "")
+	wantCode(t, err, 1)
+	if stdout != "" {
+		t.Errorf("--title \"\": want empty stdout, got %q", stdout)
+	}
+}
+
+// TestTemplateValidateBodyFileEmptyTitleIsTitleError verifies --body-file with
+// an explicit empty --title still reports a title error (exit 3).
+func TestTemplateValidateBodyFileEmptyTitleIsTitleError(t *testing.T) {
+	stdout, _, err := runCLI(t, "template", "validate", "impl-phase", "--body-file", writeTemp(t, "b.md", conformingPhaseBody), "--title", "")
+	wantCode(t, err, 3)
+	if !strings.Contains(stdout, "error title") {
+		t.Errorf("want a title error:\n%s", stdout)
+	}
 }
 
 // TestTemplateValidateOverrideChangesTheVerdict verifies the override is used,

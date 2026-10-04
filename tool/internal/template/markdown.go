@@ -14,10 +14,16 @@ var metadataLineRe = regexp.MustCompile(`^\*\*(.+?):\*\*[ \t]*(.*)$`)
 // carry one.
 //
 // Metadata is read only from "**Key:** value" lines above the first "## "
-// heading; other text there (a revision blockquote, say) is ignored. Sections
-// are split with FindH2Lines, the scanner Check uses, so the parser and the
-// checker agree on where a section starts and ends. Each section runs from
-// its heading to the next "## " heading.
+// heading that GitHub shows as metadata (outside a fence, and the first
+// non-blank line, after a blank line, or directly below another metadata
+// line); other text there (a revision blockquote, say) is kept as the
+// preamble. Sections are split with FindH2Lines' scanner, the one Check uses,
+// so the parser and the checker agree on where a section starts and ends.
+// Each section runs from its heading to the next "## " heading.
+//
+// Pairing ParseMarkdown with Check skips the goldmark verification that
+// CheckMarkdown adds, so callers that validate a body should use
+// CheckMarkdown.
 func ParseMarkdown(sc *Schema, title, body string) *SectionMap {
 	m, _, _, _ := parseMarkdown(sc, title, body)
 	return m

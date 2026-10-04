@@ -213,6 +213,9 @@ func TestMarkdownRoundTrip(t *testing.T) {
 			if len(res.Findings) != 0 {
 				t.Fatalf("Render:\n%s", res.Format())
 			}
+			if res := tmpl.CheckMarkdown(sc, builtIn, want.Title, body); len(res.Findings) != 0 {
+				t.Fatalf("CheckMarkdown of rendered body:\n%s\nbody:\n%s", res.Format(), body)
+			}
 			got := tmpl.ParseMarkdown(sc, want.Title, body)
 			if res := tmpl.Check(sc, builtIn, got); len(res.Findings) != 0 {
 				t.Fatalf("Check of parsed body:\n%s\nbody:\n%s", res.Format(), body)
@@ -251,6 +254,9 @@ func TestParseMarkdownPreambleIsIgnored(t *testing.T) {
 	body := "> **Revised 2026-01-01:** scope narrowed.\n\nSome intro text.\n\n" + phaseBody
 	if res := parseCheck(t, "impl-phase", "[PLAN-00112-1] X", body); len(res.Findings) != 0 {
 		t.Fatalf("want no findings:\n%s", res.Format())
+	}
+	if res := checkMD(t, body); len(res.Findings) != 0 {
+		t.Fatalf("CheckMarkdown: want no findings:\n%s", res.Format())
 	}
 }
 

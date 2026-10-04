@@ -53,6 +53,8 @@ marvin template render quick-task --skeleton
 marvin template render quick-task --guidance
 ```
 
+If either command exits 1 (for example a malformed project override, or an unknown type), show stderr to the user and stop. Neither command reads the config, so neither returns exit 2.
+
 Fill every key of the skeleton (six required sections). In `title:`, replace `[TASK-XXXXX]` with `<title_prefix.task>` as returned by A2 (it already includes the brackets) and `<Title>` with the real title. `Write` the filled draft to `<project-root>/.claude/cache/<task>/task-draft.yml`, where `<project-root>` is the repo root and `<task>` is `task_number` from A2 in lowercase (for example `task-00151`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below. The draft rules below are the ones to follow. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance, but it does not mention the rules the loader enforces on keys, tabs, tags, anchors and aliases; those are in the list too. `skills/SHARED/CONFIG.md` describes the format:
 
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
@@ -94,7 +96,7 @@ Show the user the rendered issue, not the YAML:
 marvin template render quick-task --draft <project-root>/.claude/cache/<task>/task-draft.yml
 ```
 
-Stdout is the issue body as markdown. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`), and ask for approval on the pasted text. If it exits 3 the draft does not conform: fix it per the findings on stderr and render again, within the retry limit in the create step. When the user asks for changes, edit the draft file and render again.
+Stdout is the issue body as markdown. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`), and ask for approval on the pasted text. If it exits 1 (for example a malformed project override), show stderr to the user and stop. If it exits 3 the draft does not conform: fix it per the findings on stderr and render again, within the retry limit in the create step. When the user asks for changes, edit the draft file and render again.
 
 Read `../SHARED/LABELS.md`. Present the rendered draft to the user: title `"<title_prefix.task> <Title>"`, proposed labels `plan:task, status:upcoming, <domain-labels>, <type-label from $0>` (the `bug`/`enhancement` label carried forward from `$0`, per `LABELS.md`'s "Source issue labels" rule). Iterate on content and labels until the user approves — same pattern `arch-plan`/`impl-plan` use for their own "present for review" steps.
 

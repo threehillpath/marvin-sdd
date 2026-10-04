@@ -65,7 +65,7 @@ marvin template render impl-plan --skeleton
 marvin template render impl-plan --guidance
 ```
 
-If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
+If either command exits 1 (for example a malformed project override, or an unknown type), show stderr to the user and stop. Neither command reads the config, so neither returns exit 2.
 
 Fill every key of the skeleton with substantive content from the arch plan analysis. In `title:`, replace `XXXXX` and `<Title>` with the real plan number and title. `Write` the filled draft to `<project-root>/.claude/cache/<plan>/impl-draft.yml`, where `<project-root>` is the repo root and `<plan>` is the lowercase PLAN-XXXXX number from the arch plan (for example `plan-00112`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below. The draft rules below are the ones to follow. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance, but it does not mention the rules the loader enforces on keys, tabs, tags, anchors and aliases; those are in the list too. `skills/SHARED/CONFIG.md` describes the format:
 
@@ -85,7 +85,7 @@ Show the user the rendered issue, not the YAML:
 marvin template render impl-plan --draft <project-root>/.claude/cache/<plan>/impl-draft.yml
 ```
 
-Stdout is the issue body as markdown. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`), and ask for approval on the pasted text. If it exits 3 the draft does not conform: fix it per the findings on stderr and render again, within the retry limit in the create step. When the user asks for changes, edit the draft file and render again.
+Stdout is the issue body as markdown. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`), and ask for approval on the pasted text. If it exits 1 (for example a malformed project override), show stderr to the user and stop. If it exits 3 the draft does not conform: fix it per the findings on stderr and render again, within the retry limit in the create step. When the user asks for changes, edit the draft file and render again.
 
 Read `../SHARED/LABELS.md`. Infer domain labels from the plan content. Present the rendered draft with proposed labels: "I'll apply: `plan:impl`, `status:upcoming`, `domain:backend` — correct?" Allow corrections before proceeding.
 

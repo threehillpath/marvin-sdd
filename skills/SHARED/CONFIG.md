@@ -109,7 +109,7 @@ sections:
     - |
 ```
 
-Rules (`--guidance` is the complete, authoritative list):
+Rules. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance; it does not mention the key, tab, tag, anchor and alias rules, which the loader enforces and which are listed here:
 
 - Section content is always a `|` block, never `>` or an inline value.
 - The title and every metadata value are always double-quoted. Inside them write `\"` for a quote and `\\` for a backslash.

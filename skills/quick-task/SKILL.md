@@ -89,7 +89,7 @@ Content of the six sections:
   Use the digest to draft Technical Analysis; you do not need to read the underlying files yourself unless the digest flags something needing deeper inspection.
 - **TDD Entry Point** and **Implementation Notes** — drafted from the digest and `$0`'s content.
 
-Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<task>/task-draft.yml`, where `<project-root>` is the repo root and `<task>` is `task_number` from A2 in lowercase (for example `task-00151`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below.
+Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<task>/task-draft.yml`, where `<project-root>` is the root of the main checkout (the directory holding `.claude/plan-workflow-config.yml`, not a linked worktree) and `<task>` is `task_number` from A2 in lowercase (for example `task-00151`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below.
 
 ### A4. Present for review
 

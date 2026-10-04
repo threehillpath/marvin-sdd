@@ -112,7 +112,7 @@ sections:
 Rules. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance; it does not mention the key, tab, tag, anchor and alias rules, which the loader enforces and which are listed here:
 
 - Section content is always a `|` block, never `>` or an inline value.
-- The title and every metadata value are always double-quoted. Inside them write `\"` for a quote and `\\` for a backslash.
+- The title, every metadata value and every `name:` of a named section are always double-quoted (an unquoted name containing `: ` or ` #` breaks the YAML). Inside them write `\"` for a quote and `\\` for a backslash.
 - Each key appears once. A repeatable section is one list: `- |` items, or `- name: "…"` plus `content: |` for a named section.
 - Indent with spaces, never tabs.
 - No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`.

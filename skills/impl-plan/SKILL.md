@@ -70,7 +70,7 @@ If either command exits 1 (for example a malformed project override, or an unkno
 Fill every key of the skeleton with substantive content from the arch plan analysis. In `title:`, replace `XXXXX` and `<Title>` with the real plan number and title. The draft rules below are the ones to follow. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance, but it does not mention the rules the loader enforces on keys, tabs, tags, anchors and aliases; those are in the list too. `../SHARED/CONFIG.md` describes the format:
 
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated (`component:` is a list of entries, each with `name: ""` and `content: |`).
-- The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
+- The title, every metadata value and every component `name:` are always double-quoted (an unquoted name containing `: ` or ` #` breaks the YAML). Write `\"` for a quote and `\\` for a backslash inside them.
 - Two metadata values are checked: `Architecture Plan` and `Source Issue` each start with an issue reference, `#<n>` (for example `#131 ([PLAN-00112-ARCH])`). If they name a plan, it must be the title's plan number.
 - Each key appears once. Indent with spaces, never tabs.
 - No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`.

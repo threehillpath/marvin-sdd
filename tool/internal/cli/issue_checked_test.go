@@ -930,3 +930,42 @@ func TestGoldmarkBackstopOnCreateBodyFileAndEditDraft(t *testing.T) {
 	}
 	assertScopeHTMLBlockLine(t, stderr)
 }
+
+// TestOverrideMustDeclareTheRequestedType verifies a project override whose
+// "type:" differs from its file name is an error on every command, naming the
+// file, the declared type and the expected type, never accepted and reported
+// as another schema.
+func TestOverrideMustDeclareTheRequestedType(t *testing.T) {
+	withConfigFixture(t)
+	dir := filepath.Join(".claude", "plan-workflow-templates")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	override := strings.Replace(overrideSchemaFixture, "type: quick-task", "type: custom-thing", 1)
+	if err := os.WriteFile(filepath.Join(dir, "impl-phase.yml"), []byte(override), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	for name, args := range map[string][]string{
+		"create":   {"issue", "create", "--template", "impl-phase", "--draft", draft},
+		"edit":     {"issue", "edit", "7", "--template", "impl-phase", "--draft", draft},
+		"validate": {"template", "validate", "impl-phase", "--draft", draft},
+		"render":   {"template", "render", "impl-phase", "--draft", draft},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake := &exectest.FakeRunner{}
+			code, stdout, stderr := runIssueExit(fake, args...)
+			if code != 1 {
+				t.Errorf("exit code = %d, want 1\nstderr: %s", code, stderr)
+			}
+			for _, w := range []string{"impl-phase.yml", `declares type "custom-thing"`, `expected "impl-phase"`} {
+				if !strings.Contains(stderr, w) {
+					t.Errorf("stderr should contain %q:\n%s", w, stderr)
+				}
+			}
+			if strings.Contains(stderr, "schema: custom-thing") || stdout != "" || len(fake.Calls) != 0 {
+				t.Errorf("want no schema line, empty stdout and zero calls; got stdout=%q calls=%v\n%s", stdout, fake.Calls, stderr)
+			}
+		})
+	}
+}

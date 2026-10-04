@@ -869,3 +869,26 @@ func TestCreateDraftWithoutTemplateReportsOnlyThat(t *testing.T) {
 		t.Errorf("want zero gh calls, got %v", fake.Calls)
 	}
 }
+
+// TestEditTitleAndLabelFlagsAreReportedWithAdvice verifies --title and
+// --label on edit are reported problems with advice, together with the other
+// problems, rather than a bare unknown-flag error.
+func TestEditTitleAndLabelFlagsAreReportedWithAdvice(t *testing.T) {
+	withConfigFixture(t)
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	fake := &exectest.FakeRunner{}
+	code, stdout, stderr := runIssueExit(fake, "issue", "edit", "7", "--template", "impl-phase", "--draft", draft, "--title", "X", "--label", "bug", "--body", "y")
+	if code != 1 || stdout != "" || len(fake.Calls) != 0 {
+		t.Fatalf("code=%d stdout=%q calls=%v", code, stdout, fake.Calls)
+	}
+	for _, w := range []string{
+		"issue edit: 3 problems:",
+		"--title is not supported: --draft sets the title from the draft's \"title:\", --body-file keeps the current title",
+		"--label is not supported: issue edit changes the body (and, with --draft, the title) only",
+		"there is no inline --body",
+	} {
+		if !strings.Contains(stderr, w) {
+			t.Errorf("stderr should contain %q:\n%s", w, stderr)
+		}
+	}
+}

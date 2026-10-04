@@ -1,6 +1,7 @@
 package template_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -156,5 +157,99 @@ func TestParseMarkdownLiteralHeadingIsCaseSensitive(t *testing.T) {
 	m := tmpl.ParseMarkdown(sc, "[PLAN-00112-1] X", strings.Replace(phaseBody, "## Scope", "## scope", 1))
 	if len(m.UnknownHeadings) != 1 || m.UnknownHeadings[0].Text != "scope" || len(m.Sections["scope"]) != 0 {
 		t.Fatalf("unknown = %+v, scope = %+v", m.UnknownHeadings, m.Sections["scope"])
+	}
+}
+
+// fullMap returns a conformant YAML-source map for sc with every section
+// filled, each with a "###" sub-heading and a fenced "## " line.
+func fullMap(t *testing.T, sc *tmpl.Schema) *tmpl.SectionMap {
+	t.Helper()
+	titles := map[string]string{
+		"arch-plan":  "[PLAN-00112-ARCH] X",
+		"impl-plan":  "[PLAN-00112] X",
+		"impl-phase": "[PLAN-00112-1] X",
+		"quick-task": "[TASK-00091] X",
+	}
+	m := &tmpl.SectionMap{Source: tmpl.SourceYAML, Title: titles[sc.Type], Metadata: map[string]tmpl.Field{}, Sections: map[string][]tmpl.Entry{}}
+	for _, key := range sc.Metadata {
+		v := "value"
+		switch key {
+		case "Plan Number":
+			v = "PLAN-00112"
+		case "Task Number":
+			v = "TASK-00091"
+		case "Source Issue", "Architecture Plan", "Implementation Plan":
+			v = "#112"
+		}
+		m.Metadata[key] = tmpl.Field{Value: v}
+	}
+	content := func(id string, i int) string {
+		return fmt.Sprintf("Intro for %s %d.\n\n### Sub heading\n\n- item\n\n```md\n## fenced heading\n```\n\nEnd.", id, i)
+	}
+	for _, sec := range sc.Sections {
+		n := 1
+		if sec.Repeatable {
+			n = 2
+		}
+		for i := 1; i <= n; i++ {
+			e := tmpl.Entry{Content: content(sec.ID, i)}
+			if sec.Numbered && sec.Named != nil && *sec.Named {
+				e.Name = fmt.Sprintf("Entry %d", i)
+			}
+			m.Sections[sec.ID] = append(m.Sections[sec.ID], e)
+		}
+	}
+	return m
+}
+
+// Rendering a valid map and parsing it back gives an equivalent map with no
+// findings, for each built-in schema.
+func TestMarkdownRoundTrip(t *testing.T) {
+	for _, name := range []string{"arch-plan", "impl-plan", "impl-phase", "quick-task"} {
+		t.Run(name, func(t *testing.T) {
+			sc := loadBuiltIn(t, name)
+			want := fullMap(t, sc)
+			body, res := tmpl.Render(sc, builtIn, want)
+			if len(res.Findings) != 0 {
+				t.Fatalf("Render:\n%s", res.Format())
+			}
+			got := tmpl.ParseMarkdown(sc, want.Title, body)
+			if res := tmpl.Check(sc, builtIn, got); len(res.Findings) != 0 {
+				t.Fatalf("Check of parsed body:\n%s\nbody:\n%s", res.Format(), body)
+			}
+			if got.Title != want.Title {
+				t.Errorf("title = %q", got.Title)
+			}
+			for key, f := range want.Metadata {
+				if got.Metadata[key].Value != f.Value {
+					t.Errorf("metadata %q = %q, want %q", key, got.Metadata[key].Value, f.Value)
+				}
+			}
+			if len(got.Metadata) != len(want.Metadata) {
+				t.Errorf("metadata keys = %v", got.Metadata)
+			}
+			for _, sec := range sc.Sections {
+				w, g := want.Sections[sec.ID], got.Sections[sec.ID]
+				if len(w) != len(g) {
+					t.Fatalf("section %s: %d entries, want %d", sec.ID, len(g), len(w))
+				}
+				for i := range w {
+					if g[i].Name != w[i].Name || strings.TrimRight(g[i].Content, " \t\n") != strings.TrimRight(w[i].Content, " \t\n") {
+						t.Errorf("section %s entry %d = %+v, want %+v", sec.ID, i, g[i], w[i])
+					}
+				}
+			}
+			if len(got.UnknownHeadings) != 0 {
+				t.Errorf("unknown headings: %+v", got.UnknownHeadings)
+			}
+		})
+	}
+}
+
+// Text before the first "##" that is not metadata is ignored without a finding.
+func TestParseMarkdownPreambleIsIgnored(t *testing.T) {
+	body := "> **Revised 2026-01-01:** scope narrowed.\n\nSome intro text.\n\n" + phaseBody
+	if res := parseCheck(t, "impl-phase", "[PLAN-00112-1] X", body); len(res.Findings) != 0 {
+		t.Fatalf("want no findings:\n%s", res.Format())
 	}
 }

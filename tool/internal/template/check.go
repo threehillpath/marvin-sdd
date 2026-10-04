@@ -38,10 +38,13 @@ type Entry struct {
 	Number  int
 }
 
-// Heading is a "## " heading found in a markdown body.
+// Heading is a "## " heading found in a markdown body. Content is the text
+// below it, set only for unknown headings so Check can apply the content
+// guards to it.
 type Heading struct {
-	Text string
-	Line int
+	Text    string
+	Line    int
+	Content string
 }
 
 // SectionMap is the input-independent shape the conformance check runs on.

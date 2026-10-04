@@ -253,3 +253,70 @@ func TestParseMarkdownPreambleIsIgnored(t *testing.T) {
 		t.Fatalf("want no findings:\n%s", res.Format())
 	}
 }
+
+// A "**Key:** value" line in section content is content, not metadata, even
+// when it repeats or invents a key.
+func TestParseMarkdownMetadataOnlyAboveFirstHeading(t *testing.T) {
+	body := strings.Replace(phaseBody, "Includes things.", "**Status:** Done\n**Extra:** x\nIncludes things.", 1)
+	sc := loadBuiltIn(t, "impl-phase")
+	m := tmpl.ParseMarkdown(sc, "[PLAN-00112-1] X", body)
+	if got := m.Metadata["Status"].Value; got != "Upcoming" {
+		t.Errorf("Status = %q, want the header value", got)
+	}
+	if _, ok := m.Metadata["Extra"]; ok {
+		t.Errorf("a metadata-looking line in a section became metadata: %v", m.Metadata)
+	}
+	if got := m.Sections["scope"][0].Content; !strings.HasPrefix(got, "**Status:** Done\n**Extra:** x") {
+		t.Errorf("scope content = %q", got)
+	}
+	if res := tmpl.Check(sc, builtIn, m); len(res.Findings) != 0 {
+		t.Fatalf("want no findings:\n%s", res.Format())
+	}
+}
+
+// Content under an unknown heading is kept with its heading line, so Check
+// applies the same content guards to it as to a known section.
+func TestParseMarkdownUnknownHeadingKeepsContentAndLine(t *testing.T) {
+	body := phaseBody + "\n## Appendix\n\nSome notes.\n"
+	m := tmpl.ParseMarkdown(loadBuiltIn(t, "impl-phase"), "[PLAN-00112-1] X", body)
+	if len(m.UnknownHeadings) != 1 {
+		t.Fatalf("unknown headings = %+v", m.UnknownHeadings)
+	}
+	h := m.UnknownHeadings[0]
+	if h.Text != "Appendix" || h.Content != "Some notes." || h.Line != strings.Count(phaseBody, "\n")+3 {
+		t.Errorf("unknown heading = %+v", h)
+	}
+}
+
+func TestCheckMarkdownGuardsContentUnderUnknownHeading(t *testing.T) {
+	cases := []struct {
+		name, content string
+		want          []string
+	}{
+		{"raw details", "<details>\nhidden\n</details>", []string{`"<details>"`, "backticks", `"## Appendix"`}},
+		{"setext", "Title\n---", []string{"underline", `"## Appendix"`}},
+		{"unclosed fence", "```\ncode", []string{"never closed", `"## Appendix"`}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			res := parseCheck(t, "impl-phase", "[PLAN-00112-1] X", phaseBody+"\n## Appendix\n\n"+c.content+"\n")
+			var errs []tmpl.Finding
+			for _, f := range res.Findings {
+				if f.Severity == tmpl.SeverityError {
+					errs = append(errs, f)
+				}
+			}
+			if len(errs) != 1 {
+				t.Fatalf("want exactly 1 error, got:\n%s", res.Format())
+			}
+			for _, w := range c.want {
+				if !strings.Contains(errs[0].Message, w) {
+					t.Errorf("message %q missing %q", errs[0].Message, w)
+				}
+			}
+			if errs[0].Line == 0 {
+				t.Errorf("error has no line: %+v", errs[0])
+			}
+		})
+	}
+}

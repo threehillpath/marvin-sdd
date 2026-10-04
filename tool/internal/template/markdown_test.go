@@ -559,3 +559,42 @@ func TestCheckMarkdownRepeatedUnknownKeyIsNotAnError(t *testing.T) {
 		}
 	}
 }
+
+// GitHub reads an indented "**Key:**" line as metadata when the indent is
+// under 4 columns, or when the line continues a metadata paragraph; at 4 or
+// more columns after a blank line it is code (round 2 N3).
+func TestCheckMarkdownIndentedMetadata(t *testing.T) {
+	sc := loadBuiltIn(t, "impl-phase")
+	for name, body := range map[string]string{
+		"two spaces":               strings.Replace(phaseBody, "**Status:**", "  **Status:**", 1),
+		"tab on a continuation":    strings.Replace(phaseBody, "**Status:**", "\t**Status:**", 1),
+		"two spaces after a blank": strings.Replace(phaseBody, "\n**Status:**", "\n\n  **Status:**", 1),
+		"three spaces first line":  "   " + phaseBody,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if m := tmpl.ParseMarkdown(sc, "[PLAN-00112-1] X", body); m.Metadata["Status"].Value != "Upcoming" {
+				t.Errorf("Status = %+v", m.Metadata["Status"])
+			}
+			if res := checkMD(t, body); len(res.Findings) != 0 {
+				t.Fatalf("want no findings:\n%s", res.Format())
+			}
+		})
+	}
+	t.Run("four spaces after a blank line", func(t *testing.T) {
+		body := strings.Replace(phaseBody, "\n**Status:**", "\n\n    **Status:**", 1)
+		var got []tmpl.Finding
+		for _, f := range errorsAt(checkMD(t, body), "metadata:Status") {
+			if f.Line > 0 {
+				got = append(got, f)
+			}
+		}
+		if len(got) != 1 {
+			t.Fatalf("want one located error:\n%s", checkMD(t, body).Format())
+		}
+		for _, w := range []string{`"**Status:**"`, "line 5", "indented 4 or more spaces", "shows it as code", "Remove the indentation"} {
+			if !strings.Contains(got[0].Message, w) {
+				t.Errorf("message %q missing %q", got[0].Message, w)
+			}
+		}
+	})
+}

@@ -59,6 +59,19 @@ type SectionMap struct {
 	// RepeatedMetadata lists metadata lines that repeat an earlier key; the
 	// map keeps the first value. Markdown only.
 	RepeatedMetadata []RepeatedField
+
+	// MisplacedMetadata lists metadata-shaped lines that GitHub does not show
+	// as metadata (markdown only).
+	MisplacedMetadata []MisplacedField
+}
+
+// MisplacedField is a "**Key:**" line above the first heading that sits in a
+// code fence (InFence) or directly below the non-blank line Above.
+type MisplacedField struct {
+	Key     string
+	Line    int
+	InFence bool
+	Above   string
 }
 
 // RepeatedField is a metadata key written a second time, at Line, after
@@ -406,6 +419,8 @@ type contentScan struct {
 	Fence    *openFence // fence left open at the end, if any
 	Setext   *setextHit // first line turned into a heading by an underline
 	HTML     *htmlHit   // first raw HTML construct outside code
+	// InFence[i] is true when line i+1 is a fence line or inside a fence.
+	InFence []bool
 }
 
 // htmlHit is a banned raw HTML construct.
@@ -510,9 +525,12 @@ func scanContent(body string) contentScan {
 		}
 		para = nil
 	}
-	for i, line := range strings.Split(body, "\n") {
+	allLines := strings.Split(body, "\n")
+	out.InFence = make([]bool, len(allLines))
+	for i, line := range allLines {
 		line = strings.TrimRight(line, "\r")
 		prev, prevLineNo := prevText, prevNo
+		out.InFence[i] = fenceCh != 0
 		prevText = ""
 		if m := fenceRe.FindStringSubmatch(line); m != nil {
 			run, rest := m[1], m[2]
@@ -521,6 +539,7 @@ func scanContent(body string) contentScan {
 				if run[0] != '`' || !strings.Contains(rest, "`") {
 					flush()
 					fenceCh, fenceLen = run[0], len(run)
+					out.InFence[i] = true
 					out.Fence = &openFence{Run: run, Line: i + 1}
 				}
 				continue
@@ -639,16 +658,26 @@ func (c *checker) checkMarkdownOnly() {
 	if c.m.Source != SourceMarkdown {
 		return
 	}
+	known := map[string]bool{}
+	for _, key := range c.sc.Metadata {
+		known[key] = true
+	}
+	for _, f := range c.m.MisplacedMetadata {
+		if !known[f.Key] {
+			continue
+		}
+		why := fmt.Sprintf("directly below the line %q, so GitHub shows it as part of that paragraph, quote or list item", f.Above)
+		if f.InFence {
+			why = "inside a code fence, so GitHub shows it as code"
+		}
+		c.add(SeverityError, "metadata:"+f.Key, f.Line, "the \"**%s:**\" line (line %d) is %s, not as metadata. Put it above the first \"## \" heading as the first line of the body, after a blank line, or directly below another metadata line.", f.Key, f.Line, why)
+	}
 	for _, r := range c.m.RepeatedMetadata {
 		c.add(SeverityError, "metadata:"+r.Key, r.Line, "metadata key %q appears twice (line %d and line %d). Remove the duplicate line or merge its value into the first.", r.Key, r.FirstLine, r.Line)
 	}
 	for _, h := range c.m.UnknownHeadings {
 		c.checkContentStructure("draft", fmt.Sprintf("the unknown heading \"## %s\"", h.Text), h.Content, h.Line)
 		c.add(SeverityWarning, "draft", h.Line, "heading \"## %s\" is not a section of schema %s. Rename it to one of the schema's headings (%s), or remove it.", h.Text, c.sc.Type, c.expectedHeadings())
-	}
-	known := map[string]bool{}
-	for _, key := range c.sc.Metadata {
-		known[key] = true
 	}
 	var extra []string
 	for key := range c.m.Metadata {

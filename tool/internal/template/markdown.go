@@ -34,7 +34,8 @@ func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineO
 	}
 	body = strings.ReplaceAll(body, "\r\n", "\n")
 	lines := strings.Split(body, "\n")
-	heads := FindH2Lines(body)
+	scan := scanContent(body)
+	heads := scan.Headings
 	origins := make([]lineOrigin, len(lines))
 	var emitted []emittedHeading
 
@@ -42,16 +43,29 @@ func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineO
 	if len(heads) > 0 {
 		end = heads[0].Line - 1
 	}
+	prevBlank, prevAccepted := true, false
 	for i, line := range lines[:end] {
 		origins[i] = lineOrigin{loc: "draft", what: "the text above the first \"## \" heading", line: i + 1, where: "edit that text"}
+		blank := strings.TrimSpace(line) == ""
+		accepted := false
 		if mm := metadataLineRe.FindStringSubmatch(line); mm != nil {
-			if first, dup := m.Metadata[mm[1]]; dup {
-				m.RepeatedMetadata = append(m.RepeatedMetadata, RepeatedField{Key: mm[1], FirstLine: first.Line, Line: i + 1})
-			} else {
-				m.Metadata[mm[1]] = Field{Value: strings.TrimSpace(mm[2]), Line: i + 1}
+			key := mm[1]
+			switch {
+			case scan.InFence[i]:
+				m.MisplacedMetadata = append(m.MisplacedMetadata, MisplacedField{Key: key, Line: i + 1, InFence: true})
+			case !prevBlank && !prevAccepted:
+				m.MisplacedMetadata = append(m.MisplacedMetadata, MisplacedField{Key: key, Line: i + 1, Above: strings.TrimSpace(lines[i-1])})
+			default:
+				accepted = true
+				if first, dup := m.Metadata[key]; dup {
+					m.RepeatedMetadata = append(m.RepeatedMetadata, RepeatedField{Key: key, FirstLine: first.Line, Line: i + 1})
+				} else {
+					m.Metadata[key] = Field{Value: strings.TrimSpace(mm[2]), Line: i + 1}
+				}
+				origins[i] = lineOrigin{loc: "metadata:" + key, what: fmt.Sprintf("metadata value %q", key), line: i + 1, where: fmt.Sprintf("edit the \"**%s:**\" line", key)}
 			}
-			origins[i] = lineOrigin{loc: "metadata:" + mm[1], what: fmt.Sprintf("metadata value %q", mm[1]), line: i + 1, where: fmt.Sprintf("edit the \"**%s:**\" line", mm[1])}
 		}
+		prevBlank, prevAccepted = blank, accepted
 	}
 
 	for i, h := range heads {

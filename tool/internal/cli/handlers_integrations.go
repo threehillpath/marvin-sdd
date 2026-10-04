@@ -515,6 +515,7 @@ func newIssueCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	issueCmd.AddCommand(newIssueTreeCmd(stdout, stderr, runner))
 	issueCmd.AddCommand(newIssueLinkParentCmd(stdout, stderr, runner))
 	issueCmd.AddCommand(newIssueCreateCmd(stdout, stderr, runner))
+	issueCmd.AddCommand(newIssueEditCmd(stdout, stderr, runner))
 	return issueCmd
 }
 
@@ -618,6 +619,56 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, title string, 
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(issueCreateOutput{Number: number, URL: url})
+}
+
+func newIssueEditCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
+	var tmplType, draft, bodyFile string
+
+	cmd := &cobra.Command{
+		Use:   "edit <issue-number>",
+		Short: "Replace an issue's body after checking it against a plan schema (--template, with --draft or --body-file)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			n, err := strconv.Atoi(args[0])
+			if err != nil {
+				return &CLIError{Code: 1, Msg: fmt.Sprintf("invalid issue number %q: %v", args[0], err)}
+			}
+			return runIssueEdit(stderr, cfg, n, tmplType, draft, bodyFile, runner)
+		},
+	}
+	cmd.Flags().StringVar(&tmplType, "template", "", "Plan schema to check against (required), e.g. impl-phase")
+	cmd.Flags().StringVar(&draft, "draft", "", "YAML draft file: sets the rendered body and the title")
+	cmd.Flags().StringVar(&bodyFile, "body-file", "", "Markdown body file: sets the body only, the title is unchanged")
+	return cmd
+}
+
+// runIssueEdit checks the input against the schema and only then edits the
+// issue. A check error makes no mutating gh call (exit 3, findings on stderr).
+func runIssueEdit(stderr io.Writer, cfg *config.Config, number int, tmplType, draft, bodyFile string, runner exec.Runner) error {
+	if tmplType == "" {
+		return &CLIError{Code: 1, Msg: "issue edit requires --template <type>: it checks the new body against that plan schema"}
+	}
+	sc, origin, err := loadSchema(tmplType)
+	if err != nil {
+		return err
+	}
+	body, title, res, err := checkInput(sc, origin, draft, bodyFile, "", false)
+	if err != nil {
+		return err
+	}
+	if res.HasErrors() {
+		fmt.Fprint(stderr, res.Format())
+		return clierr.NonConforming(fmt.Sprintf("the input does not conform to the %s schema; issue #%d was not changed. Fix the findings above and run again", tmplType, number))
+	}
+	fmt.Fprint(stderr, res.Format())
+	if err := issue.Edit(context.Background(), runner, cfg, number, title, body); err != nil {
+		return &CLIError{Code: 1, Msg: err.Error()}
+	}
+	return nil
 }
 
 func newIssueListCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {

@@ -48,6 +48,15 @@ func List(ctx context.Context, runner exec.Runner, cfg *config.Config, label, ti
 	return result, nil
 }
 
+// Edit sets an existing issue's body in the project repo, and its title when
+// title is non-empty.
+func Edit(ctx context.Context, runner exec.Runner, cfg *config.Config, number int, title, body string) error {
+	if err := gh.New(runner).IssueEdit(ctx, cfg.Repo, number, title, body); err != nil {
+		return fmt.Errorf("issue edit: %w", err)
+	}
+	return nil
+}
+
 // Create creates a new GitHub issue in the project repo and returns its
 // number and URL. labels may be empty.
 func Create(ctx context.Context, runner exec.Runner, cfg *config.Config, title, body string, labels []string) (int, string, error) {

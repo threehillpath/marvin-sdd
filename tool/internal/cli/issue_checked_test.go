@@ -848,3 +848,24 @@ func TestRenderReportsEmptyDraftAndModeConflictTogether(t *testing.T) {
 		}
 	}
 }
+
+// TestCreateDraftWithoutTemplateReportsOnlyThat verifies --draft without
+// --template is reported alone, naming the valid types, and does not also
+// demand --title and --body (which would steer toward the unchecked path).
+func TestCreateDraftWithoutTemplateReportsOnlyThat(t *testing.T) {
+	withConfigFixture(t)
+	fake := &exectest.FakeRunner{}
+	_, _, err := runIssue(fake, "issue", "create", "--draft", writeTemp(t, "d.yml", phaseDraftOK))
+	ce := wantCode(t, err, 1)
+	if strings.Contains(ce.Msg, "problems:") || strings.Contains(ce.Msg, "requires --title") || strings.Contains(ce.Msg, "requires --body") {
+		t.Errorf("want only the --draft problem, got %q", ce.Msg)
+	}
+	for _, w := range []string{"--draft requires --template", "arch-plan, impl-phase, impl-plan, quick-task"} {
+		if !strings.Contains(ce.Msg, w) {
+			t.Errorf("message should contain %q: %q", w, ce.Msg)
+		}
+	}
+	if len(fake.Calls) != 0 {
+		t.Errorf("want zero gh calls, got %v", fake.Calls)
+	}
+}

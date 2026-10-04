@@ -547,11 +547,16 @@ func TestBadDraftWithMismatchedTitleReportsBoth(t *testing.T) {
 // .claude/plan-workflow-templates/, and no gh call is made.
 func TestTemplateNameMustBeOneOfTheFixedTypes(t *testing.T) {
 	withConfigFixture(t)
-	// A directory where the override file would be: opening it as a file
-	// fails with a "reading project template override" error, so any attempt
-	// to look the name up is visible in the message.
-	for _, name := range []string{"bogus.yml", "x.yml"} {
-		if err := os.MkdirAll(filepath.Join(".claude", "plan-workflow-templates", name), 0o755); err != nil {
+	// Directories where each name's override file would resolve: opening one
+	// as a file fails with a "reading project template override" error, so
+	// any attempt to look the name up is visible in the message. "../x" lands
+	// at .claude/x.yml and "a/b" at .claude/plan-workflow-templates/a/b.yml.
+	for _, dir := range []string{
+		filepath.Join(".claude", "plan-workflow-templates", "bogus.yml"),
+		filepath.Join(".claude", "x.yml"),
+		filepath.Join(".claude", "plan-workflow-templates", "a", "b.yml"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}

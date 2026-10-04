@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-A Claude Code plugin defining a structured architecture-to-implementation workflow on top of GitHub issues and Projects v2 boards. Includes `marvin`, a compiled Go CLI that encapsulates the deterministic shell operations (board reads and moves, issue listing, label management, PR lookup, worktree lifecycle, config access, findings cache) so skills can call a single binary rather than re-synthesizing `gh`/`jq`/`git` invocations.
+A Claude Code plugin defining a structured architecture-to-implementation workflow on top of GitHub issues and Projects v2 boards. Includes `marvin`, a compiled Go CLI that encapsulates the deterministic shell operations (board reads and moves, issue listing, checked issue create and edit, template render and validate, label management, PR lookup, worktree lifecycle, config access, findings cache) so skills can call a single binary rather than re-synthesizing `gh`/`jq`/`git` invocations.
 
 ## Repository structure
 
@@ -24,7 +24,7 @@ tool/                          ← Go module for the marvin CLI
   cmd/marvin/main.go           ← Entry point; compiled to bin/marvin at install time
   internal/
     board/                     ← GitHub Projects v2 board operations (add, move, list, status)
-    issue/                     ← GitHub issue reads (list with label/prefix/state filters)
+    issue/                     ← GitHub issue reads (list with label/prefix/state filters) and checked create/edit
     cli/                       ← Cobra command handlers
     clierr/                    ← Exit-code constants (0 / 1 / 2 / 3)
     config/                    ← YAML config loader, legacy markdown fallback, CWD-walk discovery
@@ -73,14 +73,14 @@ docs/
 
 ## The marvin tool
 
-`marvin` is compiled from `tool/` by `tool/build.sh`, which writes the binary to a caller-supplied output path and skips the build when that binary is already newer than every file under `tool/`. Skills call it for all deterministic operations — board moves, label management, config access, name derivation, PR lookup, worktree lifecycle, findings cache — so that none of that logic needs to be re-synthesized from shell in skill prose.
+`marvin` is compiled from `tool/` by `tool/build.sh`, which writes the binary to a caller-supplied output path and skips the build when that binary is already newer than every file under `tool/`. Skills call it for all deterministic operations — board moves, issue create and edit, template render and validate, label management, config access, name derivation, PR lookup, worktree lifecycle, findings cache — so that none of that logic needs to be re-synthesized from shell in skill prose.
 
 The plugin is installed only from the GitHub marketplace (`plan-workflow@plan-workflow-marketplace`). `tool/build.sh` is invoked by:
 - **`hooks/hooks.json`** — a `SessionStart` hook that builds into `${CLAUDE_PLUGIN_ROOT}/bin/marvin` on every session start, degrading quietly (stderr diagnostic, exit 0) if `go` is missing or `tool/` isn't present in that install, rather than blocking the session.
 
 Subcommand groups: `config`, `names`, `parse`, `template`, `board`, `issue`, `label`, `pr`, `findings`, `worktree`, `version`.
 
-Exit-code contract: `0` = success, `1` = operational error, `2` = config missing or malformed, `3` = a draft or body that does not conform to its plan schema. Output contract: `stdout` = data, `stderr` = diagnostics.
+Exit-code contract: `0` = success, `1` = operational error, `2` = config missing or malformed, `3` = a draft or body that does not conform to its plan schema. Output contract: `stdout` = data, `stderr` = diagnostics. The one exception is `marvin template validate`, whose findings are its data and go to stdout.
 
 ## Skills (in workflow order)
 

@@ -749,3 +749,43 @@ func TestCreateBodyFileWithoutTitleSaysTitleChecksDidNotRun(t *testing.T) {
 		t.Errorf("stderr should carry the note %q:\n%s", titleChecksNote, stderr)
 	}
 }
+
+// TestEditBodyFileIsCheckedDespiteOtherProblems verifies edit --body-file
+// reports the body's findings together with other problems, as create does:
+// the body is checked with an empty title, the title findings are dropped, the
+// note says the title-dependent checks did not run, and nothing is sent.
+func TestEditBodyFileIsCheckedDespiteOtherProblems(t *testing.T) {
+	withConfigFixture(t)
+	bad := writeTemp(t, "bad.md", strings.Replace(conformingPhaseBody, "## Verification\n\nV.\n\n", "", 1))
+	t.Run("number forgotten", func(t *testing.T) {
+		fake := &exectest.FakeRunner{}
+		code, stdout, stderr := runIssueExit(fake, "issue", "edit", "--template", "impl-phase", "--body-file", bad)
+		if code != 1 || stdout != "" || len(fake.Calls) != 0 {
+			t.Fatalf("code=%d stdout=%q calls=%v", code, stdout, fake.Calls)
+		}
+		for _, w := range []string{"needs exactly one <issue-number>", "error section:verification", titleChecksNote} {
+			if !strings.Contains(stderr, w) {
+				t.Errorf("stderr should contain %q:\n%s", w, stderr)
+			}
+		}
+		if strings.Contains(stderr, "error title") {
+			t.Errorf("title findings should be dropped:\n%s", stderr)
+		}
+	})
+	t.Run("title read fails", func(t *testing.T) {
+		fake := &exectest.FakeRunner{}
+		fake.Enqueue(exectest.FakeResponse{Stderr: []byte("not found"), ExitCode: 1})
+		code, stdout, stderr := runIssueExit(fake, "issue", "edit", "7", "--template", "impl-phase", "--body-file", bad)
+		if code != 1 || stdout != "" {
+			t.Fatalf("code=%d stdout=%q", code, stdout)
+		}
+		if len(fake.Calls) != 1 || fake.Calls[0].Args[1] != "view" {
+			t.Errorf("want only the gh issue view call, got %v", fake.Calls)
+		}
+		for _, w := range []string{"not found", "error section:verification", titleChecksNote} {
+			if !strings.Contains(stderr, w) {
+				t.Errorf("stderr should contain %q:\n%s", w, stderr)
+			}
+		}
+	})
+}

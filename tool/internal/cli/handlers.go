@@ -553,6 +553,12 @@ func loadSchema(schemaName string) (*tmplpkg.Schema, string, error) {
 	if err != nil {
 		return nil, "", &CLIError{Code: 1, Msg: err.Error()}
 	}
+	// The template names are a fixed set, so an override must declare the type
+	// it is named for; a mismatch is never accepted and reported as another
+	// schema.
+	if sc.Type != schemaName {
+		return nil, "", &CLIError{Code: 1, Msg: fmt.Sprintf("%s: declares type %q but was loaded for template %q: set \"type: %s\" in the file, or remove the file to use the built-in %s schema (expected %q)", origin, sc.Type, schemaName, schemaName, schemaName, schemaName)}
+	}
 	return sc, origin, nil
 }
 

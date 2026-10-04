@@ -579,7 +579,7 @@ func runTemplateValidate(stdout, stderr io.Writer, schemaName string, f validate
 	if !f.draftSet && !f.bodySet {
 		p.add(exactlyOneMsg)
 	}
-	if f.draftSet && f.titleSet {
+	if f.titleSet && (f.draft != "" || (f.draftSet && !f.bodySet)) {
 		p.add(titleWithDraftMsg)
 	}
 

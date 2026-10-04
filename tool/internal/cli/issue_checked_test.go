@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -408,5 +409,20 @@ func TestIssueCreateAndEditWithoutConfigExit2(t *testing.T) {
 				t.Errorf("want zero gh calls, got %v", fake.Calls)
 			}
 		})
+	}
+}
+
+// TestIssueEditMissingBodyFileMakesNoCalls verifies an unreadable --body-file
+// is an exit-1 input error found before any network call, not even the
+// read of the issue's title.
+func TestIssueEditMissingBodyFileMakesNoCalls(t *testing.T) {
+	withConfigFixture(t)
+	fake := &exectest.FakeRunner{}
+
+	_, _, err := runIssue(fake, "issue", "edit", "7", "--template", "impl-phase", "--body-file", filepath.Join(t.TempDir(), "nope.md"))
+
+	wantCode(t, err, 1)
+	if len(fake.Calls) != 0 {
+		t.Errorf("want zero gh calls, got %v", fake.Calls)
 	}
 }

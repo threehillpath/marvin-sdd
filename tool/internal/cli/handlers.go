@@ -325,53 +325,30 @@ func runParsePhaseList(stdin io.Reader, stdout, stderr io.Writer, jsonOut bool) 
 	return enc.Encode(out)
 }
 
-// runTemplateRender renders a plan template from schema.
-// When skeleton is true, emits empty section headings without requiring content.
-func runTemplateRender(stdout, stderr io.Writer, schemaName, metaFile, sectionsFile string, skeleton bool) error {
+// runTemplateRender prints a schema's empty YAML draft (--skeleton) or its
+// plain-text guidance (--guidance). Rendering a filled-in draft arrives with
+// --draft in a later phase; until then a render with neither flag has nothing
+// to do and says so.
+func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, guidance bool) error {
 	schemaYAML, origin, err := resolveSchema(schemaName)
 	if err != nil {
 		return &CLIError{Code: 1, Msg: err.Error()}
 	}
-
-	if skeleton {
-		out, err := tmplpkg.Skeleton(schemaYAML)
-		if err != nil {
-			return &CLIError{Code: 1, Msg: fmt.Sprintf("%s (%s): %v", schemaName, origin, err)}
-		}
-		fmt.Fprint(stdout, out)
+	sc, err := tmplpkg.LoadSchema(origin, schemaYAML)
+	if err != nil {
+		return &CLIError{Code: 1, Msg: err.Error()}
+	}
+	if skeleton && guidance {
+		return &CLIError{Code: 1, Msg: fmt.Sprintf("--skeleton and --guidance cannot be combined: pass only one. Run \"marvin template render %s --skeleton\" for the empty YAML draft, or \"marvin template render %s --guidance\" for the help text", schemaName, schemaName)}
+	}
+	if !skeleton && !guidance {
+		return &CLIError{Code: 1, Msg: fmt.Sprintf("nothing to render for %s: the JSON input (--sections, --meta) was removed and draft input is not available yet. Run \"marvin template render %s --skeleton\" to get an empty YAML draft, or \"marvin template render %s --guidance\" for how to fill it in", schemaName, schemaName, schemaName)}
+	}
+	if guidance {
+		fmt.Fprint(stdout, tmplpkg.Guidance(sc))
 		return nil
 	}
-
-	var meta []tmplpkg.KV
-	if metaFile != "" {
-		data, err := os.ReadFile(metaFile)
-		if err != nil {
-			return &CLIError{Code: 1, Msg: fmt.Sprintf("reading meta file: %v", err)}
-		}
-		if err := json.Unmarshal(data, &meta); err != nil {
-			return &CLIError{Code: 1, Msg: fmt.Sprintf("parsing meta JSON: %v", err)}
-		}
-	}
-
-	var sections map[string][]string
-	if sectionsFile != "" {
-		data, err := os.ReadFile(sectionsFile)
-		if err != nil {
-			return &CLIError{Code: 1, Msg: fmt.Sprintf("reading sections file: %v", err)}
-		}
-		if err := json.Unmarshal(data, &sections); err != nil {
-			return &CLIError{Code: 1, Msg: fmt.Sprintf("parsing sections JSON: %v", err)}
-		}
-	}
-	if sections == nil {
-		sections = map[string][]string{}
-	}
-
-	out, err := tmplpkg.Render(schemaYAML, meta, sections)
-	if err != nil {
-		return &CLIError{Code: 1, Msg: fmt.Sprintf("%s (%s): %v", schemaName, origin, err)}
-	}
-	fmt.Fprint(stdout, out)
+	fmt.Fprint(stdout, tmplpkg.Skeleton(sc))
 	return nil
 }
 

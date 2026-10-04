@@ -1,6 +1,7 @@
 package template_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -655,11 +656,52 @@ func TestCheckEmptyNamedEntryWithNoNameOrContent(t *testing.T) {
 	m = mdImplPlanMap()
 	m.Sections["component"] = []tmpl.Entry{{Name: "", Content: "", Line: 12, Number: 1}}
 	res = check(t, "impl-plan", m)
+	var sawMDEmpty bool
 	for _, f := range res.Findings {
 		if strings.Contains(f.Message, "<Component or Layer Name>") {
 			t.Errorf("placeholder heading leaked: %s", f.Message)
 		}
+		if f.Location == "section:component" && strings.Contains(f.Message, "is empty") {
+			sawMDEmpty = true
+			if !strings.Contains(f.Message, `"## 1. <Name>"`) {
+				t.Errorf("markdown empty finding must name %q: %s", "## 1. <Name>", f.Message)
+			}
+		}
 	}
+	if !sawMDEmpty {
+		t.Fatalf("want a section:component finding containing \"is empty\" on the markdown path:\n%s", res.Format())
+	}
+}
+
+// An unnamed component entry that is out of sequence must be reported by the
+// heading the author would write, never the schema's placeholder heading.
+func TestCheckMarkdownNumberingUnnamedComponentNoPlaceholder(t *testing.T) {
+	m := mdImplPlanMap()
+	m.Sections["component"] = []tmpl.Entry{{Name: "", Content: "c", Line: 20, Number: 2}, {Name: "B", Content: "c", Line: 21, Number: 2}}
+	res := check(t, "impl-plan", m)
+	var sawNumbering bool
+	for _, f := range res.Findings {
+		if strings.Contains(f.Message, "<Component or Layer Name>") {
+			t.Errorf("placeholder heading leaked: %s", f.Message)
+		}
+		if strings.Contains(f.Message, "breaks the sequence") {
+			sawNumbering = true
+			if !strings.Contains(f.Message, `"## 2. <Name>"`) || !strings.Contains(f.Message, "## 1.") {
+				t.Errorf("numbering finding must quote the author's heading and the renumber target: %s", f.Message)
+			}
+		}
+	}
+	if !sawNumbering {
+		t.Fatalf("want a numbering warning:\n%s", res.Format())
+	}
+}
+
+// The content-H2 error must quote the actual line and say where in the
+// section it is.
+func TestCheckSectionContentH2ReportsLineWithinSection(t *testing.T) {
+	m := phaseMap()
+	m.Sections["scope"] = []tmpl.Entry{{Content: "first\nsecond\n  ##   Foo", Line: 9}}
+	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "section:scope", `"##   Foo"`, "line 3 of the section", "###")
 }
 
 func TestFindH2LinesOneBasedAndStripsMarker(t *testing.T) {
@@ -716,5 +758,245 @@ func TestCheckUnclosedFenceIsError(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// guardCase checks one structure guard on both input paths: the content must
+// yield exactly one error at section:scope naming the section by heading,
+// the line within the section, and a fix phrased for the path.
+func guardCase(t *testing.T, content string, line int, want ...string) {
+	t.Helper()
+	for _, src := range []tmpl.Source{tmpl.SourceYAML, tmpl.SourceMarkdown} {
+		m := phaseMap()
+		m.Source = src
+		m.Sections["scope"] = []tmpl.Entry{{Content: content, Line: 9}}
+		res := check(t, "impl-phase", m)
+		w := append([]string{`"Scope"`, fmt.Sprintf("line %d of the section", line)}, want...)
+		if src == tmpl.SourceMarkdown {
+			w = append(w, "under that heading")
+		} else {
+			w = append(w, `inside the "scope" block`)
+		}
+		wantOne(t, res, tmpl.SeverityError, "section:scope", w...)
+	}
+}
+
+func TestCheckSetextHeadingIsError(t *testing.T) {
+	// guardCase's line is the text line that turns into a heading.
+	guardCase(t, "ok\n\nTitle text\n---\nmore", 3, `"Title text"`, "---", "horizontal rule", "blank line", "### Title text")
+	guardCase(t, "first\nsecond\n--", 2, "--")
+
+	// Conservative rule: an underline directly after ANY non-blank line is an
+	// error, whatever that line contains.
+	for name, content := range map[string]string{
+		"hash-number paragraph": "#112 tracks this\n---",
+		"inline kbd tag":        "<kbd>Ctrl</kbd>+C copies\n---",
+		"autolink":              "<https://example.com> has docs\n---",
+		"indented continuation": "Title\n    continued\n---",
+		"non-1 ordered item":    "Text\n2. item\n---",
+		"list item":             "- item\n---",
+		"quote":                 "> quote\n---",
+		"heading":               "### H\n---",
+		"hr then hr":            "---\n---",
+		"indented code":         "    code\n---",
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, src := range []tmpl.Source{tmpl.SourceYAML, tmpl.SourceMarkdown} {
+				m := phaseMap()
+				m.Source = src
+				m.Sections["scope"] = []tmpl.Entry{{Content: content, Line: 9}}
+				res := check(t, "impl-phase", m)
+				wantOne(t, res, tmpl.SeverityError, "section:scope", `"Scope"`, "---", "horizontal rule", "blank line", "###")
+			}
+		})
+	}
+}
+
+// An "=" underline is never a thematic break, so its fix must not offer a
+// horizontal rule.
+func TestCheckSetextEqualsFixHasNoHorizontalRule(t *testing.T) {
+	m := phaseMap()
+	m.Sections["scope"] = []tmpl.Entry{{Content: "Big title\n=====", Line: 9}}
+	res := check(t, "impl-phase", m)
+	wantOne(t, res, tmpl.SeverityError, "section:scope", `"Big title"`, "=====", "line 1 of the section", "Remove", "### Big title")
+	if strings.Contains(res.Findings[0].Message, "horizontal rule") {
+		t.Errorf("an = underline is not a thematic break: %s", res.Findings[0].Message)
+	}
+}
+
+func TestCheckSetextLookalikesAreFine(t *testing.T) {
+	for name, ok := range map[string]string{
+		"hr after blank line": "text\n\n---\nmore",
+		"hr at start":         "---\ntext",
+		"fenced underline":    "```\nTitle\n---\n```",
+		"equals after blank":  "text\n\n===\n",
+		"table delimiter":     "| a | b |\n|---|---|",
+		"mixed chars":         "text\n-=-",
+	} {
+		m := phaseMap()
+		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
+		if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
+			t.Errorf("%s: content %q: want no findings:\n%s", name, ok, res.Format())
+		}
+	}
+}
+
+func TestCheckLineBreaksInSingleLineFields(t *testing.T) {
+	t.Run("named entry name with newline", func(t *testing.T) {
+		m := implPlanMap()
+		m.Sections["component"] = []tmpl.Entry{{Name: "Foo\n## Injected", Content: "body", Line: 12}}
+		res := check(t, "impl-plan", m)
+		wantOne(t, res, tmpl.SeverityError, "section:component", `"Foo\n## Injected"`, "line break", "single line", `"name:"`)
+		if res.Findings[0].Line != 12 {
+			t.Errorf("line = %d, want 12", res.Findings[0].Line)
+		}
+	})
+	t.Run("name with bare CR on the markdown path", func(t *testing.T) {
+		m := mdImplPlanMap()
+		m.Sections["component"][0].Name = "First\r## one"
+		wantOne(t, check(t, "impl-plan", m), tmpl.SeverityError, "section:component", "line break", "single line")
+	})
+	t.Run("metadata value with bare CR", func(t *testing.T) {
+		m := phaseMap()
+		m.Metadata["Status"] = tmpl.Field{Value: "Up\r## Injected", Line: 4}
+		wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "metadata:Status", "more than one line", "single line")
+	})
+	t.Run("title with bare CR", func(t *testing.T) {
+		m := phaseMap()
+		m.Title = "[PLAN-00112-1] A\rB"
+		wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "title", "more than one line", "single line")
+	})
+}
+
+const banFix = "backticks"
+
+// Raw HTML that could open a comment, a collapsible or a raw block is
+// banned outright outside code, whether or not it is closed.
+func TestCheckRawHTMLIsBanned(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		line    int
+		tag     string
+	}{
+		{"unclosed comment", "text\n<!-- note to self\nmore", 2, "<!--"},
+		{"closed comment", "<!-- x -->\ntext", 1, "<!--"},
+		{"comment after text", "a <!-- x --> b", 1, "<!--"},
+		{"closed details", "<details>\n<summary>S</summary>\nbody\n</details>", 1, "<details>"},
+		{"details with attributes", "x\n<details open>\nbody", 2, "<details"},
+		{"closing details alone", "a\nb\n</details>", 3, "</details>"},
+		{"uppercase pre", "<PRE class=\"x\">\nstuff", 1, "<PRE"},
+		{"closed pre", "<pre>one line</pre>", 1, "<pre>"},
+		{"script", "intro\n<script>\nx\n", 2, "<script>"},
+		{"style", "<style>a{}</style>", 1, "<style>"},
+		{"textarea", "t\n<textarea>\nx", 2, "<textarea>"},
+		{"comment after an inline tag, then details", "<kbd>x</kbd> <!-- a\n<details>\n-->", 1, "<!--"},
+		{"after a closed pre on the same line", "</pre> <!-- c", 1, "</pre>"},
+		{"unmatched triple backtick run before a real tag", "Use ``` for fences and <details> blocks, see `scanContent`.", 1, "<details>"},
+		{"escaped backticks do not make a code span", "ok\nUse \\`<details>\\` literally", 2, "<details>"},
+		{"a run of the wrong length does not match", "Use `` here <details> and ``` there", 1, "<details>"},
+		{"unmatched run does not carry over a blank line", "A ` tick\n\nthen <details> and ` tock", 3, "<details>"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			guardCase(t, c.content, c.line, "raw HTML", `"`+c.tag, "swallow", banFix, "remove")
+		})
+	}
+}
+
+func TestCheckRawHTMLInCodeOrHarmlessTagsIsFine(t *testing.T) {
+	for name, ok := range map[string]string{
+		"inline code":                        "Mention `<details>` and `<!--` in prose.",
+		"double backticks":                   "Use ``<details>`` here.",
+		"double backticks around a backtick": "Use `` `<pre>` `` here.",
+		"span that wraps lines":              "A `code span\nthat wraps <details> lines` ok",
+		"span over three lines":              "x ``a\nb <pre>\nc`` y",
+		"fenced block":                       "```html\n<details>\n<!-- x -->\n<pre>\n```",
+		"kbd":                                "Press <kbd>Ctrl</kbd>+C.",
+		"autolink":                           "See <https://example.com/docs> for more.",
+		"similar tag name":                   "<prefix>x</prefix> and <stylesheet>",
+		"br":                                 "line<br>break",
+		"a comment-like text":                "<! not a comment",
+	} {
+		m := phaseMap()
+		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
+		if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
+			t.Errorf("%s: content %q: want no findings:\n%s", name, ok, res.Format())
+		}
+	}
+}
+
+func TestCheckRawHTMLInNamedEntryContent(t *testing.T) {
+	m := implPlanMap()
+	m.Sections["component"] = []tmpl.Entry{{Name: "A", Content: "x\n<details>\ny", Line: 12}}
+	wantOne(t, check(t, "impl-plan", m), tmpl.SeverityError, "section:component", "raw HTML", `"<details>"`, "line 2 of the section", banFix)
+}
+
+func TestCheckRawHTMLInMetadataNameAndTitle(t *testing.T) {
+	t.Run("metadata value", func(t *testing.T) {
+		m := implPlanMap()
+		m.Metadata["Objective"] = tmpl.Field{Value: "Collapse verbose logs into <details> blocks", Line: 3}
+		res := check(t, "impl-plan", m)
+		wantOne(t, res, tmpl.SeverityError, "metadata:Objective", "raw HTML", `"<details>"`, "swallow", banFix, `"Objective"`, `edit "Objective" under "metadata:"`)
+		if res.Findings[0].Line != 3 {
+			t.Errorf("line = %d, want 3", res.Findings[0].Line)
+		}
+	})
+	t.Run("metadata value, markdown", func(t *testing.T) {
+		m := mdPhaseMap()
+		m.Metadata["Status"] = tmpl.Field{Value: "<!-- hidden", Line: 4}
+		wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "metadata:Status", "raw HTML", `"<!--"`, `"**Status:**"`)
+	})
+	t.Run("entry name", func(t *testing.T) {
+		m := implPlanMap()
+		m.Sections["component"] = []tmpl.Entry{{Name: "Use <details> here", Content: "x", Line: 12}}
+		wantOne(t, check(t, "impl-plan", m), tmpl.SeverityError, "section:component", "raw HTML", `"<details>"`, "name", banFix)
+	})
+	t.Run("title", func(t *testing.T) {
+		m := phaseMap()
+		m.Title = "[PLAN-00112-1] Add <script> support"
+		wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "title", "raw HTML", `"<script>"`, banFix)
+	})
+	t.Run("inline code is fine in metadata", func(t *testing.T) {
+		m := implPlanMap()
+		m.Metadata["Objective"] = tmpl.Field{Value: "Collapse logs into `<details>` blocks", Line: 3}
+		if res := check(t, "impl-plan", m); len(res.Findings) != 0 {
+			t.Fatalf("want no findings:\n%s", res.Format())
+		}
+	})
+}
+
+// The setext rule runs on every line of content now that no HTML state can
+// skip lines.
+func TestCheckSetextAppliesAfterInlineHTML(t *testing.T) {
+	guardCase(t, "<kbd>x</kbd> <https://example.com>\n---", 1, "---", "horizontal rule")
+}
+
+func TestCheckRawHTMLInUnknownMarkdownMetadata(t *testing.T) {
+	m := mdPhaseMap()
+	m.Metadata["Notes"] = tmpl.Field{Value: "wrap logs in <details>", Line: 5}
+	res := check(t, "impl-phase", m)
+	var sawErr, sawWarn bool
+	for _, f := range res.Findings {
+		if f.Location != "metadata:Notes" {
+			t.Errorf("unexpected finding: %+v", f)
+		}
+		switch f.Severity {
+		case tmpl.SeverityError:
+			sawErr = true
+			for _, w := range []string{"raw HTML", `"<details>"`, `"Notes"`, "backticks", `"**Notes:**"`} {
+				if !strings.Contains(f.Message, w) {
+					t.Errorf("error %q missing %q", f.Message, w)
+				}
+			}
+			if f.Line != 5 {
+				t.Errorf("line = %d, want 5", f.Line)
+			}
+		case tmpl.SeverityWarning:
+			sawWarn = true
+		}
+	}
+	if !sawErr || !sawWarn {
+		t.Fatalf("want the raw-HTML error and the not-in-schema warning:\n%s", res.Format())
 	}
 }

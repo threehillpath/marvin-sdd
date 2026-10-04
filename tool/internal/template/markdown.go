@@ -64,10 +64,10 @@ func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineO
 				m.MisplacedMetadata = append(m.MisplacedMetadata, MisplacedField{Key: key, Line: i + 1, Above: strings.TrimSpace(lines[i-1])})
 			default:
 				accepted = true
-				if first, dup := m.Metadata[key]; dup {
-					m.RepeatedMetadata = append(m.RepeatedMetadata, RepeatedField{Key: key, FirstLine: first.Line, Line: i + 1})
-				} else {
+				if first, dup := m.Metadata[key]; !dup {
 					m.Metadata[key] = Field{Value: strings.TrimSpace(mm[2]), Line: i + 1}
+				} else if contains(sc.Metadata, key) { // unknown keys only get the not-in-schema warning
+					m.RepeatedMetadata = append(m.RepeatedMetadata, RepeatedField{Key: key, FirstLine: first.Line, Line: i + 1})
 				}
 				if _, bad := rawHTML(mm[2]); bad {
 					// The metadata check reports it, naming the key; keep the

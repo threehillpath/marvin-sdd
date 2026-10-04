@@ -91,7 +91,7 @@ marvin template validate impl-phase --draft <project-root>/.claude/cache/<plan>/
 `validate` makes no config or GitHub call and creates nothing. Exit codes:
 
 - **0** — the draft conforms.
-- **3** — the draft does not conform. The findings are on stdout, each naming a draft line and the fix. Fix that draft and validate it again. Make at most 3 fix-and-retry attempts per draft; if it still exits 3, show the user the findings and stop, with no issue created.
+- **3** — the draft does not conform. The findings are on stdout, each naming a draft line and the fix. Rewrite that draft file with `Write` to fix the findings and validate it again. Make at most 3 fix-and-retry attempts per draft; if it still exits 3, show the user the findings and stop, with no issue created.
 - **1** — a usage or operational error (for example an unreadable draft). Show stderr to the user and stop. Do not retry.
 
 Create issues only once every draft has exited 0.
@@ -121,7 +121,7 @@ marvin issue create --template impl-phase --draft <project-root>/.claude/cache/<
 The title comes from the draft, so do not pass `--title` or `--body`. On success stdout is the new issue number, then its URL; capture both. Warnings on stderr are fine. Handle the exit code:
 
 - **0** — created.
-- **3** — the draft does not conform; nothing was created. The findings are on stderr, each naming a draft line and the fix. Fix the draft and run the same command again. Make at most 3 fix-and-retry attempts; if it still exits 3, show the user the findings and stop.
+- **3** — the draft does not conform; nothing was created. The findings are on stderr, each naming a draft line and the fix. Rewrite the draft file with `Write` to fix the findings and run the same command again. Make at most 3 fix-and-retry attempts; if it still exits 3, show the user the findings and stop.
 - **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry.
 - **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry.
 
@@ -145,7 +145,7 @@ Before moving to step 4, re-fetch every created issue and confirm each one's bod
 gh issue view <issue-number> --repo <repo> --json title,body
 ```
 
-For each issue, check that the `## Objective` and `## Components` sections reference the same phase number and component(s) named in the title. If any issue's body describes a different phase, fix it immediately: correct that phase's draft file and run `marvin issue edit <issue-number> --template impl-phase --draft <corrected-draft>` (it replaces the body and the title, and handles exit codes 3, 1 and 2 the same way as `issue create`) before proceeding — do not defer this to a later skill.
+For each issue, check that the `## Objective` and `## Components` sections reference the same phase number and component(s) named in the title. If any issue's body describes a different phase, fix it immediately: rewrite that phase's draft file with `Write` and run `marvin issue edit <issue-number> --template impl-phase --draft <corrected-draft>` (it replaces the body and the title, and handles exit codes 3, 1 and 2 the same way as `issue create`) before proceeding — do not defer this to a later skill.
 
 ### 4. Post the phases-created comment
 

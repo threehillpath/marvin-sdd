@@ -267,6 +267,9 @@ func (c *checker) fix(yamlFix, mdFix string) string {
 	return yamlFix
 }
 
+// startsContainerRe matches a line that opens a block quote or list item.
+var startsContainerRe = regexp.MustCompile(`^(?:>|[-*+]\s|\d+[.)]\s)`)
+
 // misplaced reports whether key has a metadata-shaped line that was rejected.
 func (c *checker) misplaced(key string) bool {
 	for _, f := range c.m.MisplacedMetadata {
@@ -703,10 +706,14 @@ func (c *checker) checkMarkdownOnly() {
 			c.add(SeverityError, loc, f.Line, "the \"**%s:**\" line (line %d) is inside a code fence, so GitHub shows it as code, not as metadata. Move it out of the code fence, above the first \"## \" heading.", f.Key, f.Line)
 		default:
 			quoted := f.Above
+			container := ""
+			if startsContainerRe.MatchString(f.Above) {
+				container = ", so GitHub shows it inside that quote or list item"
+			}
 			if len(quoted) > 60 {
 				quoted = quoted[:60] + "..."
 			}
-			c.add(SeverityError, loc, f.Line, "the \"**%s:**\" line (line %d) follows the line %q (line %d) with no blank line between, so GitHub does not show it as metadata. Add a blank line after line %d.", f.Key, f.Line, quoted, f.AboveLine, f.AboveLine)
+			c.add(SeverityError, loc, f.Line, "the \"**%s:**\" line (line %d) follows the line %q (line %d) with no blank line between. Metadata must be the first line of the body, follow a blank line, or follow another metadata line%s. Add a blank line after line %d.", f.Key, f.Line, quoted, f.AboveLine, container, f.AboveLine)
 		}
 	}
 	for _, r := range c.m.RepeatedMetadata {

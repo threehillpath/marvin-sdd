@@ -279,6 +279,7 @@ func TestTemplateRenderUnknownSchemaIsReportedBeforeFlagAdvice(t *testing.T) {
 	for _, args := range [][]string{
 		{"template", "render", "nosuch"},
 		{"template", "render", "nosuch", "--skeleton", "--guidance"},
+		{"template", "render", "nosuch", "--draft", ""},
 	} {
 		var stdout, stderr bytes.Buffer
 		root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
@@ -288,8 +289,29 @@ func TestTemplateRenderUnknownSchemaIsReportedBeforeFlagAdvice(t *testing.T) {
 		if !errors.As(err, &cliErr) || cliErr.Code != 1 {
 			t.Fatalf("%v: want a CLIError with code 1, got %T: %v", args, err, err)
 		}
-		if !strings.Contains(cliErr.Msg, `unknown schema "nosuch"`) || strings.Contains(cliErr.Msg, "--skeleton") {
+		if !strings.Contains(cliErr.Msg, `unknown schema "nosuch"`) || strings.Contains(cliErr.Msg, "--skeleton") || strings.Contains(cliErr.Msg, "empty value") {
 			t.Errorf("%v: want the unknown-schema error alone, got %q", args, cliErr.Msg)
 		}
+	}
+}
+
+// TestTemplateRenderGoldmarkBackstopOnDraft verifies a draft whose only
+// problem is an HTML block in Scope (which Check alone accepts) exits 3 with
+// the finding on stderr and nothing on stdout.
+func TestTemplateRenderGoldmarkBackstopOnDraft(t *testing.T) {
+	draft := writeTemp(t, "d.yml", strings.Replace(phaseDraftOK, "    In scope.\n", "    In scope.\n\n    <div>\n    hidden\n    </div>\n", 1))
+	stdout, stderr, err := runCLI(t, "template", "render", "impl-phase", "--draft", draft)
+	wantCode(t, err, 3)
+	if stdout != "" {
+		t.Errorf("want empty stdout, got %q", stdout)
+	}
+	found := false
+	for _, l := range strings.Split(stderr, "\n") {
+		if strings.HasPrefix(l, "error section:scope") && strings.Contains(l, "HTML block") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no \"error section:scope ... HTML block\" line on stderr:\n%s", stderr)
 	}
 }

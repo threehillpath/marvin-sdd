@@ -452,6 +452,25 @@ func (c *Client) IssueCreate(ctx context.Context, repo, title, body string, labe
 	return number, url, nil
 }
 
+// IssueEdit runs `gh issue edit <number> --repo <repo> --body <body>`, adding
+// `--title <title>` only when title is non-empty (an empty title leaves the
+// issue's title unchanged). A non-zero exit surfaces as an error with gh's
+// stderr preserved.
+func (c *Client) IssueEdit(ctx context.Context, repo string, number int, title, body string) error {
+	args := []string{"issue", "edit", strconv.Itoa(number), "--repo", repo, "--body", body}
+	if title != "" {
+		args = append(args, "--title", title)
+	}
+	_, stderr, code, err := c.runner.Run(ctx, "gh", args...)
+	if err != nil {
+		return fmt.Errorf("gh issue edit: %w", err)
+	}
+	if code != 0 {
+		return fmt.Errorf("gh issue edit exited %d: %s", code, stderr)
+	}
+	return nil
+}
+
 // PRListItem represents a single pull request from gh pr list output.
 type PRListItem struct {
 	Number      int    `json:"number"`

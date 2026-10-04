@@ -2,9 +2,11 @@ package cli_test
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"threehillpath.com/marvin-sdd/tool/internal/cli"
+	"threehillpath.com/marvin-sdd/tool/internal/exectest"
 )
 
 // TestCLIErrorExitCode verifies that when the run helper encounters a CLIError{Code:2},
@@ -70,5 +72,20 @@ func TestNilErrorExitCode0(t *testing.T) {
 
 	if exitCode != 0 {
 		t.Errorf("expected exit code 0, got %d", exitCode)
+	}
+}
+
+// TestNonConformingExitCode3ReachesCaller verifies a non-conforming input
+// exits 3 through RunWithStreams, not just as a CLIError from Execute.
+func TestNonConformingExitCode3ReachesCaller(t *testing.T) {
+	draft := writeTemp(t, "d.yml", phaseDraftNoVerification)
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"template", "validate", "impl-phase", "--draft", draft})
+
+	code := cli.RunWithStreams(&stdout, &stderr, root.Execute)
+
+	if code != 3 {
+		t.Errorf("exit code = %d, want 3\nstderr: %s", code, stderr.String())
 	}
 }

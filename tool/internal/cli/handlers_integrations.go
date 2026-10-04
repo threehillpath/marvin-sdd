@@ -613,8 +613,10 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, title string, 
 			if titleSet && title != checkedTitle {
 				return &CLIError{Code: 1, Msg: fmt.Sprintf("issue create: --title %q does not match the draft's title %q: the title comes from the draft, so remove --title or make it equal to the draft's \"title:\"", title, checkedTitle)}
 			}
-			title, body = checkedTitle, checkedBody
 		}
+		// Send exactly what was checked, so a body file that changes after the
+		// check cannot be created unchecked.
+		title, body, bodyFile = checkedTitle, checkedBody, ""
 		fmt.Fprint(stderr, res.Format())
 	}
 	if title == "" {

@@ -59,3 +59,28 @@ func TestParseMarkdownMissingVerification(t *testing.T) {
 		t.Fatalf("complete body should have no findings:\n%s", got.Format())
 	}
 }
+
+// A "## Foo" line inside a fenced block in Scope is content, not a section,
+// and neither is one inside a longer or tilde fence.
+func TestParseMarkdownFencedHeadingIsContent(t *testing.T) {
+	for name, fenced := range map[string]string{
+		"backticks": "```\n## Foo\n```",
+		"tildes":    "~~~md\n## Foo\n~~~",
+		"long":      "````\n```\n## Foo\n```\n````",
+	} {
+		t.Run(name, func(t *testing.T) {
+			body := strings.Replace(phaseBody, "Includes things.", "Includes things.\n\n"+fenced, 1)
+			sc := loadBuiltIn(t, "impl-phase")
+			m := tmpl.ParseMarkdown(sc, "[PLAN-00112-1] X", body)
+			if len(m.UnknownHeadings) != 0 {
+				t.Fatalf("unknown headings: %+v", m.UnknownHeadings)
+			}
+			if got := m.Sections["scope"][0].Content; !strings.Contains(got, "## Foo") {
+				t.Errorf("scope content lost the fenced heading: %q", got)
+			}
+			if res := tmpl.Check(sc, builtIn, m); len(res.Findings) != 0 {
+				t.Fatalf("want no findings:\n%s", res.Format())
+			}
+		})
+	}
+}

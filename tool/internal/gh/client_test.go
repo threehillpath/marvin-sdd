@@ -538,3 +538,38 @@ func TestPRListDefaults(t *testing.T) {
 		}
 	}
 }
+
+// TestIssueEditArgs verifies the gh issue edit argv, with and without a title.
+func TestIssueEditArgs(t *testing.T) {
+	for _, tc := range []struct {
+		name, title string
+		want        []string
+	}{
+		{"with title", "new title", []string{"issue", "edit", "7", "--repo", "o/r", "--body", "body", "--title", "new title"}},
+		{"without title", "", []string{"issue", "edit", "7", "--repo", "o/r", "--body", "body"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &exectest.FakeRunner{}
+			fake.Enqueue(exectest.FakeResponse{Stdout: []byte("https://github.com/o/r/issues/7\n")})
+			if err := gh.New(fake).IssueEdit(context.Background(), "o/r", 7, tc.title, "body"); err != nil {
+				t.Fatalf("IssueEdit returned error: %v", err)
+			}
+			if len(fake.Calls) != 1 {
+				t.Fatalf("expected 1 call, got %d", len(fake.Calls))
+			}
+			if got := fake.Calls[0].Args; strings.Join(got, "\x00") != strings.Join(tc.want, "\x00") {
+				t.Errorf("args = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestIssueEditNonZeroExitReturnsError verifies a failing gh is never a silent nil.
+func TestIssueEditNonZeroExitReturnsError(t *testing.T) {
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stderr: []byte("gh: not found"), ExitCode: 1})
+	err := gh.New(fake).IssueEdit(context.Background(), "o/r", 7, "t", "b")
+	if err == nil || !strings.Contains(err.Error(), "gh: not found") {
+		t.Fatalf("want an error carrying gh's stderr, got %v", err)
+	}
+}

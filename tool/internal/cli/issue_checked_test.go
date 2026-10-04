@@ -73,3 +73,36 @@ func TestIssueCreateConformingDraftCreatesOnce(t *testing.T) {
 		t.Errorf("want the schema line on stderr, got %q", stderr)
 	}
 }
+
+// TestIssueEditDraftEditsBodyAndTitle verifies a conforming draft makes
+// exactly one gh issue edit call with the rendered body and the draft title,
+// and prints nothing on stdout.
+func TestIssueEditDraftEditsBodyAndTitle(t *testing.T) {
+	withConfigFixture(t)
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	rendered, _, err := runCLI(t, "template", "render", "impl-phase", "--draft", draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("https://github.com/threehillpath/marvin-sdd/issues/7\n")})
+
+	stdout, stderr, err := runIssue(fake, "issue", "edit", "7", "--template", "impl-phase", "--draft", draft)
+	if err != nil {
+		t.Fatalf("edit returned %v\nstderr: %s", err, stderr)
+	}
+
+	if len(fake.Calls) != 1 {
+		t.Fatalf("want 1 gh call, got %v", fake.Calls)
+	}
+	want := []string{"issue", "edit", "7", "--repo", "threehillpath/marvin-sdd", "--body", rendered, "--title", "[PLAN-00112-5] Phase title"}
+	if got := fake.Calls[0].Args; strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Errorf("args = %q\nwant   %q", got, want)
+	}
+	if stdout != "" {
+		t.Errorf("want empty stdout, got %q", stdout)
+	}
+	if !strings.HasPrefix(stderr, "schema: impl-phase (built-in)\n") {
+		t.Errorf("want the schema line on stderr, got %q", stderr)
+	}
+}

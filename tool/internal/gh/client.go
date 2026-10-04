@@ -452,6 +452,11 @@ func (c *Client) IssueCreate(ctx context.Context, repo, title, body string, labe
 	return number, url, nil
 }
 
+// IssueEdit is a stub; the implementation follows its test.
+func (c *Client) IssueEdit(ctx context.Context, repo string, number int, title, body string) error {
+	return fmt.Errorf("gh issue edit: not implemented")
+}
+
 // PRListItem represents a single pull request from gh pr list output.
 type PRListItem struct {
 	Number      int    `json:"number"`

@@ -39,3 +39,37 @@ func TestIssueCreateBadDraftExits3WithoutCalls(t *testing.T) {
 		t.Errorf("want the verification finding on stderr:\n%s", stderr)
 	}
 }
+
+// TestIssueCreateConformingDraftCreatesOnce verifies a conforming draft makes
+// exactly one gh issue create call whose --title is the draft's title and
+// whose --body is the rendered markdown, with number then URL on stdout and
+// the schema line on stderr.
+func TestIssueCreateConformingDraftCreatesOnce(t *testing.T) {
+	withConfigFixture(t)
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	rendered, _, err := runCLI(t, "template", "render", "impl-phase", "--draft", draft)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("https://github.com/threehillpath/marvin-sdd/issues/55\n")})
+
+	stdout, stderr, err := runIssue(fake, "issue", "create", "--template", "impl-phase", "--draft", draft, "--label", "plan:phase")
+	if err != nil {
+		t.Fatalf("create returned %v\nstderr: %s", err, stderr)
+	}
+
+	if len(fake.Calls) != 1 {
+		t.Fatalf("want 1 gh call, got %v", fake.Calls)
+	}
+	want := []string{"issue", "create", "--repo", "threehillpath/marvin-sdd", "--title", "[PLAN-00112-5] Phase title", "--body", rendered, "--label", "plan:phase"}
+	if got := fake.Calls[0].Args; strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Errorf("args = %q\nwant   %q", got, want)
+	}
+	if stdout != "55\nhttps://github.com/threehillpath/marvin-sdd/issues/55\n" {
+		t.Errorf("stdout = %q", stdout)
+	}
+	if !strings.HasPrefix(stderr, "schema: impl-phase (built-in)\n") {
+		t.Errorf("want the schema line on stderr, got %q", stderr)
+	}
+}

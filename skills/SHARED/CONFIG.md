@@ -115,7 +115,7 @@ Rules. `--guidance` prints the quoting, `|` block, heading, comment, document-ma
 - The title and every metadata value are always double-quoted. Inside them write `\"` for a quote and `\\` for a backslash.
 - Each key appears once. A repeatable section is one list: `- |` items, or `- name: "…"` plus `content: |` for a named section.
 - Indent with spaces, never tabs.
-- No `## ` lines in content; use `###` or deeper.
+- No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`.
 - No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
 
 ### Exit codes

@@ -72,7 +72,7 @@ Fill every key of the skeleton with substantive content from the arch plan analy
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated (`component:` is a list of entries, each with `name: ""` and `content: |`).
 - The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
 - Each key appears once. Indent with spaces, never tabs.
-- No `## ` lines in content; use `###` or deeper.
+- No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`.
 - No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
 
 **TDD**: Each component section must include a TDD Entry Point. The only exemption is for **rendered controls** — the JSX/template markup, styling, and rendering itself. All logic that lives inside a component (event handlers, derived state, validation, formatting, conditional-render predicates) must be extracted to a non-component module and given a TDD entry point. The litmus test: if it can be tested with the DOM removed, it is logic. See `SUPPLEMENTS/TDD.md` for full scope.

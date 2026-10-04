@@ -77,7 +77,7 @@ Each phase gets its own draft file, `<project-root>/.claude/cache/<plan>/phase-N
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
 - The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
 - Each key appears once. Indent with spaces, never tabs.
-- No `## ` lines in content; use `###` or deeper.
+- No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`.
 - No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
 
 Each phase's title and body live together in its one draft file, so a body cannot drift from its title. Write every phase's draft first, then validate every one of them **before the first `issue create`**:

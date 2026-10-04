@@ -777,11 +777,14 @@ func runIssueEdit(stderr io.Writer, cfg *config.Config, numberArg string, f issu
 	checked := false
 	if sc != nil && (f.draft != "") != (f.bodyFile != "") {
 		var currentTitle string
+		var bodyData []byte
 		proceed := true
 		if f.bodyFile != "" {
-			// Read the file before spending a network call on the title; checkInput
-			// reads (and checks) it again below, and that read is the one sent.
-			if _, readErr := os.ReadFile(f.bodyFile); readErr != nil {
+			// Read the file once, before spending a network call on the title:
+			// these bytes are both checked and sent (a pipe or /dev/stdin
+			// cannot be read twice).
+			var readErr error
+			if bodyData, readErr = os.ReadFile(f.bodyFile); readErr != nil {
 				p.add(fmt.Sprintf("%sreading --body-file %q: %v", prefix, f.bodyFile, readErr))
 				proceed = false
 			} else if len(p) == 0 {
@@ -797,8 +800,10 @@ func runIssueEdit(stderr io.Writer, cfg *config.Config, numberArg string, f issu
 				proceed = false
 			}
 		}
-		if proceed {
-			b, t, r, err := checkInput(sc, origin, f.draft, f.bodyFile, currentTitle, false)
+		if proceed && f.bodyFile != "" {
+			body, title, res, checked = string(bodyData), currentTitle, tmplpkg.CheckMarkdown(sc, origin, currentTitle, string(bodyData)), true
+		} else if proceed {
+			b, t, r, err := checkInput(sc, origin, f.draft, "", "", false)
 			if err != nil {
 				p.add(errMsg(err))
 			} else {

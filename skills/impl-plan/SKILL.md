@@ -71,6 +71,7 @@ Fill every key of the skeleton with substantive content from the arch plan analy
 
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated (`component:` is a list of entries, each with `name: ""` and `content: |`).
 - The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
+- Two metadata values are checked: `Architecture Plan` and `Source Issue` each start with an issue reference, `#<n>` (for example `#131 ([PLAN-00112-ARCH])`). If they name a plan, it must be the title's plan number.
 - Each key appears once. Indent with spaces, never tabs.
 - No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`.
 - No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.

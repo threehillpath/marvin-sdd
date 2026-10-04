@@ -80,7 +80,7 @@ The plugin is installed only from the GitHub marketplace (`plan-workflow@plan-wo
 
 Subcommand groups: `config`, `names`, `parse`, `template`, `board`, `issue`, `label`, `pr`, `findings`, `worktree`, `version`.
 
-Exit-code contract: `0` = success, `1` = operational error, `2` = config missing or malformed. Output contract: `stdout` = data, `stderr` = diagnostics.
+Exit-code contract: `0` = success, `1` = operational error, `2` = config missing or malformed, `3` = a draft or body that does not conform to its plan schema. Output contract: `stdout` = data, `stderr` = diagnostics.
 
 ## Skills (in workflow order)
 

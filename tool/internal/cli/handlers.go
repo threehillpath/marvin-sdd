@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"threehillpath.com/marvin-sdd/tool/internal/clierr"
 	"threehillpath.com/marvin-sdd/tool/internal/config"
 	"threehillpath.com/marvin-sdd/tool/internal/names"
 	"threehillpath.com/marvin-sdd/tool/internal/parse"
@@ -325,36 +326,54 @@ func runParsePhaseList(stdin io.Reader, stdout, stderr io.Writer, jsonOut bool) 
 	return enc.Encode(out)
 }
 
-// runTemplateRender prints a schema's empty YAML draft (--skeleton) or its
-// plain-text guidance (--guidance). Rendering a filled-in draft arrives with
-// --draft in a later phase; until then a render with neither flag has nothing
-// to do and says so.
-func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, guidance bool) error {
-	schemaYAML, origin, err := resolveSchema(schemaName)
+// runTemplateRender prints a schema's empty YAML draft (--skeleton), its
+// plain-text guidance (--guidance), or a draft rendered to markdown (--draft).
+// Rendered markdown goes to stdout and warnings to stderr; an error finding
+// exits 3 with the findings on stderr and nothing on stdout.
+func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, guidance bool, draftPath string) error {
+	sc, origin, err := loadSchema(schemaName)
 	if err != nil {
-		return &CLIError{Code: 1, Msg: err.Error()}
+		return err
 	}
-	sc, err := tmplpkg.LoadSchema(origin, schemaYAML)
-	if err != nil {
-		return &CLIError{Code: 1, Msg: err.Error()}
+	modes := 0
+	for _, on := range []bool{skeleton, guidance, draftPath != ""} {
+		if on {
+			modes++
+		}
 	}
-	if skeleton && guidance {
-		return &CLIError{Code: 1, Msg: fmt.Sprintf("--skeleton and --guidance cannot be combined: pass only one. Run \"marvin template render %s --skeleton\" for the empty YAML draft, or \"marvin template render %s --guidance\" for the help text", schemaName, schemaName)}
+	if modes > 1 {
+		return &CLIError{Code: 1, Msg: fmt.Sprintf("--skeleton, --guidance and --draft cannot be combined: pass only one. Run \"marvin template render %s --skeleton\" for the empty YAML draft, \"marvin template render %s --guidance\" for the help text, or \"marvin template render %s --draft <file.yml>\" to render a draft", schemaName, schemaName, schemaName)}
 	}
-	if !skeleton && !guidance {
-		return &CLIError{Code: 1, Msg: fmt.Sprintf("nothing to render for %s: the JSON input (--sections, --meta) was removed and draft input is not available yet. Run \"marvin template render %s --skeleton\" to get an empty YAML draft, or \"marvin template render %s --guidance\" for how to fill it in", schemaName, schemaName, schemaName)}
+	if modes == 0 {
+		return &CLIError{Code: 1, Msg: fmt.Sprintf("nothing to render for %s: pass --draft <file.yml> to render a draft, \"marvin template render %s --skeleton\" to get an empty YAML draft, or \"marvin template render %s --guidance\" for how to fill it in", schemaName, schemaName, schemaName)}
 	}
 	if guidance {
 		fmt.Fprint(stdout, tmplpkg.Guidance(sc))
 		return nil
 	}
-	fmt.Fprint(stdout, tmplpkg.Skeleton(sc))
+	if skeleton {
+		fmt.Fprint(stdout, tmplpkg.Skeleton(sc))
+		return nil
+	}
+	body, res, err := checkInput(sc, origin, draftPath, "", "", false)
+	if err != nil {
+		return err
+	}
+	if res.HasErrors() {
+		fmt.Fprint(stderr, res.Format())
+		return clierr.NonConforming(fmt.Sprintf("the draft does not conform to the %s schema; nothing was rendered. Fix the findings above and run again", schemaName))
+	}
+	if len(res.Findings) > 0 {
+		fmt.Fprint(stderr, res.Format())
+	}
+	fmt.Fprint(stdout, body)
 	return nil
 }
 
 // resolveSchema returns the YAML schema bytes for schemaName and a short
-// label identifying where they came from ("project override" or "built-in
-// schema", used to make render/parse error messages actionable), per the
+// origin string: "project override: <path>" or "built-in". The origin is shown
+// on the "schema:" line and in the JSON "origin" field, and it prefixes schema
+// errors so they are actionable. Lookup follows the
 // precedence documented in skills/SHARED/CONFIG.md:
 //  1. Project override: .claude/plan-workflow-templates/{schemaName}.yml,
 //     found by walking up from cwd (sibling to the config file's own lookup).
@@ -368,43 +387,128 @@ func resolveSchema(schemaName string) (data []byte, origin string, err error) {
 	// fallback below, which needs no CWD at all — it only means a project
 	// override (which does need one) cannot be searched for.
 	if cwd, cwdErr := os.Getwd(); cwdErr == nil {
-		overrideData, ok, overrideErr := findSchemaOverride(cwd, schemaName)
+		overrideData, overridePath, ok, overrideErr := findSchemaOverride(cwd, schemaName)
 		if overrideErr != nil {
 			return nil, "", fmt.Errorf("resolving schema %q: %w", schemaName, overrideErr)
 		}
 		if ok {
-			return overrideData, "project override", nil
+			return overrideData, "project override: " + overridePath, nil
 		}
 	}
 	if data, ok := tmplpkg.DefaultSchema(schemaName); ok {
-		return data, "built-in schema", nil
+		return data, "built-in", nil
 	}
 	return nil, "", fmt.Errorf("unknown schema %q: no project override and no plugin default", schemaName)
 }
 
 // findSchemaOverride walks up from startDir looking for a project-supplied
-// .claude/plan-workflow-templates/{schemaName}.yml. A missing file at a
+// .claude/plan-workflow-templates/{schemaName}.yml and returns its bytes and the
+// path of the override it read. A missing file at a
 // given level is not an error — the walk continues upward — but any other
 // read failure on a file that does exist there (permission denied, a
 // directory in place of a file, ...) is reported rather than silently
 // treated as "no override," which would otherwise fall through to the
 // embedded default with no signal that the override was ignored.
-func findSchemaOverride(startDir, schemaName string) ([]byte, bool, error) {
+func findSchemaOverride(startDir, schemaName string) ([]byte, string, bool, error) {
 	filename := schemaName + ".yml"
 	dir := startDir
 	for {
 		candidate := filepath.Join(dir, ".claude", "plan-workflow-templates", filename)
 		data, err := os.ReadFile(candidate)
 		if err == nil {
-			return data, true, nil
+			return data, candidate, true, nil
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
-			return nil, false, fmt.Errorf("reading project template override %q: %w", candidate, err)
+			return nil, "", false, fmt.Errorf("reading project template override %q: %w", candidate, err)
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return nil, false, nil
+			return nil, "", false, nil
 		}
 		dir = parent
 	}
+}
+
+// checkInput checks a YAML draft (draftPath) or a markdown body (bodyPath,
+// with title) against sc. Exactly one of the two paths must be set. For a
+// draft it renders, so the goldmark verification backstop runs too; the
+// rendered body is returned when the draft conforms.
+func checkInput(sc *tmplpkg.Schema, origin, draftPath, bodyPath, title string, titleSet bool) (string, tmplpkg.Result, error) {
+	if (draftPath == "") == (bodyPath == "") {
+		return "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: "pass exactly one of --draft <file.yml> or --body-file <file.md>"}
+	}
+	if draftPath != "" {
+		if titleSet {
+			return "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: "--title applies only to --body-file: with --draft the title comes from the draft's \"title:\" key. Remove --title, or edit \"title:\" in the draft"}
+		}
+		data, err := os.ReadFile(draftPath)
+		if err != nil {
+			return "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: fmt.Sprintf("reading draft: %v", err)}
+		}
+		m, findings := tmplpkg.LoadDraft(sc, data)
+		if len(findings) > 0 {
+			return "", tmplpkg.Result{Type: sc.Type, Origin: origin, Findings: findings}, nil
+		}
+		body, res := tmplpkg.Render(sc, origin, m)
+		return body, res, nil
+	}
+	data, err := os.ReadFile(bodyPath)
+	if err != nil {
+		return "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: fmt.Sprintf("reading body file: %v", err)}
+	}
+	return "", tmplpkg.CheckMarkdown(sc, origin, title, string(data)), nil
+}
+
+// loadSchema resolves and loads the schema for schemaName; any failure is
+// an operational error (exit 1), never a fallback to the built-in.
+func loadSchema(schemaName string) (*tmplpkg.Schema, string, error) {
+	schemaYAML, origin, err := resolveSchema(schemaName)
+	if err != nil {
+		return nil, "", &CLIError{Code: 1, Msg: err.Error()}
+	}
+	sc, err := tmplpkg.LoadSchema(origin, schemaYAML)
+	if err != nil {
+		return nil, "", &CLIError{Code: 1, Msg: err.Error()}
+	}
+	return sc, origin, nil
+}
+
+// runTemplateValidate prints the formatted check Result to stdout and exits 3
+// when it holds an error finding.
+func runTemplateValidate(stdout io.Writer, schemaName, draftPath, bodyPath, title string, titleSet, jsonOut bool) error {
+	sc, origin, err := loadSchema(schemaName)
+	if err != nil {
+		return err
+	}
+	_, res, err := checkInput(sc, origin, draftPath, bodyPath, title, titleSet)
+	if err != nil {
+		return err
+	}
+	if jsonOut {
+		type jsonFinding struct {
+			Severity string `json:"severity"`
+			Location string `json:"location"`
+			Line     int    `json:"line"`
+			Message  string `json:"message"`
+		}
+		out := struct {
+			Schema   string        `json:"schema"`
+			Origin   string        `json:"origin"`
+			Findings []jsonFinding `json:"findings"`
+		}{Schema: res.Type, Origin: res.Origin, Findings: []jsonFinding{}}
+		for _, f := range res.Sorted() {
+			out.Findings = append(out.Findings, jsonFinding{string(f.Severity), f.Location, f.Line, f.Message})
+		}
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(out); err != nil {
+			return err
+		}
+	} else {
+		fmt.Fprint(stdout, res.Format())
+	}
+	if res.HasErrors() {
+		return clierr.NonConforming(fmt.Sprintf("the input does not conform to the %s schema; see the findings above", schemaName))
+	}
+	return nil
 }

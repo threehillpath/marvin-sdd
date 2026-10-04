@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"threehillpath.com/marvin-sdd/tool/internal/exec"
+	tmplpkg "threehillpath.com/marvin-sdd/tool/internal/template"
 )
 
 // NewRootCmd constructs the root Cobra command with all subcommand groups registered.
@@ -178,22 +180,41 @@ func newParseCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 func newTemplateCmd(stdout, stderr io.Writer) *cobra.Command {
 	tmpl := &cobra.Command{
 		Use:   "template",
-		Short: "Render plan issue templates",
+		Short: "Render and validate plan issue templates",
 	}
 
+	typeList := strings.Join(tmplpkg.DefaultSchemaNames(), "|")
 	var skeleton, guidance bool
+	var rDraft string
 
 	renderCmd := &cobra.Command{
-		Use:   "render <arch-plan|impl-plan|impl-phase>",
-		Short: "Render a plan template from schema",
+		Use:   "render <" + typeList + ">",
+		Short: "Render a skeleton, guidance, or a draft for a plan schema",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runTemplateRender(stdout, stderr, args[0], skeleton, guidance)
+			return runTemplateRender(stdout, stderr, args[0], skeleton, guidance, rDraft)
 		},
 	}
 	renderCmd.Flags().BoolVar(&skeleton, "skeleton", false, "Output an empty YAML draft for the schema")
-	renderCmd.Flags().BoolVar(&guidance, "guidance", false, "Output plain-text guidance for filling in a draft (exclusive with --skeleton)")
+	renderCmd.Flags().BoolVar(&guidance, "guidance", false, "Output plain-text guidance for filling in a draft (exclusive with --skeleton and --draft)")
 
-	tmpl.AddCommand(renderCmd)
+	var vDraft, vBody, vTitle string
+	var vJSON bool
+	validateCmd := &cobra.Command{
+		Use:   "validate <" + typeList + ">",
+		Short: "Check a draft or markdown body against a plan schema",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runTemplateValidate(stdout, args[0], vDraft, vBody, vTitle, cmd.Flags().Changed("title"), vJSON)
+		},
+	}
+	validateCmd.Flags().StringVar(&vDraft, "draft", "", "YAML draft file to check")
+	validateCmd.Flags().StringVar(&vBody, "body-file", "", "Markdown body file to check")
+	validateCmd.Flags().StringVar(&vTitle, "title", "", "Issue title (with --body-file)")
+	validateCmd.Flags().BoolVar(&vJSON, "json", false, "Output JSON instead of plain text")
+
+	renderCmd.Flags().StringVar(&rDraft, "draft", "", "YAML draft file to render to markdown on stdout")
+
+	tmpl.AddCommand(renderCmd, validateCmd)
 	return tmpl
 }

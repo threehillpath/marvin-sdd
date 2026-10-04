@@ -871,13 +871,11 @@ func (c *checker) checkNumbering() {
 	}
 }
 
-// Format renders the result as plain text: a "schema: <type> (<origin>)"
-// line, then one line per finding. Errors come before warnings; within each
-// group, findings with a known line come first in line order, then the rest
-// in the order they were found.
-func (r Result) Format() string {
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "schema: %s (%s)\n", r.Type, r.Origin)
+// Sorted returns the findings in display order: errors before warnings; within
+// each group, findings with a known line come first in line order, then the
+// rest in the order they were found. Result.Findings is left unchanged.
+func (r Result) Sorted() []Finding {
+	var out []Finding
 	for _, sev := range []Severity{SeverityError, SeverityWarning} {
 		var group []Finding
 		for _, f := range r.Findings {
@@ -892,12 +890,21 @@ func (r Result) Format() string {
 			}
 			return a < b
 		})
-		for _, f := range group {
-			if f.Line > 0 {
-				fmt.Fprintf(&sb, "%s %s line %d: %s\n", f.Severity, f.Location, f.Line, f.Message)
-			} else {
-				fmt.Fprintf(&sb, "%s %s: %s\n", f.Severity, f.Location, f.Message)
-			}
+		out = append(out, group...)
+	}
+	return out
+}
+
+// Format renders the result as plain text: a "schema: <type> (<origin>)"
+// line, then one line per finding in Sorted order.
+func (r Result) Format() string {
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "schema: %s (%s)\n", r.Type, r.Origin)
+	for _, f := range r.Sorted() {
+		if f.Line > 0 {
+			fmt.Fprintf(&sb, "%s %s line %d: %s\n", f.Severity, f.Location, f.Line, f.Message)
+		} else {
+			fmt.Fprintf(&sb, "%s %s: %s\n", f.Severity, f.Location, f.Message)
 		}
 	}
 	return sb.String()

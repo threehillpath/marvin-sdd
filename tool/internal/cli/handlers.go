@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"threehillpath.com/marvin-sdd/tool/internal/clierr"
 	"threehillpath.com/marvin-sdd/tool/internal/config"
 	"threehillpath.com/marvin-sdd/tool/internal/names"
 	"threehillpath.com/marvin-sdd/tool/internal/parse"
@@ -368,16 +369,16 @@ func resolveSchema(schemaName string) (data []byte, origin string, err error) {
 	// fallback below, which needs no CWD at all — it only means a project
 	// override (which does need one) cannot be searched for.
 	if cwd, cwdErr := os.Getwd(); cwdErr == nil {
-		overrideData, ok, overrideErr := findSchemaOverride(cwd, schemaName)
+		overrideData, overridePath, ok, overrideErr := findSchemaOverride(cwd, schemaName)
 		if overrideErr != nil {
 			return nil, "", fmt.Errorf("resolving schema %q: %w", schemaName, overrideErr)
 		}
 		if ok {
-			return overrideData, "project override", nil
+			return overrideData, "project override: " + overridePath, nil
 		}
 	}
 	if data, ok := tmplpkg.DefaultSchema(schemaName); ok {
-		return data, "built-in schema", nil
+		return data, "built-in", nil
 	}
 	return nil, "", fmt.Errorf("unknown schema %q: no project override and no plugin default", schemaName)
 }
@@ -389,22 +390,81 @@ func resolveSchema(schemaName string) (data []byte, origin string, err error) {
 // directory in place of a file, ...) is reported rather than silently
 // treated as "no override," which would otherwise fall through to the
 // embedded default with no signal that the override was ignored.
-func findSchemaOverride(startDir, schemaName string) ([]byte, bool, error) {
+func findSchemaOverride(startDir, schemaName string) ([]byte, string, bool, error) {
 	filename := schemaName + ".yml"
 	dir := startDir
 	for {
 		candidate := filepath.Join(dir, ".claude", "plan-workflow-templates", filename)
 		data, err := os.ReadFile(candidate)
 		if err == nil {
-			return data, true, nil
+			return data, candidate, true, nil
 		}
 		if !errors.Is(err, fs.ErrNotExist) {
-			return nil, false, fmt.Errorf("reading project template override %q: %w", candidate, err)
+			return nil, "", false, fmt.Errorf("reading project template override %q: %w", candidate, err)
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return nil, false, nil
+			return nil, "", false, nil
 		}
 		dir = parent
 	}
+}
+
+// checkInput checks a YAML draft (draftPath) or a markdown body (bodyPath,
+// with title) against sc. Exactly one of the two paths must be set. For a
+// draft it renders, so the goldmark verification backstop runs too; the
+// rendered body is returned when the draft conforms.
+func checkInput(sc *tmplpkg.Schema, origin, draftPath, bodyPath, title string) (string, tmplpkg.Result, error) {
+	if (draftPath == "") == (bodyPath == "") {
+		return "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: "pass exactly one of --draft <file.yml> or --body-file <file.md>"}
+	}
+	if draftPath != "" {
+		data, err := os.ReadFile(draftPath)
+		if err != nil {
+			return "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: fmt.Sprintf("reading draft: %v", err)}
+		}
+		m, findings := tmplpkg.LoadDraft(sc, data)
+		if len(findings) > 0 {
+			return "", tmplpkg.Result{Type: sc.Type, Origin: origin, Findings: findings}, nil
+		}
+		body, res := tmplpkg.Render(sc, origin, m)
+		return body, res, nil
+	}
+	data, err := os.ReadFile(bodyPath)
+	if err != nil {
+		return "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: fmt.Sprintf("reading body file: %v", err)}
+	}
+	return "", tmplpkg.CheckMarkdown(sc, origin, title, string(data)), nil
+}
+
+// loadSchema resolves and loads the schema for schemaName; any failure is
+// an operational error (exit 1), never a fallback to the built-in.
+func loadSchema(schemaName string) (*tmplpkg.Schema, string, error) {
+	schemaYAML, origin, err := resolveSchema(schemaName)
+	if err != nil {
+		return nil, "", &CLIError{Code: 1, Msg: err.Error()}
+	}
+	sc, err := tmplpkg.LoadSchema(origin, schemaYAML)
+	if err != nil {
+		return nil, "", &CLIError{Code: 1, Msg: err.Error()}
+	}
+	return sc, origin, nil
+}
+
+// runTemplateValidate prints the formatted check Result to stdout and exits 3
+// when it holds an error finding.
+func runTemplateValidate(stdout io.Writer, schemaName, draftPath, bodyPath, title string, jsonOut bool) error {
+	sc, origin, err := loadSchema(schemaName)
+	if err != nil {
+		return err
+	}
+	_, res, err := checkInput(sc, origin, draftPath, bodyPath, title)
+	if err != nil {
+		return err
+	}
+	fmt.Fprint(stdout, res.Format())
+	if res.HasErrors() {
+		return clierr.NonConforming(fmt.Sprintf("the input does not conform to the %s schema; see the findings above", schemaName))
+	}
+	return nil
 }

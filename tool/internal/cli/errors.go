@@ -16,6 +16,7 @@ const configHint = "Run /configure-plan-plugin to create or repair the config fi
 
 // RunWithStreams executes fn and returns an exit code derived from the error:
 //   - nil → 0
+//   - *CLIError{Code:N} → N (3 means the checked input does not conform)
 //   - *CLIError{Code:N} → N (message to stderr; if Code==2 the config hint is appended)
 //   - any other error → 1
 //

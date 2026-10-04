@@ -194,6 +194,21 @@ func newTemplateCmd(stdout, stderr io.Writer) *cobra.Command {
 	renderCmd.Flags().BoolVar(&skeleton, "skeleton", false, "Output an empty YAML draft for the schema")
 	renderCmd.Flags().BoolVar(&guidance, "guidance", false, "Output plain-text guidance for filling in a draft (exclusive with --skeleton)")
 
-	tmpl.AddCommand(renderCmd)
+	var vDraft, vBody, vTitle string
+	var vJSON bool
+	validateCmd := &cobra.Command{
+		Use:   "validate <type>",
+		Short: "Check a draft or markdown body against a plan schema",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runTemplateValidate(stdout, args[0], vDraft, vBody, vTitle, vJSON)
+		},
+	}
+	validateCmd.Flags().StringVar(&vDraft, "draft", "", "YAML draft file to check")
+	validateCmd.Flags().StringVar(&vBody, "body-file", "", "Markdown body file to check")
+	validateCmd.Flags().StringVar(&vTitle, "title", "", "Issue title (with --body-file)")
+	validateCmd.Flags().BoolVar(&vJSON, "json", false, "Output JSON instead of plain text")
+
+	tmpl.AddCommand(renderCmd, validateCmd)
 	return tmpl
 }

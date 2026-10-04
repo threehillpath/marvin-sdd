@@ -731,3 +731,21 @@ func TestProblemFormat(t *testing.T) {
 		}
 	}
 }
+
+const titleChecksNote = "note: checks that need the title (title/metadata cross-references and the rendered-structure check) did not run; they run once --title is given"
+
+// TestCreateBodyFileWithoutTitleSaysTitleChecksDidNotRun verifies that when
+// the missing title is reported as a usage problem, the checks that need the
+// title are said not to have run, so a clean-looking body is not mistaken for
+// a fully checked one.
+func TestCreateBodyFileWithoutTitleSaysTitleChecksDidNotRun(t *testing.T) {
+	withConfigFixture(t)
+	fake := &exectest.FakeRunner{}
+	code, stdout, stderr := runIssueExit(fake, "issue", "create", "--template", "impl-phase", "--body-file", writeTemp(t, "b.md", conformingPhaseBody))
+	if code != 1 || stdout != "" || len(fake.Calls) != 0 {
+		t.Fatalf("code=%d stdout=%q calls=%v", code, stdout, fake.Calls)
+	}
+	if !strings.Contains(stderr, titleChecksNote) {
+		t.Errorf("stderr should carry the note %q:\n%s", titleChecksNote, stderr)
+	}
+}

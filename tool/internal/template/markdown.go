@@ -45,7 +45,11 @@ func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineO
 	for i, line := range lines[:end] {
 		origins[i] = lineOrigin{loc: "draft", what: "the text above the first \"## \" heading", line: i + 1, where: "edit that text"}
 		if mm := metadataLineRe.FindStringSubmatch(line); mm != nil {
-			m.Metadata[mm[1]] = Field{Value: strings.TrimSpace(mm[2]), Line: i + 1}
+			if first, dup := m.Metadata[mm[1]]; dup {
+				m.RepeatedMetadata = append(m.RepeatedMetadata, RepeatedField{Key: mm[1], FirstLine: first.Line, Line: i + 1})
+			} else {
+				m.Metadata[mm[1]] = Field{Value: strings.TrimSpace(mm[2]), Line: i + 1}
+			}
 			origins[i] = lineOrigin{loc: "metadata:" + mm[1], what: fmt.Sprintf("metadata value %q", mm[1]), line: i + 1, where: fmt.Sprintf("edit the \"**%s:**\" line", mm[1])}
 		}
 	}

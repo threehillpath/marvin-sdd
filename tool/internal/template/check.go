@@ -55,6 +55,18 @@ type SectionMap struct {
 	Metadata        map[string]Field
 	Sections        map[string][]Entry
 	UnknownHeadings []Heading // markdown only
+
+	// RepeatedMetadata lists metadata lines that repeat an earlier key; the
+	// map keeps the first value. Markdown only.
+	RepeatedMetadata []RepeatedField
+}
+
+// RepeatedField is a metadata key written a second time, at Line, after
+// FirstLine.
+type RepeatedField struct {
+	Key       string
+	FirstLine int
+	Line      int
 }
 
 // Severity of a finding.
@@ -626,6 +638,9 @@ func (c *checker) checkRawHTML(loc string, line int, what, text, fix string) {
 func (c *checker) checkMarkdownOnly() {
 	if c.m.Source != SourceMarkdown {
 		return
+	}
+	for _, r := range c.m.RepeatedMetadata {
+		c.add(SeverityError, "metadata:"+r.Key, r.Line, "metadata key %q appears twice (line %d and line %d). Remove the duplicate line or merge its value into the first.", r.Key, r.FirstLine, r.Line)
 	}
 	for _, h := range c.m.UnknownHeadings {
 		c.checkContentStructure("draft", fmt.Sprintf("the unknown heading \"## %s\"", h.Text), h.Content, h.Line)

@@ -182,13 +182,14 @@ func newTemplateCmd(stdout, stderr io.Writer) *cobra.Command {
 	}
 
 	var skeleton, guidance bool
+	var rDraft string
 
 	renderCmd := &cobra.Command{
 		Use:   "render <arch-plan|impl-plan|impl-phase>",
 		Short: "Render a plan template from schema",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runTemplateRender(stdout, stderr, args[0], skeleton, guidance)
+			return runTemplateRender(stdout, stderr, args[0], skeleton, guidance, rDraft)
 		},
 	}
 	renderCmd.Flags().BoolVar(&skeleton, "skeleton", false, "Output an empty YAML draft for the schema")
@@ -208,6 +209,8 @@ func newTemplateCmd(stdout, stderr io.Writer) *cobra.Command {
 	validateCmd.Flags().StringVar(&vBody, "body-file", "", "Markdown body file to check")
 	validateCmd.Flags().StringVar(&vTitle, "title", "", "Issue title (with --body-file)")
 	validateCmd.Flags().BoolVar(&vJSON, "json", false, "Output JSON instead of plain text")
+
+	renderCmd.Flags().StringVar(&rDraft, "draft", "", "YAML draft file to render to markdown on stdout")
 
 	tmpl.AddCommand(renderCmd, validateCmd)
 	return tmpl

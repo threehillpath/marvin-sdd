@@ -326,30 +326,47 @@ func runParsePhaseList(stdin io.Reader, stdout, stderr io.Writer, jsonOut bool) 
 	return enc.Encode(out)
 }
 
-// runTemplateRender prints a schema's empty YAML draft (--skeleton) or its
-// plain-text guidance (--guidance). Rendering a filled-in draft arrives with
-// --draft in a later phase; until then a render with neither flag has nothing
-// to do and says so.
-func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, guidance bool) error {
-	schemaYAML, origin, err := resolveSchema(schemaName)
+// runTemplateRender prints a schema's empty YAML draft (--skeleton), its
+// plain-text guidance (--guidance), or a draft rendered to markdown (--draft).
+// Rendered markdown goes to stdout and warnings to stderr; an error finding
+// exits 3 with the findings on stderr and nothing on stdout.
+func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, guidance bool, draftPath string) error {
+	sc, origin, err := loadSchema(schemaName)
 	if err != nil {
-		return &CLIError{Code: 1, Msg: err.Error()}
+		return err
 	}
-	sc, err := tmplpkg.LoadSchema(origin, schemaYAML)
-	if err != nil {
-		return &CLIError{Code: 1, Msg: err.Error()}
+	modes := 0
+	for _, on := range []bool{skeleton, guidance, draftPath != ""} {
+		if on {
+			modes++
+		}
 	}
-	if skeleton && guidance {
-		return &CLIError{Code: 1, Msg: fmt.Sprintf("--skeleton and --guidance cannot be combined: pass only one. Run \"marvin template render %s --skeleton\" for the empty YAML draft, or \"marvin template render %s --guidance\" for the help text", schemaName, schemaName)}
+	if modes > 1 {
+		return &CLIError{Code: 1, Msg: fmt.Sprintf("--skeleton, --guidance and --draft cannot be combined: pass only one. Run \"marvin template render %s --skeleton\" for the empty YAML draft, \"marvin template render %s --guidance\" for the help text, or \"marvin template render %s --draft <file.yml>\" to render a draft", schemaName, schemaName, schemaName)}
 	}
-	if !skeleton && !guidance {
-		return &CLIError{Code: 1, Msg: fmt.Sprintf("nothing to render for %s: the JSON input (--sections, --meta) was removed and draft input is not available yet. Run \"marvin template render %s --skeleton\" to get an empty YAML draft, or \"marvin template render %s --guidance\" for how to fill it in", schemaName, schemaName, schemaName)}
+	if modes == 0 {
+		return &CLIError{Code: 1, Msg: fmt.Sprintf("nothing to render for %s: pass --draft <file.yml> to render a draft, \"marvin template render %s --skeleton\" to get an empty YAML draft, or \"marvin template render %s --guidance\" for how to fill it in", schemaName, schemaName, schemaName)}
 	}
 	if guidance {
 		fmt.Fprint(stdout, tmplpkg.Guidance(sc))
 		return nil
 	}
-	fmt.Fprint(stdout, tmplpkg.Skeleton(sc))
+	if skeleton {
+		fmt.Fprint(stdout, tmplpkg.Skeleton(sc))
+		return nil
+	}
+	body, res, err := checkInput(sc, origin, draftPath, "", "")
+	if err != nil {
+		return err
+	}
+	if res.HasErrors() {
+		fmt.Fprint(stderr, res.Format())
+		return clierr.NonConforming(fmt.Sprintf("the draft does not conform to the %s schema; nothing was rendered. Fix the findings above and run again", schemaName))
+	}
+	if len(res.Findings) > 0 {
+		fmt.Fprint(stderr, res.Format())
+	}
+	fmt.Fprint(stdout, body)
 	return nil
 }
 

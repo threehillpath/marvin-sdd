@@ -72,7 +72,7 @@ marvin template render impl-phase --skeleton
 marvin template render impl-phase --guidance
 ```
 
-Each phase gets its own draft file, `/tmp/phase-split-draft-N.yml`. Fill every key of the skeleton with phase-specific content. In `title:`, replace `XXXXX`, `N` and `<Phase Title>` with the real plan number, phase number and title. `Write` the filled draft to its file. The draft rules (`--guidance` lists them all; `skills/SHARED/CONFIG.md` describes the format):
+Each phase gets its own draft file, `<project-root>/.claude/cache/<plan>/phase-N-draft.yml`, where `<project-root>` is the repo root, `<plan>` is the lowercase PLAN-XXXXX number (for example `plan-00112`) and `N` is the phase number (for a multi-impl track use `phase-<suffix>-N-draft.yml`, e.g. `phase-A-1-draft.yml`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use each phase's own path in every command below. Fill every key of the skeleton with phase-specific content. In `title:`, replace `XXXXX`, `N` and `<Phase Title>` with the real plan number, phase number and title. `Write` the filled draft to its file. The draft rules (`--guidance` lists them all; `skills/SHARED/CONFIG.md` describes the format):
 
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
 - The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
@@ -83,7 +83,7 @@ Each phase gets its own draft file, `/tmp/phase-split-draft-N.yml`. Fill every k
 Each phase's title and body live together in its one draft file, so a body cannot drift from its title. Write every phase's draft first, then validate every one of them **before the first `issue create`**:
 
 ```bash
-marvin template validate impl-phase --draft /tmp/phase-split-draft-N.yml
+marvin template validate impl-phase --draft <project-root>/.claude/cache/<plan>/phase-N-draft.yml
 ```
 
 `validate` makes no config or GitHub call and creates nothing. Exit codes:
@@ -113,7 +113,7 @@ marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 Then create the phase issues in phase order, each from its draft file, capturing the returned number and URL:
 
 ```bash
-marvin issue create --template impl-phase --draft /tmp/phase-split-draft-N.yml --label "plan:phase,status:upcoming,<domain-labels>"
+marvin issue create --template impl-phase --draft <project-root>/.claude/cache/<plan>/phase-N-draft.yml --label "plan:phase,status:upcoming,<domain-labels>"
 ```
 
 The title comes from the draft, so do not pass `--title` or `--body`. On success stdout is the new issue number, then its URL; capture both. Warnings on stderr are fine. Handle the exit code:

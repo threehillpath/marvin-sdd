@@ -42,7 +42,7 @@ Resolve `<type>` from `$0`'s labels: `bug` present → `bug`; otherwise (includi
 marvin names derive $0 --task --type <type> --json
 ```
 
-Capture `task_branch`, `worktree_path` (repo-root-relative, not yet absolute), and `title_prefix.task`.
+Capture `task_number`, `task_branch`, `worktree_path` (repo-root-relative, not yet absolute), and `title_prefix.task`.
 
 ### A3. Draft the Task issue
 
@@ -53,7 +53,7 @@ marvin template render quick-task --skeleton
 marvin template render quick-task --guidance
 ```
 
-Fill every key of the skeleton (six required sections). In `title:`, replace `XXXXX` and `<Title>` with the real `<title_prefix.task>` and title. `Write` the filled draft to `/tmp/quick-task-draft.yml`. The draft rules (`--guidance` lists them all; `skills/SHARED/CONFIG.md` describes the format):
+Fill every key of the skeleton (six required sections). In `title:`, replace `XXXXX` and `<Title>` with the real `<title_prefix.task>` and title. `Write` the filled draft to `<project-root>/.claude/cache/<task>/task-draft.yml`, where `<project-root>` is the repo root and `<task>` is `task_number` from A2 in lowercase (for example `task-00151`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below. The draft rules (`--guidance` lists them all; `skills/SHARED/CONFIG.md` describes the format):
 
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
 - The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
@@ -91,7 +91,7 @@ Content of the six sections:
 Show the user the rendered issue, not the YAML:
 
 ```bash
-marvin template render quick-task --draft /tmp/quick-task-draft.yml
+marvin template render quick-task --draft <project-root>/.claude/cache/<task>/task-draft.yml
 ```
 
 Stdout is the issue body as markdown; show the draft's `title:` with it. If it exits 3 the draft does not conform: fix it per the findings on stderr and render again, within the retry limit in the create step. When the user asks for changes, edit the draft file and render again.
@@ -113,7 +113,7 @@ marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 Then create the issue from the approved draft file, capturing the returned number and URL:
 
 ```bash
-marvin issue create --template quick-task --draft /tmp/quick-task-draft.yml --label "plan:task,status:upcoming,<domain-labels>,<type-label>"
+marvin issue create --template quick-task --draft <project-root>/.claude/cache/<task>/task-draft.yml --label "plan:task,status:upcoming,<domain-labels>,<type-label>"
 ```
 
 The title comes from the draft, so do not pass `--title` or `--body`. On success stdout is the new issue number, then its URL; capture both. Warnings on stderr are fine. Handle the exit code:

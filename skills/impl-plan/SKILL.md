@@ -67,7 +67,7 @@ marvin template render impl-plan --guidance
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Fill every key of the skeleton with substantive content from the arch plan analysis. In `title:`, replace `XXXXX` and `<Title>` with the real plan number and title. `Write` the filled draft to `/tmp/impl-plan-draft.yml`. The draft rules (`--guidance` lists them all; `skills/SHARED/CONFIG.md` describes the format):
+Fill every key of the skeleton with substantive content from the arch plan analysis. In `title:`, replace `XXXXX` and `<Title>` with the real plan number and title. `Write` the filled draft to `<project-root>/.claude/cache/<plan>/impl-draft.yml`, where `<project-root>` is the repo root and `<plan>` is the lowercase PLAN-XXXXX number from the arch plan (for example `plan-00112`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below. The draft rules (`--guidance` lists them all; `skills/SHARED/CONFIG.md` describes the format):
 
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated (`component:` is a list of entries, each with `name: ""` and `content: |`).
 - The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
@@ -82,7 +82,7 @@ Fill every key of the skeleton with substantive content from the arch plan analy
 Show the user the rendered issue, not the YAML:
 
 ```bash
-marvin template render impl-plan --draft /tmp/impl-plan-draft.yml
+marvin template render impl-plan --draft <project-root>/.claude/cache/<plan>/impl-draft.yml
 ```
 
 Stdout is the issue body as markdown; show the draft's `title:` with it. If it exits 3 the draft does not conform: fix it per the findings on stderr and render again, within the retry limit in the create step. When the user asks for changes, edit the draft file and render again.
@@ -110,7 +110,7 @@ marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 Then create the issue from the approved draft file, capturing the returned number and URL:
 
 ```bash
-marvin issue create --template impl-plan --draft /tmp/impl-plan-draft.yml --label "plan:impl,status:upcoming,<domain-labels>"
+marvin issue create --template impl-plan --draft <project-root>/.claude/cache/<plan>/impl-draft.yml --label "plan:impl,status:upcoming,<domain-labels>"
 ```
 
 The title comes from the draft, so do not pass `--title` or `--body`. On success stdout is the new issue number, then its URL; capture both. Warnings on stderr are fine. Handle the exit code:

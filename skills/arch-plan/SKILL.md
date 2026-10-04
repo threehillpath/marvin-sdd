@@ -60,7 +60,7 @@ marvin template render arch-plan --guidance
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Fill every key of the skeleton with substantive content from the arch analysis. In `title:`, replace `XXXXX` and `<Title>` with the real plan number and title. `Write` the filled draft to `/tmp/arch-plan-draft.yml`. The draft rules (`--guidance` lists them all; `skills/SHARED/CONFIG.md` describes the format):
+Fill every key of the skeleton with substantive content from the arch analysis. In `title:`, replace `XXXXX` and `<Title>` with the real plan number and title. `Write` the filled draft to `<project-root>/.claude/cache/<plan>/arch-draft.yml`, where `<project-root>` is the repo root and `<plan>` is the lowercase plan number from step 3 (for example `plan-00112`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below. The draft rules (`--guidance` lists them all; `skills/SHARED/CONFIG.md` describes the format):
 
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
 - The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
@@ -73,7 +73,7 @@ Fill every key of the skeleton with substantive content from the arch analysis. 
 Show the user the rendered issue, not the YAML:
 
 ```bash
-marvin template render arch-plan --draft /tmp/arch-plan-draft.yml
+marvin template render arch-plan --draft <project-root>/.claude/cache/<plan>/arch-draft.yml
 ```
 
 Stdout is the issue body as markdown; show the draft's `title:` with it. If it exits 3 the draft does not conform: fix it per the findings on stderr and render again, within the retry limit in the create step. When the user asks for changes, edit the draft file and render again.
@@ -101,7 +101,7 @@ marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 Then create the issue from the approved draft file, capturing the returned number and URL:
 
 ```bash
-marvin issue create --template arch-plan --draft /tmp/arch-plan-draft.yml --label "plan:arch,status:upcoming,<domain-labels>,<source-issue-type-if-applicable>"
+marvin issue create --template arch-plan --draft <project-root>/.claude/cache/<plan>/arch-draft.yml --label "plan:arch,status:upcoming,<domain-labels>,<source-issue-type-if-applicable>"
 ```
 
 The title comes from the draft, so do not pass `--title` or `--body`. On success stdout is the new issue number, then its URL; capture both. Warnings on stderr are fine. Handle the exit code:

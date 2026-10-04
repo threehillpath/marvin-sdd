@@ -459,9 +459,9 @@ func TestSeveralUsageProblemsAreReportedTogether(t *testing.T) {
 			[]string{"issue", "create", "--template", "impl-phase", "--draft", draft, "--body-file", body, "--body", "x"},
 			[]string{"--draft and --body-file", "inline --body"},
 		},
-		"create: draft without template and no body": {
-			[]string{"issue", "create", "--draft", draft},
-			[]string{"--draft requires --template", "requires --title", "requires --body or --body-file"},
+		"create: draft without template and empty body-file": {
+			[]string{"issue", "create", "--draft", draft, "--body-file", ""},
+			[]string{"--draft requires --template", "--body-file was given an empty value"},
 		},
 		"create: empty template and empty body-file": {
 			[]string{"issue", "create", "--template", "", "--body-file", ""},

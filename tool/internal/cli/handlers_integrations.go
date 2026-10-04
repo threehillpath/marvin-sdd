@@ -614,10 +614,11 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, f issueCreateF
 			p.add("--template with --body-file requires --title (with --draft the title comes from the draft)")
 			titleProblem = true
 		}
+	} else if f.draftSet {
+		// Say only this: also demanding --title and --body would steer toward
+		// the unchecked path.
+		p.add("--draft requires --template <type> (one of " + strings.Join(tmplpkg.DefaultSchemaNames(), ", ") + ")")
 	} else {
-		if f.draft != "" {
-			p.add("--draft requires --template <type>: pass --template, or use --title with --body/--body-file")
-		}
 		if f.title == "" {
 			p.add("requires --title")
 		}

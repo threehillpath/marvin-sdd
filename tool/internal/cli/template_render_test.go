@@ -293,3 +293,24 @@ func TestTemplateRenderUnknownSchemaIsReportedBeforeFlagAdvice(t *testing.T) {
 		}
 	}
 }
+
+// TestTemplateRenderGoldmarkBackstopOnDraft verifies a draft whose only
+// problem is an HTML block in Scope (which Check alone accepts) exits 3 with
+// the finding on stderr and nothing on stdout.
+func TestTemplateRenderGoldmarkBackstopOnDraft(t *testing.T) {
+	draft := writeTemp(t, "d.yml", strings.Replace(phaseDraftOK, "    In scope.\n", "    In scope.\n\n    <div>\n    hidden\n    </div>\n", 1))
+	stdout, stderr, err := runCLI(t, "template", "render", "impl-phase", "--draft", draft)
+	wantCode(t, err, 3)
+	if stdout != "" {
+		t.Errorf("want empty stdout, got %q", stdout)
+	}
+	found := false
+	for _, l := range strings.Split(stderr, "\n") {
+		if strings.HasPrefix(l, "error section:scope") && strings.Contains(l, "HTML block") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no \"error section:scope ... HTML block\" line on stderr:\n%s", stderr)
+	}
+}

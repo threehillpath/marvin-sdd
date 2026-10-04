@@ -93,7 +93,7 @@ marvin template validate impl-phase --draft <project-root>/.claude/cache/<plan>/
 `validate` makes no config or GitHub call and creates nothing. Exit codes:
 
 - **0** — the draft conforms.
-- **3** — the draft does not conform. The findings are on stdout, each naming a draft line and the fix. Rewrite that draft file with `Write` to fix the findings and validate it again. Make at most 3 fix-and-retry attempts per draft; if it still exits 3, show the user the findings and stop, with no issue created.
+- **3** — the draft does not conform. The findings are on stdout, most naming a draft line, all saying how to fix it. Rewrite that draft file with `Write` to fix the findings and validate it again. Make at most 3 fix-and-retry attempts per draft; if it still exits 3, show the user the findings and stop, with no issue created.
 - **1** — a usage or operational error (for example an unreadable draft). Show stderr to the user and stop. Do not retry.
 
 Create issues only once every draft has exited 0.
@@ -123,7 +123,7 @@ marvin issue create --template impl-phase --draft <project-root>/.claude/cache/<
 The title comes from the draft, so do not pass `--title` or `--body`. On success stdout is the new issue number, then its URL; capture both. Warnings on stderr are fine. Handle the exit code:
 
 - **0** — created.
-- **3** — the draft does not conform; nothing was created. The findings are on stderr, each naming a draft line and the fix. Rewrite the draft file with `Write` to fix the findings and run the same command again. Make at most 3 fix-and-retry attempts; if it still exits 3, show the user the findings and stop.
+- **3** — the draft does not conform; nothing was created. The findings are on stderr, most naming a draft line, all saying how to fix it. Rewrite the draft file with `Write` to fix the findings and run the same command again. Make at most 3 fix-and-retry attempts; if it still exits 3, show the user the findings and stop.
 - **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry.
 - **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry.
 

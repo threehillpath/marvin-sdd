@@ -707,6 +707,12 @@ func runIssueEdit(stderr io.Writer, cfg *config.Config, number int, tmplType, dr
 	// read here and left unchanged by the edit.
 	var currentTitle string
 	if bodyFile != "" {
+		// Fail on an unreadable file before spending a network call on the
+		// title; checkInput reads (and checks) the file again below, and that
+		// read is the one whose bytes are sent.
+		if _, readErr := os.ReadFile(bodyFile); readErr != nil {
+			return &CLIError{Code: 1, Msg: fmt.Sprintf("issue edit: reading --body-file %q: %v", bodyFile, readErr)}
+		}
 		if currentTitle, err = issue.Title(context.Background(), runner, cfg, number); err != nil {
 			return &CLIError{Code: 1, Msg: err.Error()}
 		}

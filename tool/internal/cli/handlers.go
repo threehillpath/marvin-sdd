@@ -398,7 +398,7 @@ func resolveSchema(schemaName string) (data []byte, origin string, err error) {
 	if data, ok := tmplpkg.DefaultSchema(schemaName); ok {
 		return data, "built-in", nil
 	}
-	return nil, "", fmt.Errorf("unknown schema %q: no project override and no plugin default", schemaName)
+	return nil, "", fmt.Errorf("unknown schema %q: no project override and no plugin default. The built-in types are %s", schemaName, strings.Join(tmplpkg.DefaultSchemaNames(), ", "))
 }
 
 // findSchemaOverride walks up from startDir looking for a project-supplied

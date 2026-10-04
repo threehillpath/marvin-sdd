@@ -20,8 +20,32 @@ import (
 	"threehillpath.com/marvin-sdd/tool/internal/issue"
 	"threehillpath.com/marvin-sdd/tool/internal/label"
 	"threehillpath.com/marvin-sdd/tool/internal/pr"
+	tmplpkg "threehillpath.com/marvin-sdd/tool/internal/template"
 	"threehillpath.com/marvin-sdd/tool/internal/worktree"
 )
+
+// rejectEmptyFlags returns an exit-1 usage error for the first of the named
+// flags that was passed with an empty value. An empty path must never fall
+// through to a "neither given" or unchecked path. prefix is prepended to the
+// message (e.g. "issue create: ").
+func rejectEmptyFlags(cmd *cobra.Command, prefix string, names ...string) error {
+	for _, n := range names {
+		if f := cmd.Flags().Lookup(n); f != nil && f.Changed && f.Value.String() == "" {
+			return &CLIError{Code: 1, Msg: fmt.Sprintf("%s--%s was given an empty value: pass a file path, or leave the flag out", prefix, n)}
+		}
+	}
+	return nil
+}
+
+// requireTemplateType returns an exit-1 usage error when --template was
+// passed with an empty value. A default is acceptable only when the flag is
+// absent, so an empty value never falls back to an unchecked path.
+func requireTemplateType(cmd *cobra.Command, prefix string) error {
+	if f := cmd.Flags().Lookup("template"); f != nil && f.Changed && f.Value.String() == "" {
+		return &CLIError{Code: 1, Msg: fmt.Sprintf("%s--template needs one of %s; it was given an empty value", prefix, strings.Join(tmplpkg.DefaultSchemaNames(), ", "))}
+	}
+	return nil
+}
 
 // loadConfig loads plan-workflow config from the current working directory.
 func loadConfig() (*config.Config, error) {
@@ -538,6 +562,12 @@ func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comm
 			if err != nil {
 				return err
 			}
+			if err := requireTemplateType(cmd, "issue create: "); err != nil {
+				return err
+			}
+			if err := rejectEmptyFlags(cmd, "issue create: ", "draft", "body-file"); err != nil {
+				return err
+			}
 			return runIssueCreate(stdout, stderr, cfg, title, cmd.Flags().Changed("title"), body, bodyFile, labelsFlag, tmplType, draft, jsonOut, runner)
 		},
 	}
@@ -637,6 +667,12 @@ func newIssueEditCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comman
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := loadConfig()
 			if err != nil {
+				return err
+			}
+			if err := requireTemplateType(cmd, "issue edit: "); err != nil {
+				return err
+			}
+			if err := rejectEmptyFlags(cmd, "issue edit: ", "draft", "body-file"); err != nil {
 				return err
 			}
 			n, err := strconv.Atoi(args[0])

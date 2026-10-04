@@ -485,6 +485,8 @@ const (
 	bothInputsMsg     = "--draft and --body-file are mutually exclusive: " + exactlyOneMsg
 )
 
+const emptyTitleMsg = "--title was given an empty value: pass the issue title, or leave the flag out"
+
 func emptyFlagMsg(name string) string {
 	return fmt.Sprintf("--%s was given an empty value: pass a file path, or leave the flag out", name)
 }

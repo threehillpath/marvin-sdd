@@ -608,10 +608,14 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, f issueCreateF
 			p.add("--template does not accept an inline --body: use --draft <file.yml> or --body-file <file.md>")
 		}
 		if !f.draftSet && !f.bodyFileSet {
-			p.add("--template needs an input: " + exactlyOneMsg)
+			p.add(exactlyOneMsg)
 		}
 		if f.draft == "" && f.bodyFile != "" && f.title == "" {
-			p.add("--template with --body-file requires --title (with --draft the title comes from the draft)")
+			if f.titleSet {
+				p.add(emptyTitleMsg)
+			} else {
+				p.add("--template with --body-file requires --title (with --draft the title comes from the draft)")
+			}
 			titleProblem = true
 		}
 	} else if f.draftSet {
@@ -620,7 +624,11 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, f issueCreateF
 		p.add("--draft requires --template <type> (one of " + strings.Join(tmplpkg.DefaultSchemaNames(), ", ") + ")")
 	} else {
 		if f.title == "" {
-			p.add("requires --title")
+			if f.titleSet {
+				p.add(emptyTitleMsg)
+			} else {
+				p.add("requires --title")
+			}
 		}
 		if f.body != "" && f.bodyFile != "" {
 			p.add("--body and --body-file are mutually exclusive")

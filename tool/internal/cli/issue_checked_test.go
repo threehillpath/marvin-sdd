@@ -833,3 +833,18 @@ func TestValidateNoFalseTitleProblemWithBodyFile(t *testing.T) {
 		t.Errorf("--title with --body-file is correct and must not be reported:\n%s", stderr)
 	}
 }
+
+// TestRenderReportsEmptyDraftAndModeConflictTogether verifies an empty
+// --draft combined with --skeleton reports both problems, with the
+// "template render:" prefix.
+func TestRenderReportsEmptyDraftAndModeConflictTogether(t *testing.T) {
+	code, stdout, stderr := runIssueExit(&exectest.FakeRunner{}, "template", "render", "impl-phase", "--skeleton", "--draft", "")
+	if code != 1 || stdout != "" {
+		t.Errorf("code=%d stdout=%q", code, stdout)
+	}
+	for _, w := range []string{"template render: 2 problems:", "--draft was given an empty value", "cannot be combined"} {
+		if !strings.Contains(stderr, w) {
+			t.Errorf("stderr should contain %q:\n%s", w, stderr)
+		}
+	}
+}

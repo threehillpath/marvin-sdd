@@ -69,7 +69,7 @@ Skills never read schema YAML directly. Four commands resolve a plan type's sche
 
 - `marvin template render <type>` with `--skeleton` (an empty YAML draft), `--guidance` (the draft rules and per-section guidance) or `--draft <file.yml>` (the draft rendered to markdown on stdout).
 - `marvin template validate <type> (--draft <file.yml> | --body-file <file.md>) [--title <t>] [--json]`. It checks without creating anything and makes no config or GitHub call. `--title` goes with `--body-file` only; with `--draft` it is a usage error.
-- `marvin issue create --template <type> --draft <file.yml> --label ...`. The title comes from the draft; `--title` and inline `--body` are rejected.
+- `marvin issue create --template <type> --draft <file.yml> --label ...`. The title comes from the draft; `--title` is accepted only if it equals the draft's title, and inline `--body` is rejected. A second mode checks an existing markdown body: `--template <type> --body-file <file.md> --title <t>` (`--title` is required there, and `--draft` and `--body-file` are mutually exclusive). The skills use the draft mode.
 - `marvin issue edit <n> --template <type> (--draft <file.yml> | --body-file <file.md>)`. `--draft` replaces the body and the title; `--body-file` replaces the body only.
 
 `{type}` is one of four built-in types: `arch-plan`, `impl-plan`, `impl-phase`, `quick-task`. Any other value is a usage error (exit 1). Each command reports the schema it used on stderr as `schema: <type> (built-in)` or `schema: <type> (project override: <path>)`.

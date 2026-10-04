@@ -6,6 +6,7 @@ package template
 import (
 	"embed"
 	"fmt"
+	"sort"
 	"strings"
 
 	"threehillpath.com/marvin-sdd/tool/internal/names"
@@ -26,6 +27,22 @@ func DefaultSchema(name string) ([]byte, bool) {
 		return nil, false
 	}
 	return data, true
+}
+
+// DefaultSchemaNames returns the names of the built-in schemas, sorted.
+func DefaultSchemaNames() []string {
+	entries, err := defaultSchemas.ReadDir("schemas")
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if n, ok := strings.CutSuffix(e.Name(), ".yml"); ok {
+			out = append(out, n)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // SchemaSection mirrors the YAML section definition.

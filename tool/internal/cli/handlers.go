@@ -479,7 +479,29 @@ func runTemplateValidate(stdout io.Writer, schemaName, draftPath, bodyPath, titl
 	if err != nil {
 		return err
 	}
-	fmt.Fprint(stdout, res.Format())
+	if jsonOut {
+		type jsonFinding struct {
+			Severity string `json:"severity"`
+			Location string `json:"location"`
+			Line     int    `json:"line"`
+			Message  string `json:"message"`
+		}
+		out := struct {
+			Schema   string        `json:"schema"`
+			Origin   string        `json:"origin"`
+			Findings []jsonFinding `json:"findings"`
+		}{Schema: res.Type, Origin: res.Origin, Findings: []jsonFinding{}}
+		for _, f := range res.Findings {
+			out.Findings = append(out.Findings, jsonFinding{string(f.Severity), f.Location, f.Line, f.Message})
+		}
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(out); err != nil {
+			return err
+		}
+	} else {
+		fmt.Fprint(stdout, res.Format())
+	}
 	if res.HasErrors() {
 		return clierr.NonConforming(fmt.Sprintf("the input does not conform to the %s schema; see the findings above", schemaName))
 	}

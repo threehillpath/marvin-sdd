@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"threehillpath.com/marvin-sdd/tool/internal/exec"
+	tmplpkg "threehillpath.com/marvin-sdd/tool/internal/template"
 )
 
 // NewRootCmd constructs the root Cobra command with all subcommand groups registered.
@@ -181,11 +183,12 @@ func newTemplateCmd(stdout, stderr io.Writer) *cobra.Command {
 		Short: "Render plan issue templates",
 	}
 
+	typeList := strings.Join(tmplpkg.DefaultSchemaNames(), "|")
 	var skeleton, guidance bool
 	var rDraft string
 
 	renderCmd := &cobra.Command{
-		Use:   "render <arch-plan|impl-plan|impl-phase>",
+		Use:   "render <" + typeList + ">",
 		Short: "Render a plan template from schema",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -198,7 +201,7 @@ func newTemplateCmd(stdout, stderr io.Writer) *cobra.Command {
 	var vDraft, vBody, vTitle string
 	var vJSON bool
 	validateCmd := &cobra.Command{
-		Use:   "validate <type>",
+		Use:   "validate <" + typeList + ">",
 		Short: "Check a draft or markdown body against a plan schema",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

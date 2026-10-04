@@ -518,6 +518,11 @@ func checkBodyBytes(sc *tmplpkg.Schema, origin, title string, data []byte) tmplp
 	return tmplpkg.CheckMarkdown(sc, origin, title, string(data))
 }
 
+// titleChecksNote is printed to stderr when a missing title was reported as a
+// usage problem and the title findings were dropped from the output, so a
+// clean-looking body is not mistaken for a fully checked one.
+const titleChecksNote = "note: checks that need the title (title/metadata cross-references and the rendered-structure check) did not run; they run once --title is given\n"
+
 // dropTitleFindings removes the findings about the title, for the case where
 // a missing title has already been reported as a usage problem.
 func dropTitleFindings(res tmplpkg.Result) tmplpkg.Result {

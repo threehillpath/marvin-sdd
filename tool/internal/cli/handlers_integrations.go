@@ -672,6 +672,9 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, f issueCreateF
 			res = dropTitleFindings(res) // already reported once, as a usage problem
 		}
 		fmt.Fprint(stderr, res.Format())
+		if titleProblem {
+			fmt.Fprint(stderr, titleChecksNote)
+		}
 	}
 	if err := p.err(); err != nil {
 		return err

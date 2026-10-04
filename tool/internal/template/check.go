@@ -77,8 +77,9 @@ type MisplacedField struct {
 	InFence bool
 	// Indented is set for a line indented 4 or more columns after a blank
 	// line, which GitHub shows as code.
-	Indented bool
-	Above    string
+	Indented  bool
+	Above     string // first line of the run that is not metadata
+	AboveLine int
 }
 
 // RepeatedField is a metadata key written a second time, at Line, after
@@ -266,11 +267,24 @@ func (c *checker) fix(yamlFix, mdFix string) string {
 	return yamlFix
 }
 
+// misplaced reports whether key has a metadata-shaped line that was rejected.
+func (c *checker) misplaced(key string) bool {
+	for _, f := range c.m.MisplacedMetadata {
+		if f.Key == key {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *checker) checkMetadata() {
 	for _, key := range c.sc.Metadata {
 		loc := "metadata:" + key
 		f, ok := c.m.Metadata[key]
 		if !ok {
+			if c.misplaced(key) {
+				continue // reported as a misplaced line, which says how to fix it
+			}
 			c.add(SeverityError, loc, 0, "metadata key %q is missing. The schema requires every metadata key. %s",
 				key, c.fix(fmt.Sprintf("Add a %q key under \"metadata:\" in the draft.", key),
 					fmt.Sprintf("Add a line \"**%s:** <value>\" above the first \"## \" heading.", key)))
@@ -681,15 +695,19 @@ func (c *checker) checkMarkdownOnly() {
 		if !known[f.Key] {
 			continue
 		}
-		why := fmt.Sprintf("directly below the line %q, so GitHub shows it as part of that paragraph, quote or list item", f.Above)
-		if f.InFence {
-			why = "inside a code fence, so GitHub shows it as code"
+		loc := "metadata:" + f.Key
+		switch {
+		case f.Indented:
+			c.add(SeverityError, loc, f.Line, "the \"**%s:**\" line (line %d) is indented 4 or more spaces, so GitHub shows it as code, not as metadata. Remove the indentation.", f.Key, f.Line)
+		case f.InFence:
+			c.add(SeverityError, loc, f.Line, "the \"**%s:**\" line (line %d) is inside a code fence, so GitHub shows it as code, not as metadata. Move it out of the code fence, above the first \"## \" heading.", f.Key, f.Line)
+		default:
+			quoted := f.Above
+			if len(quoted) > 60 {
+				quoted = quoted[:60] + "..."
+			}
+			c.add(SeverityError, loc, f.Line, "the \"**%s:**\" line (line %d) follows the line %q (line %d) with no blank line between, so GitHub does not show it as metadata. Add a blank line after line %d.", f.Key, f.Line, quoted, f.AboveLine, f.AboveLine)
 		}
-		if f.Indented {
-			c.add(SeverityError, "metadata:"+f.Key, f.Line, "the \"**%s:**\" line (line %d) is indented 4 or more spaces, so GitHub shows it as code, not as metadata. Remove the indentation.", f.Key, f.Line)
-			continue
-		}
-		c.add(SeverityError, "metadata:"+f.Key, f.Line, "the \"**%s:**\" line (line %d) is %s, not as metadata. Put it above the first \"## \" heading as the first line of the body, after a blank line, or directly below another metadata line.", f.Key, f.Line, why)
 	}
 	for _, r := range c.m.RepeatedMetadata {
 		c.add(SeverityError, "metadata:"+r.Key, r.Line, "metadata key %q appears twice (line %d and line %d). Remove the duplicate line or merge its value into the first.", r.Key, r.FirstLine, r.Line)

@@ -51,6 +51,7 @@ func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineO
 	}
 	pre := append([]string(nil), lines[:end]...) // the preamble the content guards see
 	prevBlank, prevAccepted := true, false
+	breaker, breakerLine := "", 0 // first line of the current run that is not accepted metadata
 	for i, line := range lines[:end] {
 		origins[i] = lineOrigin{loc: "draft", what: "the text above the first \"## \" heading", line: i + 1, where: `above the first "## " heading`}
 		blank := strings.Trim(line, " \t") == "" // CommonMark: only spaces and tabs
@@ -75,7 +76,7 @@ func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineO
 			case indent >= 4 && prevBlank:
 				m.MisplacedMetadata = append(m.MisplacedMetadata, MisplacedField{Key: key, Line: i + 1, Indented: true})
 			case !prevBlank && !prevAccepted:
-				m.MisplacedMetadata = append(m.MisplacedMetadata, MisplacedField{Key: key, Line: i + 1, Above: strings.TrimSpace(lines[i-1])})
+				m.MisplacedMetadata = append(m.MisplacedMetadata, MisplacedField{Key: key, Line: i + 1, Above: breaker, AboveLine: breakerLine})
 			default:
 				accepted = true
 				if first, dup := m.Metadata[key]; !dup {
@@ -90,6 +91,12 @@ func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineO
 				}
 				origins[i] = lineOrigin{loc: "metadata:" + key, what: fmt.Sprintf("metadata value %q", key), line: i + 1, where: fmt.Sprintf("in the \"**%s:**\" line", key)}
 			}
+		}
+		switch {
+		case blank || accepted:
+			breaker, breakerLine = "", 0
+		case breakerLine == 0:
+			breaker, breakerLine = strings.TrimSpace(line), i+1
 		}
 		prevBlank, prevAccepted = blank, accepted
 	}

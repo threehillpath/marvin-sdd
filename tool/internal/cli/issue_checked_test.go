@@ -106,3 +106,34 @@ func TestIssueEditDraftEditsBodyAndTitle(t *testing.T) {
 		t.Errorf("want the schema line on stderr, got %q", stderr)
 	}
 }
+
+// TestIssueEditBodyFileKeepsTitle verifies --body-file reads the existing
+// title with gh issue view --repo, then makes exactly one gh issue edit with
+// the unchanged body and no --title.
+func TestIssueEditBodyFileKeepsTitle(t *testing.T) {
+	withConfigFixture(t)
+	bodyPath := writeTemp(t, "b.md", conformingPhaseBody)
+	fake := &exectest.FakeRunner{}
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte(`{"id":"I_1","number":7,"title":"[PLAN-00112-5] Phase title","state":"OPEN"}`)})
+	fake.Enqueue(exectest.FakeResponse{Stdout: []byte("https://github.com/threehillpath/marvin-sdd/issues/7\n")})
+
+	stdout, stderr, err := runIssue(fake, "issue", "edit", "7", "--template", "impl-phase", "--body-file", bodyPath)
+	if err != nil {
+		t.Fatalf("edit returned %v\nstderr: %s", err, stderr)
+	}
+
+	if len(fake.Calls) != 2 {
+		t.Fatalf("want 2 gh calls (view then edit), got %v", fake.Calls)
+	}
+	view := fake.Calls[0].Args
+	if len(view) < 5 || strings.Join(view[:5], " ") != "issue view 7 --repo threehillpath/marvin-sdd" {
+		t.Errorf("first call = %q, want gh issue view 7 --repo threehillpath/marvin-sdd ...", view)
+	}
+	want := []string{"issue", "edit", "7", "--repo", "threehillpath/marvin-sdd", "--body", conformingPhaseBody}
+	if got := fake.Calls[1].Args; strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Errorf("edit args = %q\nwant       %q", got, want)
+	}
+	if stdout != "" {
+		t.Errorf("want empty stdout, got %q", stdout)
+	}
+}

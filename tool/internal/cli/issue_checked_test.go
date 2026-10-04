@@ -181,9 +181,7 @@ func TestIssueEditBadBodyFileMakesNoMutatingCall(t *testing.T) {
 }
 
 // TestIssueEditUsageErrorsMakeNoCalls verifies the exit-1 usage errors on
-// edit, none of which may touch gh. The inline --body case is rejected by
-// cobra as an unknown flag (a plain error, not a CLIError), so it is checked
-// through RunWithStreams.
+// edit, none of which may touch gh.
 func TestIssueEditUsageErrorsMakeNoCalls(t *testing.T) {
 	withConfigFixture(t)
 	draft := writeTemp(t, "d.yml", phaseDraftOK)
@@ -193,6 +191,7 @@ func TestIssueEditUsageErrorsMakeNoCalls(t *testing.T) {
 		"no input":         {"issue", "edit", "7", "--template", "impl-phase"},
 		"both inputs":      {"issue", "edit", "7", "--template", "impl-phase", "--draft", draft, "--body-file", body},
 		"unknown type":     {"issue", "edit", "7", "--template", "nope", "--draft", draft},
+		"inline body":      {"issue", "edit", "7", "--template", "impl-phase", "--body", "x"},
 		"non-numeric item": {"issue", "edit", "seven", "--template", "impl-phase", "--draft", draft},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -204,19 +203,6 @@ func TestIssueEditUsageErrorsMakeNoCalls(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("inline body", func(t *testing.T) {
-		fake := &exectest.FakeRunner{}
-		var stdout, stderr bytes.Buffer
-		root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, fake)
-		root.SetArgs([]string{"issue", "edit", "7", "--template", "impl-phase", "--body", "x"})
-		if code := cli.RunWithStreams(&stdout, &stderr, root.Execute); code != 1 {
-			t.Errorf("exit code = %d, want 1\nstderr: %s", code, stderr.String())
-		}
-		if len(fake.Calls) != 0 {
-			t.Errorf("want zero gh calls, got %v", fake.Calls)
-		}
-	})
 }
 
 // TestIssueCreateTemplateUsageErrorsMakeNoCalls verifies the exit-1 usage
@@ -703,10 +689,7 @@ func TestProblemFormat(t *testing.T) {
 	ok := writeTemp(t, "d.yml", phaseDraftOK)
 	missing := filepath.Join(t.TempDir(), "nope.md")
 
-	_, err := func() (string, error) {
-		_, _, err := runIssue(&exectest.FakeRunner{}, "issue", "create", "--template", "impl-phase", "--draft", ok, "--body", "x")
-		return "", err
-	}()
+	_, _, err := runIssue(&exectest.FakeRunner{}, "issue", "create", "--template", "impl-phase", "--draft", ok, "--body", "x")
 	ce := wantCode(t, err, 1)
 	if !strings.HasPrefix(ce.Msg, "issue create: ") || strings.Contains(ce.Msg, "problems:") {
 		t.Errorf("single problem should be a bare message with the prefix, got %q", ce.Msg)

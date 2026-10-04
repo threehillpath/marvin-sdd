@@ -816,3 +816,20 @@ func TestValidateReadsInputsEvenWithoutASchema(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateNoFalseTitleProblemWithBodyFile verifies --title together with
+// --body-file is correct even when an empty --draft is also (wrongly) given:
+// only the empty draft is reported.
+func TestValidateNoFalseTitleProblemWithBodyFile(t *testing.T) {
+	body := writeTemp(t, "b.md", conformingPhaseBody)
+	code, _, stderr := runIssueExit(&exectest.FakeRunner{}, "template", "validate", "impl-phase", "--draft", "", "--body-file", body, "--title", "T")
+	if code != 1 {
+		t.Errorf("code = %d, want 1", code)
+	}
+	if !strings.Contains(stderr, "--draft was given an empty value") {
+		t.Errorf("want the empty-draft problem:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "--title applies only to --body-file") {
+		t.Errorf("--title with --body-file is correct and must not be reported:\n%s", stderr)
+	}
+}

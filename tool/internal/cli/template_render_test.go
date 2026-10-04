@@ -279,6 +279,7 @@ func TestTemplateRenderUnknownSchemaIsReportedBeforeFlagAdvice(t *testing.T) {
 	for _, args := range [][]string{
 		{"template", "render", "nosuch"},
 		{"template", "render", "nosuch", "--skeleton", "--guidance"},
+		{"template", "render", "nosuch", "--draft", ""},
 	} {
 		var stdout, stderr bytes.Buffer
 		root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
@@ -288,7 +289,7 @@ func TestTemplateRenderUnknownSchemaIsReportedBeforeFlagAdvice(t *testing.T) {
 		if !errors.As(err, &cliErr) || cliErr.Code != 1 {
 			t.Fatalf("%v: want a CLIError with code 1, got %T: %v", args, err, err)
 		}
-		if !strings.Contains(cliErr.Msg, `unknown schema "nosuch"`) || strings.Contains(cliErr.Msg, "--skeleton") {
+		if !strings.Contains(cliErr.Msg, `unknown schema "nosuch"`) || strings.Contains(cliErr.Msg, "--skeleton") || strings.Contains(cliErr.Msg, "empty value") {
 			t.Errorf("%v: want the unknown-schema error alone, got %q", args, cliErr.Msg)
 		}
 	}

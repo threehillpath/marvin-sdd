@@ -388,25 +388,28 @@ func TestIssueEditGoldmarkBackstopOnBodyFile(t *testing.T) {
 // with zero gh calls on both checked commands.
 func TestIssueCreateAndEditWithoutConfigExit2(t *testing.T) {
 	draft := writeTemp(t, "d.yml", phaseDraftOK)
-	orig, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(t.TempDir()); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chdir(orig) })
+	chdir(t, t.TempDir())
 
+	// A missing config is an environment problem that blocks everything, so
+	// it is reported alone (by design): usage problems in the same
+	// invocation are not collected ahead of it.
 	for name, args := range map[string][]string{
-		"create": {"issue", "create", "--template", "impl-phase", "--draft", draft},
-		"edit":   {"issue", "edit", "7", "--template", "impl-phase", "--draft", draft},
+		"create":                {"issue", "create", "--template", "impl-phase", "--draft", draft},
+		"edit":                  {"issue", "edit", "7", "--template", "impl-phase", "--draft", draft},
+		"create with bad flags": {"issue", "create", "--template", "bogus", "--draft", "", "--body", "x"},
+		"edit with bad flags":   {"issue", "edit", "seven", "--template", "bogus", "--draft", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
 			fake := &exectest.FakeRunner{}
-			_, _, err := runIssue(fake, args...)
-			wantCode(t, err, 2)
-			if len(fake.Calls) != 0 {
-				t.Errorf("want zero gh calls, got %v", fake.Calls)
+			code, stdout, stderr := runIssueExit(fake, args...)
+			if code != 2 {
+				t.Errorf("exit code = %d, want 2\nstderr: %s", code, stderr)
+			}
+			if strings.Contains(stderr, "problems") || strings.Contains(stderr, "unknown schema") || strings.Contains(stderr, "empty value") {
+				t.Errorf("the config error must appear alone:\n%s", stderr)
+			}
+			if len(fake.Calls) != 0 || stdout != "" {
+				t.Errorf("want zero gh calls and empty stdout, got %v / %q", fake.Calls, stdout)
 			}
 		})
 	}
@@ -450,11 +453,11 @@ func TestSeveralUsageProblemsAreReportedTogether(t *testing.T) {
 	}{
 		"create: unknown type, empty draft, inline body": {
 			[]string{"issue", "create", "--template", "bogus", "--draft", "", "--body", "x"},
-			[]string{`unknown schema "bogus"`, "--draft was given an empty value", "--body"},
+			[]string{`unknown schema "bogus"`, "--draft was given an empty value", "inline --body"},
 		},
 		"create: draft with body-file and inline body": {
 			[]string{"issue", "create", "--template", "impl-phase", "--draft", draft, "--body-file", body, "--body", "x"},
-			[]string{"--draft and --body-file", "--body"},
+			[]string{"--draft and --body-file", "inline --body"},
 		},
 		"create: draft without template and no body": {
 			[]string{"issue", "create", "--draft", draft},
@@ -577,6 +580,154 @@ func TestTemplateNameMustBeOneOfTheFixedTypes(t *testing.T) {
 					t.Errorf("want zero gh calls and empty stdout, got %v / %q", fake.Calls, stdout)
 				}
 			})
+		}
+	}
+}
+
+// TestValidateReportsInputFindingsWithUsageProblems verifies validate checks
+// the input even when the invocation has usage problems, and reports the
+// problems and the input's findings or read error together on stderr with
+// empty stdout and exit 1.
+func TestValidateReportsInputFindingsWithUsageProblems(t *testing.T) {
+	bad := writeTemp(t, "d.yml", phaseDraftNoVerification)
+	missing := filepath.Join(t.TempDir(), "nope.yml")
+	for name, tc := range map[string]struct {
+		args []string
+		want []string
+	}{
+		"bad draft and title":     {[]string{"template", "validate", "impl-phase", "--draft", bad, "--title", "T"}, []string{"error section:verification", "--title applies only to --body-file"}},
+		"missing draft and title": {[]string{"template", "validate", "impl-phase", "--draft", missing, "--title", "T"}, []string{`reading --draft "` + missing + `"`, "--title applies only to --body-file"}},
+		"empty draft and title":   {[]string{"template", "validate", "impl-phase", "--draft", "", "--title", "T"}, []string{"--draft was given an empty value", "--title applies only to --body-file"}},
+		"missing body-file":       {[]string{"template", "validate", "impl-phase", "--body-file", missing, "--draft", ""}, []string{`reading --body-file "` + missing + `"`, "--draft was given an empty value"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			code, stdout, stderr := runIssueExit(&exectest.FakeRunner{}, tc.args...)
+			if code != 1 {
+				t.Errorf("exit code = %d, want 1\nstderr: %s", code, stderr)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(stderr, w) {
+					t.Errorf("stderr should contain %q:\n%s", w, stderr)
+				}
+			}
+			if stdout != "" {
+				t.Errorf("want empty stdout, got %q", stdout)
+			}
+		})
+	}
+}
+
+// TestCreateAndEditReportEveryProblem covers the remaining report-everything
+// cases: a body file that cannot be read is reported with the missing title,
+// an explicitly empty inline --body is still a usage error, the missing title
+// of a body file is reported once, edit reports findings with usage problems
+// and its cobra-level problems with the rest.
+func TestCreateAndEditReportEveryProblem(t *testing.T) {
+	withConfigFixture(t)
+	ok := writeTemp(t, "d.yml", phaseDraftOK)
+	bad := writeTemp(t, "d.yml", phaseDraftNoVerification)
+	okBody := writeTemp(t, "b.md", conformingPhaseBody)
+	badBody := writeTemp(t, "bad.md", strings.Replace(conformingPhaseBody, "## Verification\n\nV.\n\n", "", 1))
+	missing := filepath.Join(t.TempDir(), "nope.md")
+	const types = "arch-plan, impl-phase, impl-plan, quick-task"
+	for name, tc := range map[string]struct {
+		args    []string
+		want    []string
+		notWant []string
+		view    bool // a gh issue view call is expected
+	}{
+		"create: unreadable body-file and no title": {
+			args: []string{"issue", "create", "--body-file", missing},
+			want: []string{"requires --title", `reading --body-file "` + missing + `"`},
+		},
+		"create: explicitly empty inline body": {
+			args: []string{"issue", "create", "--template", "impl-phase", "--draft", ok, "--body", ""},
+			want: []string{"inline --body"},
+		},
+		"create: missing title of a body file is reported once": {
+			args:    []string{"issue", "create", "--template", "impl-phase", "--body-file", badBody},
+			want:    []string{"requires --title", "error section:verification"},
+			notWant: []string{"error title"},
+		},
+		"edit: findings with a usage problem": {
+			args: []string{"issue", "edit", "7", "--template", "impl-phase", "--draft", bad, "--body", "x"},
+			want: []string{"error section:verification", "there is no inline --body: use --draft <file.yml> or --body-file <file.md>"},
+		},
+		"edit: body-file with another problem skips the view": {
+			args: []string{"issue", "edit", "seven", "--template", "impl-phase", "--body-file", okBody},
+			want: []string{`invalid issue number "seven"`},
+		},
+		"edit: no arguments and empty flags": {
+			args: []string{"issue", "edit", "--template", "", "--draft", ""},
+			want: []string{"needs exactly one <issue-number>", "--template needs one of " + types, "--draft was given an empty value"},
+		},
+		"edit: missing template lists the types": {
+			args: []string{"issue", "edit", "7", "--draft", ok},
+			want: []string{"requires --template <type>", types},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake := &exectest.FakeRunner{}
+			code, stdout, stderr := runIssueExit(fake, tc.args...)
+			if code != 1 {
+				t.Errorf("exit code = %d, want 1\nstderr: %s", code, stderr)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(stderr, w) {
+					t.Errorf("stderr should contain %q:\n%s", w, stderr)
+				}
+			}
+			for _, w := range tc.notWant {
+				if strings.Contains(stderr, w) {
+					t.Errorf("stderr should not contain %q:\n%s", w, stderr)
+				}
+			}
+			if len(fake.Calls) != 0 || stdout != "" {
+				t.Errorf("want zero gh calls and empty stdout, got %v / %q", fake.Calls, stdout)
+			}
+		})
+	}
+}
+
+// TestProblemFormat verifies the shape of the problems message: one problem
+// keeps the command prefix and is a bare message, several print the prefix
+// once in a header and no prefix on the lines, and an unreadable file has one
+// wording across commands.
+func TestProblemFormat(t *testing.T) {
+	withConfigFixture(t)
+	ok := writeTemp(t, "d.yml", phaseDraftOK)
+	missing := filepath.Join(t.TempDir(), "nope.md")
+
+	_, err := func() (string, error) {
+		_, _, err := runIssue(&exectest.FakeRunner{}, "issue", "create", "--template", "impl-phase", "--draft", ok, "--body", "x")
+		return "", err
+	}()
+	ce := wantCode(t, err, 1)
+	if !strings.HasPrefix(ce.Msg, "issue create: ") || strings.Contains(ce.Msg, "problems:") {
+		t.Errorf("single problem should be a bare message with the prefix, got %q", ce.Msg)
+	}
+
+	_, _, err = runIssue(&exectest.FakeRunner{}, "issue", "create", "--template", "bogus", "--draft", "", "--body", "x")
+	ce = wantCode(t, err, 1)
+	lines := strings.Split(ce.Msg, "\n")
+	if lines[0] != "issue create: 3 problems:" {
+		t.Errorf("header = %q, want %q", lines[0], "issue create: 3 problems:")
+	}
+	for _, l := range lines[1:] {
+		if !strings.HasPrefix(l, "  - ") || strings.Contains(l, "issue create:") {
+			t.Errorf("problem line %q should be a bullet without the command prefix", l)
+		}
+	}
+
+	for name, args := range map[string][]string{
+		"create":   {"issue", "create", "--template", "impl-phase", "--title", "T", "--body-file", missing},
+		"edit":     {"issue", "edit", "7", "--template", "impl-phase", "--body-file", missing},
+		"validate": {"template", "validate", "impl-phase", "--body-file", missing, "--title", "T"},
+	} {
+		_, _, err := runIssue(&exectest.FakeRunner{}, args...)
+		ce := wantCode(t, err, 1)
+		if !strings.Contains(ce.Msg, `reading --body-file "`+missing+`"`) {
+			t.Errorf("%s: unreadable-file wording = %q", name, ce.Msg)
 		}
 	}
 }

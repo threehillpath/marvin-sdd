@@ -79,7 +79,15 @@ Fill every key of the skeleton with substantive content from the arch plan analy
 
 ### 4. Present for review
 
-Read `../SHARED/LABELS.md`. Infer domain labels from the plan content. Present the draft with proposed labels: "I'll apply: `plan:impl`, `status:upcoming`, `domain:backend` — correct?" Allow corrections before proceeding.
+Show the user the rendered issue, not the YAML:
+
+```bash
+marvin template render impl-plan --draft /tmp/impl-plan-draft.yml
+```
+
+Stdout is the issue body as markdown; show the draft's `title:` with it. If it exits 3 the draft does not conform: fix it per the findings on stderr and render again, within the retry limit in the create step. When the user asks for changes, edit the draft file and render again.
+
+Read `../SHARED/LABELS.md`. Infer domain labels from the plan content. Present the rendered draft with proposed labels: "I'll apply: `plan:impl`, `status:upcoming`, `domain:backend` — correct?" Allow corrections before proceeding.
 
 See `../SHARED/RENDERING.md` for rendering guidance. Ask for approval on both content and labels; iterate until confirmed.
 

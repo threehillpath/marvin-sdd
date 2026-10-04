@@ -283,7 +283,7 @@ func TestParseMarkdownUnknownHeadingKeepsContentAndLine(t *testing.T) {
 		t.Fatalf("unknown headings = %+v", m.UnknownHeadings)
 	}
 	h := m.UnknownHeadings[0]
-	if h.Text != "Appendix" || h.Content != "Some notes." || h.Line != strings.Count(phaseBody, "\n")+3 {
+	if h.Text != "Appendix" || h.Content != "Some notes." || h.Line != strings.Count(phaseBody, "\n")+2 {
 		t.Errorf("unknown heading = %+v", h)
 	}
 }

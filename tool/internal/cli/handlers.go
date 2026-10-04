@@ -330,10 +330,13 @@ func runParsePhaseList(stdin io.Reader, stdout, stderr io.Writer, jsonOut bool) 
 // plain-text guidance (--guidance), or a draft rendered to markdown (--draft).
 // Rendered markdown goes to stdout and warnings to stderr; an error finding
 // exits 3 with the findings on stderr and nothing on stdout.
-func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, guidance bool, draftPath string) error {
+func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, guidance bool, draftPath string, draftSet bool) error {
 	sc, origin, err := loadSchema(schemaName)
 	if err != nil {
 		return err
+	}
+	if draftSet && draftPath == "" {
+		return &CLIError{Code: 1, Msg: emptyFlagMsg("draft")}
 	}
 	modes := 0
 	for _, on := range []bool{skeleton, guidance, draftPath != ""} {
@@ -355,10 +358,11 @@ func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, gu
 		fmt.Fprint(stdout, tmplpkg.Skeleton(sc))
 		return nil
 	}
-	body, _, res, err := checkInput(sc, origin, draftPath, "", "", false)
+	data, err := readInputFile("draft", draftPath)
 	if err != nil {
 		return err
 	}
+	body, _, res := checkDraftBytes(sc, origin, data)
 	if res.HasErrors() {
 		fmt.Fprint(stderr, res.Format())
 		return clierr.NonConforming(fmt.Sprintf("the draft does not conform to the %s schema; nothing was rendered. Fix the findings above and run again", schemaName))
@@ -437,21 +441,29 @@ func findSchemaOverride(startDir, schemaName string) ([]byte, string, bool, erro
 }
 
 // problems collects every usage problem found in one invocation so they are
-// reported together, one per line, rather than one rerun at a time.
-type problems []string
+// reported together rather than one rerun at a time. prefix names the command
+// ("issue create: ") and is printed once: before a lone problem, or in the
+// header of a list.
+type problems struct {
+	prefix string
+	items  []string
+}
 
-func (p *problems) add(msg string) { *p = append(*p, msg) }
+func (p *problems) add(msg string) { p.items = append(p.items, msg) }
 
-// err returns nil for no problems, the bare message for one, and a single
-// exit-1 CLIError listing all of them for several.
+func (p problems) any() bool { return len(p.items) > 0 }
+
+// err returns nil for no problems, prefix+message for one, and a single
+// exit-1 CLIError with a "<prefix>N problems:" header and one bullet per
+// problem for several.
 func (p problems) err() error {
-	switch len(p) {
+	switch len(p.items) {
 	case 0:
 		return nil
 	case 1:
-		return &CLIError{Code: 1, Msg: p[0]}
+		return &CLIError{Code: 1, Msg: p.prefix + p.items[0]}
 	}
-	return &CLIError{Code: 1, Msg: fmt.Sprintf("%d problems:\n  - %s", len(p), strings.Join(p, "\n  - "))}
+	return &CLIError{Code: 1, Msg: fmt.Sprintf("%s%d problems:\n  - %s", p.prefix, len(p.items), strings.Join(p.items, "\n  - "))}
 }
 
 // errMsg is the message of err: a CLIError's Msg, else its Error().
@@ -466,46 +478,57 @@ func errMsg(err error) string {
 const (
 	titleWithDraftMsg = "--title applies only to --body-file: with --draft the title comes from the draft's \"title:\" key. Remove --title, or edit \"title:\" in the draft"
 	exactlyOneMsg     = "pass exactly one of --draft <file.yml> or --body-file <file.md>"
+	bothInputsMsg     = "--draft and --body-file are mutually exclusive: " + exactlyOneMsg
 )
 
-func emptyFlagMsg(prefix, name string) string {
-	return fmt.Sprintf("%s--%s was given an empty value: pass a file path, or leave the flag out", prefix, name)
+func emptyFlagMsg(name string) string {
+	return fmt.Sprintf("--%s was given an empty value: pass a file path, or leave the flag out", name)
 }
 
-func emptyTemplateMsg(prefix string) string {
-	return fmt.Sprintf("%s--template needs one of %s; it was given an empty value", prefix, strings.Join(tmplpkg.DefaultSchemaNames(), ", "))
+func emptyTemplateMsg() string {
+	return fmt.Sprintf("--template needs one of %s; it was given an empty value", strings.Join(tmplpkg.DefaultSchemaNames(), ", "))
 }
 
-// checkInput checks a YAML draft (draftPath) or a markdown body (bodyPath,
-// with title) against sc. Exactly one of the two paths must be set. For a
-// draft it renders, so the goldmark verification backstop runs too; the
-// rendered body is returned when the draft conforms; for a markdown body it is
-// the file's contents unchanged. The returned title is the draft's "title:" for
-// a draft and the title argument for a markdown body.
-func checkInput(sc *tmplpkg.Schema, origin, draftPath, bodyPath, title string, titleSet bool) (string, string, tmplpkg.Result, error) {
-	if (draftPath == "") == (bodyPath == "") {
-		return "", "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: exactlyOneMsg}
-	}
-	if draftPath != "" {
-		if titleSet {
-			return "", "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: titleWithDraftMsg}
-		}
-		data, err := os.ReadFile(draftPath)
-		if err != nil {
-			return "", "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: fmt.Sprintf("reading draft: %v", err)}
-		}
-		m, findings := tmplpkg.LoadDraft(sc, data)
-		if len(findings) > 0 {
-			return "", "", tmplpkg.Result{Type: sc.Type, Origin: origin, Findings: findings}, nil
-		}
-		body, res := tmplpkg.Render(sc, origin, m)
-		return body, m.Title, res, nil
-	}
-	data, err := os.ReadFile(bodyPath)
+// readInputFile reads the file named by --<flag>. It is the only read of an
+// input: callers check and send these same bytes, so a pipe or /dev/stdin,
+// which cannot be read twice, works.
+func readInputFile(flag, path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: fmt.Sprintf("reading body file: %v", err)}
+		return nil, &CLIError{Code: 1, Msg: fmt.Sprintf("reading --%s %q: %v", flag, path, err)}
 	}
-	return string(data), title, tmplpkg.CheckMarkdown(sc, origin, title, string(data)), nil
+	return data, nil
+}
+
+// checkDraftBytes checks a YAML draft against sc. It renders, so the goldmark
+// verification backstop runs too; the rendered body is returned when the draft
+// conforms. The returned title is the draft's "title:" (empty when the draft
+// did not load).
+func checkDraftBytes(sc *tmplpkg.Schema, origin string, data []byte) (body, title string, res tmplpkg.Result) {
+	m, findings := tmplpkg.LoadDraft(sc, data)
+	if len(findings) > 0 {
+		return "", "", tmplpkg.Result{Type: sc.Type, Origin: origin, Findings: findings}
+	}
+	body, res = tmplpkg.Render(sc, origin, m)
+	return body, m.Title, res
+}
+
+// checkBodyBytes checks a markdown body against sc with the given issue title.
+func checkBodyBytes(sc *tmplpkg.Schema, origin, title string, data []byte) tmplpkg.Result {
+	return tmplpkg.CheckMarkdown(sc, origin, title, string(data))
+}
+
+// dropTitleFindings removes the findings about the title, for the case where
+// a missing title has already been reported as a usage problem.
+func dropTitleFindings(res tmplpkg.Result) tmplpkg.Result {
+	kept := res.Findings[:0:0]
+	for _, f := range res.Findings {
+		if f.Location != "title" {
+			kept = append(kept, f)
+		}
+	}
+	res.Findings = kept
+	return res
 }
 
 // loadSchema resolves and loads the schema for schemaName; any failure is
@@ -522,37 +545,67 @@ func loadSchema(schemaName string) (*tmplpkg.Schema, string, error) {
 	return sc, origin, nil
 }
 
+// validateFlags is the state of template validate's flags, including which
+// were passed at all (a flag passed with an empty value is not absent).
+type validateFlags struct {
+	draft, body, title                string
+	titleSet, draftSet, bodySet, json bool
+}
+
 // runTemplateValidate prints the formatted check Result to stdout and exits 3
-// when it holds an error finding.
-func runTemplateValidate(stdout io.Writer, schemaName, draftPath, bodyPath, title string, titleSet, draftSet, bodySet, jsonOut bool) error {
-	var p problems
+// when it holds an error finding. Usage problems are collected and reported
+// together; the input is checked anyway whenever it can be loaded, and then
+// its findings go to stderr with the problems (stdout stays empty on exit 1).
+func runTemplateValidate(stdout, stderr io.Writer, schemaName string, f validateFlags) error {
+	p := problems{prefix: "template validate: "}
 	sc, origin, err := loadSchema(schemaName)
 	if err != nil {
 		p.add(errMsg(err))
 	}
-	if draftSet && draftPath == "" {
-		p.add(emptyFlagMsg("", "draft"))
+	if f.draftSet && f.draft == "" {
+		p.add(emptyFlagMsg("draft"))
 	}
-	if bodySet && bodyPath == "" {
-		p.add(emptyFlagMsg("", "body-file"))
+	if f.bodySet && f.body == "" {
+		p.add(emptyFlagMsg("body-file"))
 	}
-	if draftPath != "" && bodyPath != "" {
-		p.add("--draft and --body-file are mutually exclusive: " + exactlyOneMsg)
+	if f.draft != "" && f.body != "" {
+		p.add(bothInputsMsg)
 	}
-	if !draftSet && !bodySet {
+	if !f.draftSet && !f.bodySet {
 		p.add(exactlyOneMsg)
 	}
-	if draftPath != "" && titleSet {
+	if f.draftSet && f.titleSet {
 		p.add(titleWithDraftMsg)
 	}
-	if err := p.err(); err != nil {
-		return err
+
+	var res tmplpkg.Result
+	checked := false
+	if sc != nil && (f.draft != "") != (f.body != "") {
+		if f.draft != "" {
+			data, rerr := readInputFile("draft", f.draft)
+			if rerr != nil {
+				p.add(errMsg(rerr))
+			} else {
+				_, _, res = checkDraftBytes(sc, origin, data)
+				checked = true
+			}
+		} else {
+			data, rerr := readInputFile("body-file", f.body)
+			if rerr != nil {
+				p.add(errMsg(rerr))
+			} else {
+				res = checkBodyBytes(sc, origin, f.title, data)
+				checked = true
+			}
+		}
 	}
-	_, _, res, err := checkInput(sc, origin, draftPath, bodyPath, title, titleSet)
-	if err != nil {
-		return err
+	if p.any() {
+		if checked {
+			fmt.Fprint(stderr, res.Format())
+		}
+		return p.err()
 	}
-	if jsonOut {
+	if f.json {
 		type jsonFinding struct {
 			Severity string `json:"severity"`
 			Location string `json:"location"`
@@ -564,8 +617,8 @@ func runTemplateValidate(stdout io.Writer, schemaName, draftPath, bodyPath, titl
 			Origin   string        `json:"origin"`
 			Findings []jsonFinding `json:"findings"`
 		}{Schema: res.Type, Origin: res.Origin, Findings: []jsonFinding{}}
-		for _, f := range res.Sorted() {
-			out.Findings = append(out.Findings, jsonFinding{string(f.Severity), f.Location, f.Line, f.Message})
+		for _, fd := range res.Sorted() {
+			out.Findings = append(out.Findings, jsonFinding{string(fd.Severity), fd.Location, fd.Line, fd.Message})
 		}
 		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")

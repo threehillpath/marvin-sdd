@@ -24,18 +24,6 @@ import (
 	"threehillpath.com/marvin-sdd/tool/internal/worktree"
 )
 
-// rejectEmptyFlags returns an exit-1 usage error for the first of the named
-// flags that was passed with an empty value. An empty path must never fall
-// through to a "neither given" path. prefix is prepended to the message.
-func rejectEmptyFlags(cmd *cobra.Command, prefix string, names ...string) error {
-	for _, n := range names {
-		if f := cmd.Flags().Lookup(n); f != nil && f.Changed && f.Value.String() == "" {
-			return &CLIError{Code: 1, Msg: emptyFlagMsg(prefix, n)}
-		}
-	}
-	return nil
-}
-
 // loadConfig loads plan-workflow config from the current working directory.
 func loadConfig() (*config.Config, error) {
 	cwd, err := os.Getwd()
@@ -522,7 +510,7 @@ func newWorktreeResolveCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.
 func newIssueCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	issueCmd := &cobra.Command{
 		Use:   "issue",
-		Short: "Read GitHub issues",
+		Short: "List, create, edit and link GitHub issues",
 	}
 	issueCmd.AddCommand(newIssueListCmd(stdout, stderr, runner))
 	issueCmd.AddCommand(newIssueTreeCmd(stdout, stderr, runner))
@@ -542,8 +530,8 @@ type issueCreateOutput struct {
 // passed at all (a flag passed with an empty value is not the same as absent).
 type issueCreateFlags struct {
 	title, body, bodyFile, labels, tmplType, draft string
-	titleSet, tmplSet, draftSet, bodyFileSet       bool
-	jsonOut                                        bool
+	titleSet, tmplSet, bodySet, draftSet           bool
+	bodyFileSet, jsonOut                           bool
 }
 
 func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
@@ -554,49 +542,51 @@ func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comm
 		Short: "Create a GitHub issue (--title with --body/--body-file, or --template with --draft/--body-file to check it first)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// A missing config is an environment problem that blocks everything,
+			// so it is reported alone, before any usage problem is collected.
 			cfg, err := loadConfig()
 			if err != nil {
 				return err
 			}
 			f.titleSet = cmd.Flags().Changed("title")
 			f.tmplSet = cmd.Flags().Changed("template")
+			f.bodySet = cmd.Flags().Changed("body")
 			f.draftSet = cmd.Flags().Changed("draft")
 			f.bodyFileSet = cmd.Flags().Changed("body-file")
 			return runIssueCreate(stdout, stderr, cfg, f, runner)
 		},
 	}
-	cmd.Flags().StringVar(&f.tmplType, "template", "", "Check the body against this plan schema (e.g. impl-phase) before creating; exit 3 if it does not conform")
+	types := strings.Join(tmplpkg.DefaultSchemaNames(), ", ")
+	cmd.Flags().StringVar(&f.tmplType, "template", "", "Check the issue against this plan schema before creating (one of "+types+"); exit 3 if it does not conform")
 	cmd.Flags().StringVar(&f.draft, "draft", "", "YAML draft file (with --template); the title comes from the draft")
 	cmd.Flags().StringVar(&f.title, "title", "", "Issue title (required unless --template --draft, where it must equal the draft's title)")
-	cmd.Flags().StringVar(&f.body, "body", "", "Issue body (mutually exclusive with --body-file)")
+	cmd.Flags().StringVar(&f.body, "body", "", "Issue body (mutually exclusive with --body-file; not with --template)")
 	cmd.Flags().StringVar(&f.bodyFile, "body-file", "", "Path to a file containing the issue body (mutually exclusive with --body)")
 	cmd.Flags().StringVar(&f.labels, "label", "", "Comma-separated label names")
 	cmd.Flags().BoolVar(&f.jsonOut, "json", false, "Output JSON instead of plain text")
 	return cmd
 }
 
-// runIssueCreate validates the flags, resolves the body (reading --body-file's
-// contents when given), creates the issue, and prints the result. jsonOut
-// selects JSON output (--json); by default, plain-text mode prints the issue
-// number on one line then the URL on the next.
+// runIssueCreate validates the flags, creates the issue, and prints the
+// result. jsonOut selects JSON output (--json); by default, plain-text mode
+// prints the issue number on one line then the URL on the next.
 //
 // With --template <type> the input (--draft or --body-file) is checked against
 // that schema first, and the checked title and body are what gets created.
 // Every usage problem found in the invocation is reported together in one
-// exit-1 error, and when the input could be loaded its conformance findings
+// exit-1 error, and when the input can be loaded its conformance findings
 // are printed with them. Otherwise a non-conforming input exits 3 with the
 // findings on stderr. Either way no gh call is made. Warnings and the schema
-// line go to stderr.
+// line go to stderr. Each input file is read once, and those bytes are what
+// is checked and sent.
 func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, f issueCreateFlags, runner exec.Runner) error {
-	const prefix = "issue create: "
-	var p problems
-	tmplGiven := f.tmplSet || f.tmplType != ""
+	p := problems{prefix: "issue create: "}
 
 	var sc *tmplpkg.Schema
 	var origin string
-	if tmplGiven {
+	if f.tmplSet {
 		if f.tmplType == "" {
-			p.add(emptyTemplateMsg(prefix))
+			p.add(emptyTemplateMsg())
 		} else if s, o, err := loadSchema(f.tmplType); err != nil {
 			p.add(errMsg(err))
 		} else {
@@ -604,36 +594,57 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, f issueCreateF
 		}
 	}
 	if f.draftSet && f.draft == "" {
-		p.add(emptyFlagMsg(prefix, "draft"))
+		p.add(emptyFlagMsg("draft"))
 	}
 	if f.bodyFileSet && f.bodyFile == "" {
-		p.add(emptyFlagMsg(prefix, "body-file"))
+		p.add(emptyFlagMsg("body-file"))
 	}
 	if f.draft != "" && f.bodyFile != "" {
-		p.add(prefix + "--draft and --body-file are mutually exclusive: " + exactlyOneMsg)
+		p.add(bothInputsMsg)
 	}
-	if tmplGiven {
-		if f.body != "" {
-			p.add(prefix + "--template does not accept an inline --body: use --draft <file.yml> or --body-file <file.md>")
+	titleProblem := false
+	if f.tmplSet {
+		if f.bodySet {
+			p.add("--template does not accept an inline --body: use --draft <file.yml> or --body-file <file.md>")
 		}
 		if !f.draftSet && !f.bodyFileSet {
-			p.add(prefix + "--template needs an input: " + exactlyOneMsg)
+			p.add("--template needs an input: " + exactlyOneMsg)
 		}
 		if f.draft == "" && f.bodyFile != "" && f.title == "" {
-			p.add(prefix + "--template with --body-file requires --title (with --draft the title comes from the draft)")
+			p.add("--template with --body-file requires --title (with --draft the title comes from the draft)")
+			titleProblem = true
 		}
 	} else {
 		if f.draft != "" {
-			p.add(prefix + "--draft requires --template <type>: pass --template, or use --title with --body/--body-file")
+			p.add("--draft requires --template <type>: pass --template, or use --title with --body/--body-file")
 		}
 		if f.title == "" {
-			p.add("issue create requires --title")
+			p.add("requires --title")
 		}
 		if f.body != "" && f.bodyFile != "" {
-			p.add(prefix + "--body and --body-file are mutually exclusive")
+			p.add("--body and --body-file are mutually exclusive")
 		}
 		if f.body == "" && f.bodyFile == "" && !f.bodyFileSet {
-			p.add("issue create requires --body or --body-file")
+			p.add("requires --body or --body-file")
+		}
+	}
+
+	// Read each input once, during collection, so an unreadable file is
+	// reported with the other problems.
+	var draftData, bodyData []byte
+	draftRead, bodyRead := false, false
+	if f.draft != "" {
+		if data, err := readInputFile("draft", f.draft); err != nil {
+			p.add(errMsg(err))
+		} else {
+			draftData, draftRead = data, true
+		}
+	}
+	if f.bodyFile != "" {
+		if data, err := readInputFile("body-file", f.bodyFile); err != nil {
+			p.add(errMsg(err))
+		} else {
+			bodyData, bodyRead = data, true
 		}
 	}
 
@@ -642,19 +653,24 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, f issueCreateF
 	var checkedBody, checkedTitle string
 	var res tmplpkg.Result
 	checked := false
-	if sc != nil && (f.draft != "") != (f.bodyFile != "") {
-		body, title, r, err := checkInput(sc, origin, f.draft, f.bodyFile, f.title, false)
-		if err != nil {
-			p.add(errMsg(err))
-		} else {
-			checkedBody, checkedTitle, res, checked = body, title, r, true
+	if sc != nil {
+		switch {
+		case draftRead && f.bodyFile == "":
+			checkedBody, checkedTitle, res = checkDraftBytes(sc, origin, draftData)
+			checked = true
+		case bodyRead && f.draft == "":
+			checkedBody, checkedTitle, res = string(bodyData), f.title, checkBodyBytes(sc, origin, f.title, bodyData)
+			checked = true
 		}
 	}
 	// A loaded draft's title is compared whether or not the draft conforms.
 	if checked && f.draft != "" && f.titleSet && checkedTitle != "" && f.title != checkedTitle {
-		p.add(fmt.Sprintf("%s--title %q does not match the draft's title %q: the title comes from the draft, so remove --title or make it equal to the draft's \"title:\"", prefix, f.title, checkedTitle))
+		p.add(fmt.Sprintf("--title %q does not match the draft's title %q: the title comes from the draft, so remove --title or make it equal to the draft's \"title:\"", f.title, checkedTitle))
 	}
 	if checked {
+		if titleProblem {
+			res = dropTitleFindings(res) // already reported once, as a usage problem
+		}
 		fmt.Fprint(stderr, res.Format())
 	}
 	if err := p.err(); err != nil {
@@ -664,19 +680,13 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, f issueCreateF
 		return clierr.NonConforming(fmt.Sprintf("the issue does not conform to the %s schema; nothing was created. Fix the findings above and run again", f.tmplType))
 	}
 
-	title, body, bodyFile := f.title, f.body, f.bodyFile
-	if checked {
-		// Send exactly what was checked, so a body file that changes after the
-		// check cannot be created unchecked.
-		title, body, bodyFile = checkedTitle, checkedBody, ""
-	}
-	resolvedBody := body
-	if bodyFile != "" {
-		data, err := os.ReadFile(bodyFile)
-		if err != nil {
-			return &CLIError{Code: 1, Msg: fmt.Sprintf("issue create: reading --body-file %q: %v", bodyFile, err)}
-		}
-		resolvedBody = string(data)
+	title, body := f.title, f.body
+	switch {
+	case checked:
+		// Send exactly what was checked.
+		title, body = checkedTitle, checkedBody
+	case bodyRead:
+		body = string(bodyData)
 	}
 
 	var labels []string
@@ -684,7 +694,7 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, f issueCreateF
 		labels = strings.Split(f.labels, ",")
 	}
 
-	number, url, err := issue.Create(context.Background(), runner, cfg, title, resolvedBody, labels)
+	number, url, err := issue.Create(context.Background(), runner, cfg, title, body, labels)
 	if err != nil {
 		return &CLIError{Code: 1, Msg: err.Error()}
 	}
@@ -701,10 +711,12 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, f issueCreateF
 }
 
 // issueEditFlags is the state of issue edit's flags, including which were
-// passed at all.
+// passed at all. --body is a hidden flag that exists only so that using it is
+// a reported usage problem with advice, not a bare unknown-flag error.
 type issueEditFlags struct {
-	tmplType, draft, bodyFile      string
-	tmplSet, draftSet, bodyFileSet bool
+	tmplType, draft, bodyFile, body string
+	tmplSet, draftSet               bool
+	bodyFileSet, bodySet            bool
 }
 
 func newIssueEditCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
@@ -712,9 +724,13 @@ func newIssueEditCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comman
 
 	cmd := &cobra.Command{
 		Use:   "edit <issue-number>",
-		Short: "Replace an issue's body after checking it against a plan schema (--template, with --draft or --body-file)",
-		Args:  cobra.ExactArgs(1),
+		Short: "Replace an issue's body after checking it against a plan schema (--template with --draft, which also sets the title, or --body-file)",
+		// The argument count is checked in runIssueEdit so it is reported
+		// together with the other problems.
+		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// A missing config is an environment problem that blocks everything,
+			// so it is reported alone, before any usage problem is collected.
 			cfg, err := loadConfig()
 			if err != nil {
 				return err
@@ -722,12 +738,15 @@ func newIssueEditCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comman
 			f.tmplSet = cmd.Flags().Changed("template")
 			f.draftSet = cmd.Flags().Changed("draft")
 			f.bodyFileSet = cmd.Flags().Changed("body-file")
-			return runIssueEdit(stderr, cfg, args[0], f, runner)
+			f.bodySet = cmd.Flags().Changed("body")
+			return runIssueEdit(stderr, cfg, args, f, runner)
 		},
 	}
-	cmd.Flags().StringVar(&f.tmplType, "template", "", "Plan schema to check against (required), e.g. impl-phase")
+	cmd.Flags().StringVar(&f.tmplType, "template", "", "Plan schema to check against (required; one of "+strings.Join(tmplpkg.DefaultSchemaNames(), ", ")+")")
 	cmd.Flags().StringVar(&f.draft, "draft", "", "YAML draft file: sets the rendered body and the title")
 	cmd.Flags().StringVar(&f.bodyFile, "body-file", "", "Markdown body file: sets the body only, the title is unchanged")
+	cmd.Flags().StringVar(&f.body, "body", "", "Not supported: there is no inline body, use --draft or --body-file")
+	_ = cmd.Flags().MarkHidden("body")
 	return cmd
 }
 
@@ -736,22 +755,27 @@ func newIssueEditCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comman
 // with the conformance findings when the input could be checked; a check
 // error alone exits 3. Either way no mutating gh call is made. For
 // --body-file the title is read from the issue (a non-mutating gh call) only
-// when the flags themselves are fine.
-func runIssueEdit(stderr io.Writer, cfg *config.Config, numberArg string, f issueEditFlags, runner exec.Runner) error {
-	const prefix = "issue edit: "
-	var p problems
+// when no other problem exists. Each input file is read once, and those
+// bytes are what is checked and sent.
+func runIssueEdit(stderr io.Writer, cfg *config.Config, args []string, f issueEditFlags, runner exec.Runner) error {
+	p := problems{prefix: "issue edit: "}
 
-	number, numErr := strconv.Atoi(numberArg)
-	if numErr != nil {
-		p.add(fmt.Sprintf("invalid issue number %q: %v", numberArg, numErr))
+	number := 0
+	if len(args) != 1 {
+		p.add(fmt.Sprintf("needs exactly one <issue-number> argument, got %d", len(args)))
+	} else if n, err := strconv.Atoi(args[0]); err != nil {
+		p.add(fmt.Sprintf("invalid issue number %q: %v", args[0], err))
+	} else {
+		number = n
 	}
 	var sc *tmplpkg.Schema
 	var origin string
+	types := strings.Join(tmplpkg.DefaultSchemaNames(), ", ")
 	switch {
 	case f.tmplSet && f.tmplType == "":
-		p.add(emptyTemplateMsg(prefix))
+		p.add(emptyTemplateMsg())
 	case f.tmplType == "":
-		p.add("issue edit requires --template <type>: it checks the new body against that plan schema")
+		p.add("requires --template <type> (one of " + types + "): it checks the new body against that plan schema")
 	default:
 		if s, o, err := loadSchema(f.tmplType); err != nil {
 			p.add(errMsg(err))
@@ -759,55 +783,59 @@ func runIssueEdit(stderr io.Writer, cfg *config.Config, numberArg string, f issu
 			sc, origin = s, o
 		}
 	}
+	if f.bodySet {
+		p.add("there is no inline --body: use --draft <file.yml> or --body-file <file.md>")
+	}
 	if f.draftSet && f.draft == "" {
-		p.add(emptyFlagMsg(prefix, "draft"))
+		p.add(emptyFlagMsg("draft"))
 	}
 	if f.bodyFileSet && f.bodyFile == "" {
-		p.add(emptyFlagMsg(prefix, "body-file"))
+		p.add(emptyFlagMsg("body-file"))
 	}
 	if f.draft != "" && f.bodyFile != "" {
-		p.add(prefix + "--draft and --body-file are mutually exclusive: " + exactlyOneMsg)
+		p.add(bothInputsMsg)
 	}
 	if !f.draftSet && !f.bodyFileSet {
-		p.add(prefix + exactlyOneMsg)
+		p.add(exactlyOneMsg)
+	}
+
+	var draftData, bodyData []byte
+	draftRead, bodyRead := false, false
+	if f.draft != "" {
+		if data, err := readInputFile("draft", f.draft); err != nil {
+			p.add(errMsg(err))
+		} else {
+			draftData, draftRead = data, true
+		}
+	}
+	if f.bodyFile != "" {
+		if data, err := readInputFile("body-file", f.bodyFile); err != nil {
+			p.add(errMsg(err))
+		} else {
+			bodyData, bodyRead = data, true
+		}
 	}
 
 	var body, title string
 	var res tmplpkg.Result
 	checked := false
-	if sc != nil && (f.draft != "") != (f.bodyFile != "") {
-		var currentTitle string
-		var bodyData []byte
-		proceed := true
-		if f.bodyFile != "" {
-			// Read the file once, before spending a network call on the title:
-			// these bytes are both checked and sent (a pipe or /dev/stdin
-			// cannot be read twice).
-			var readErr error
-			if bodyData, readErr = os.ReadFile(f.bodyFile); readErr != nil {
-				p.add(fmt.Sprintf("%sreading --body-file %q: %v", prefix, f.bodyFile, readErr))
-				proceed = false
-			} else if len(p) == 0 {
-				t, err := issue.Title(context.Background(), runner, cfg, number)
+	if sc != nil {
+		switch {
+		case draftRead && f.bodyFile == "":
+			body, title, res = checkDraftBytes(sc, origin, draftData)
+			checked = true
+		case bodyRead && f.draft == "":
+			// The body is checked against the issue's current title, which is
+			// read only when nothing else is wrong (so a usage error still
+			// means zero gh calls) and is left unchanged by the edit.
+			if !p.any() {
+				currentTitle, err := issue.Title(context.Background(), runner, cfg, number)
 				if err != nil {
-					p.add(prefix + err.Error())
-					proceed = false
+					p.add(err.Error())
+				} else {
+					body, res = string(bodyData), checkBodyBytes(sc, origin, currentTitle, bodyData)
+					checked = true
 				}
-				currentTitle = t
-			} else {
-				// Other problems exist: do not call gh, and so cannot check a
-				// body against the issue's title.
-				proceed = false
-			}
-		}
-		if proceed && f.bodyFile != "" {
-			body, title, res, checked = string(bodyData), currentTitle, tmplpkg.CheckMarkdown(sc, origin, currentTitle, string(bodyData)), true
-		} else if proceed {
-			b, t, r, err := checkInput(sc, origin, f.draft, "", "", false)
-			if err != nil {
-				p.add(errMsg(err))
-			} else {
-				body, title, res, checked = b, t, r, true
 			}
 		}
 	}
@@ -819,9 +847,6 @@ func runIssueEdit(stderr io.Writer, cfg *config.Config, numberArg string, f issu
 	}
 	if res.HasErrors() {
 		return clierr.NonConforming(fmt.Sprintf("the input does not conform to the %s schema; issue #%d was not changed. Fix the findings above and run again", f.tmplType, number))
-	}
-	if f.bodyFile != "" {
-		title = "" // a markdown body leaves the title unchanged
 	}
 	if err := issue.Edit(context.Background(), runner, cfg, number, title, body); err != nil {
 		return &CLIError{Code: 1, Msg: err.Error()}

@@ -583,25 +583,34 @@ func runTemplateValidate(stdout, stderr io.Writer, schemaName string, f validate
 		p.add(titleWithDraftMsg)
 	}
 
+	// Read each input independently, so an unreadable file is reported even
+	// when the schema or the flag combination is wrong.
+	var draftData, bodyData []byte
+	draftRead, bodyRead := false, false
+	if f.draft != "" {
+		if data, rerr := readInputFile("draft", f.draft); rerr != nil {
+			p.add(errMsg(rerr))
+		} else {
+			draftData, draftRead = data, true
+		}
+	}
+	if f.body != "" {
+		if data, rerr := readInputFile("body-file", f.body); rerr != nil {
+			p.add(errMsg(rerr))
+		} else {
+			bodyData, bodyRead = data, true
+		}
+	}
 	var res tmplpkg.Result
 	checked := false
-	if sc != nil && (f.draft != "") != (f.body != "") {
-		if f.draft != "" {
-			data, rerr := readInputFile("draft", f.draft)
-			if rerr != nil {
-				p.add(errMsg(rerr))
-			} else {
-				_, _, res = checkDraftBytes(sc, origin, data)
-				checked = true
-			}
-		} else {
-			data, rerr := readInputFile("body-file", f.body)
-			if rerr != nil {
-				p.add(errMsg(rerr))
-			} else {
-				res = checkBodyBytes(sc, origin, f.title, data)
-				checked = true
-			}
+	if sc != nil {
+		switch {
+		case draftRead && f.body == "":
+			_, _, res = checkDraftBytes(sc, origin, draftData)
+			checked = true
+		case bodyRead && f.draft == "":
+			res = checkBodyBytes(sc, origin, f.title, bodyData)
+			checked = true
 		}
 	}
 	if p.any() {

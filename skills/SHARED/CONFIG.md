@@ -120,7 +120,7 @@ marvin issue tree <plan-issue-number>
 
 (`<plan-issue-number>` can be the arch, impl, or phase issue — any node of the plan resolves the whole tree.)
 
-This returns one pipe-delimited line per node — `<kind> | #<number> | <state> | <status> | <title>` — with `kind` one of `arch`, `impl`, `phase`. Filter for lines where `kind` is `phase`. If zero `phase` lines are found (not the same as an empty result — `issue tree` always emits the target's own node), the plan predates sub-issue linking; fall back to:
+This returns one pipe-delimited line per node — `<kind> | #<number> | <state> | <status> | <title>` — with `kind` one of `arch`, `impl`, `phase`, `task`. Filter for lines where `kind` is `phase`. If zero `phase` lines are found (not the same as an empty result — `issue tree` always emits the target's own node), the plan predates sub-issue linking; fall back to:
 
 ```bash
 marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX-" --state all

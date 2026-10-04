@@ -821,7 +821,7 @@ func runIssueEdit(stderr io.Writer, cfg *config.Config, args []string, f issueEd
 
 	var body, title string
 	var res tmplpkg.Result
-	checked := false
+	checked, titleUnknown := false, false
 	if sc != nil {
 		switch {
 		case draftRead && f.bodyFile == "":
@@ -830,20 +830,31 @@ func runIssueEdit(stderr io.Writer, cfg *config.Config, args []string, f issueEd
 		case bodyRead && f.draft == "":
 			// The body is checked against the issue's current title, which is
 			// read only when nothing else is wrong (so a usage error still
-			// means zero gh calls) and is left unchanged by the edit.
+			// means zero gh calls) and is left unchanged by the edit. Without
+			// the title the body is still checked, minus the title findings,
+			// and the note says what did not run.
+			currentTitle, titleKnown := "", false
 			if !p.any() {
-				currentTitle, err := issue.Title(context.Background(), runner, cfg, number)
+				t, err := issue.Title(context.Background(), runner, cfg, number)
 				if err != nil {
 					p.add(err.Error())
 				} else {
-					body, res = string(bodyData), checkBodyBytes(sc, origin, currentTitle, bodyData)
-					checked = true
+					currentTitle, titleKnown = t, true
 				}
+			}
+			body, res = string(bodyData), checkBodyBytes(sc, origin, currentTitle, bodyData)
+			checked = true
+			if !titleKnown {
+				res = dropTitleFindings(res)
+				titleUnknown = true
 			}
 		}
 	}
 	if checked {
 		fmt.Fprint(stderr, res.Format())
+		if titleUnknown {
+			fmt.Fprint(stderr, titleChecksNote)
+		}
 	}
 	if err := p.err(); err != nil {
 		return err

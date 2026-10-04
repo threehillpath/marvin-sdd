@@ -532,6 +532,7 @@ type issueCreateFlags struct {
 	title, body, bodyFile, labels, tmplType, draft string
 	titleSet, tmplSet, bodySet, draftSet           bool
 	bodyFileSet, jsonOut                           bool
+	args                                           []string
 }
 
 func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
@@ -540,7 +541,9 @@ func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comm
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a GitHub issue (--title with --body/--body-file, or --template with --draft/--body-file to check it first)",
-		Args:  cobra.NoArgs,
+		// The argument count is checked in runIssueCreate so a stray positional
+		// is reported together with the other problems.
+		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// A missing config is an environment problem that blocks everything,
 			// so it is reported alone, before any usage problem is collected.
@@ -548,6 +551,7 @@ func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comm
 			if err != nil {
 				return err
 			}
+			f.args = args
 			f.titleSet = cmd.Flags().Changed("title")
 			f.tmplSet = cmd.Flags().Changed("template")
 			f.bodySet = cmd.Flags().Changed("body")
@@ -582,6 +586,13 @@ func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comm
 func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, f issueCreateFlags, runner exec.Runner) error {
 	p := problems{prefix: "issue create: "}
 
+	if len(f.args) > 0 {
+		quoted := make([]string, len(f.args))
+		for i, a := range f.args {
+			quoted[i] = strconv.Quote(a)
+		}
+		p.add(fmt.Sprintf("takes no positional arguments: got %s (the title and body come from flags)", strings.Join(quoted, ", ")))
+	}
 	var sc *tmplpkg.Schema
 	var origin string
 	if f.tmplSet {

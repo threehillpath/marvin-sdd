@@ -537,8 +537,14 @@ func TestCheckMarkdownRawHTMLInMetadataValueIsReportedOnce(t *testing.T) {
 // (round 2 N4).
 func TestCheckMarkdownNBSPLineIsNotBlank(t *testing.T) {
 	res := checkMD(t, "> Revised note\n \n"+phaseBody)
-	if errs := errorsAt(res, "metadata:Status"); len(errs) == 0 || errs[0].Line == 0 {
-		t.Fatalf("want a located metadata:Status error:\n%s", res.Format())
+	located := 0
+	for _, f := range errorsAt(res, "metadata:Status") {
+		if f.Line > 0 {
+			located++
+		}
+	}
+	if located != 1 {
+		t.Fatalf("want one located metadata:Status error:\n%s", res.Format())
 	}
 }
 

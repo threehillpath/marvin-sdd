@@ -59,7 +59,7 @@ Fill every key of the skeleton (six required sections). In `title:`, replace `[T
 
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
 - The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
-- Two metadata values are checked: `Source Issue` starts with the issue reference, `#<n>`, and `Task Number` is the title's identifier without brackets (`TASK-00151` for the title `[TASK-00151] ...`).
+- Every metadata value must be non-empty. `Source Issue` starts with the issue reference, `#<n>` (no plan cross-check for a Task), and `Task Number` is the title's identifier without brackets (`TASK-00151` for the title `[TASK-00151] ...`).
 - Each key appears once. Indent with spaces, never tabs.
 - No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`, except inside a code fence, where a `#` line is code and must stay unescaped (`\#` would print as is).
 - No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.

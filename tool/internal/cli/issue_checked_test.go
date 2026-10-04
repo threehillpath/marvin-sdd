@@ -892,3 +892,28 @@ func TestEditTitleAndLabelFlagsAreReportedWithAdvice(t *testing.T) {
 		}
 	}
 }
+
+// TestCreateWordingIsConsistent verifies create uses the same bare wording as
+// edit and validate for a missing input, and names an explicitly empty
+// --title as an empty value rather than as a missing one.
+func TestCreateWordingIsConsistent(t *testing.T) {
+	withConfigFixture(t)
+	body := writeTemp(t, "b.md", conformingPhaseBody)
+	_, _, err := runIssue(&exectest.FakeRunner{}, "issue", "create", "--template", "impl-phase")
+	ce := wantCode(t, err, 1)
+	if want := "issue create: " + exactlyOneWording; ce.Msg != want {
+		t.Errorf("message = %q, want %q", ce.Msg, want)
+	}
+	for name, args := range map[string][]string{
+		"legacy":   {"issue", "create", "--title", "", "--body", "x"},
+		"template": {"issue", "create", "--template", "impl-phase", "--body-file", body, "--title", ""},
+	} {
+		_, _, err := runIssue(&exectest.FakeRunner{}, args...)
+		ce := wantCode(t, err, 1)
+		if !strings.Contains(ce.Msg, "--title was given an empty value") {
+			t.Errorf("%s: message = %q, want it to name the empty --title", name, ce.Msg)
+		}
+	}
+}
+
+const exactlyOneWording = "pass exactly one of --draft <file.yml> or --body-file <file.md>"

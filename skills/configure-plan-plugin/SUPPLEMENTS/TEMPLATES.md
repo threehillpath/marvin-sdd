@@ -36,7 +36,7 @@ test_commands:
 
 ## Board management reference
 
-`marvin` (the bundled CLI, compiled into `${PLUGIN_DIR}/bin/marvin` by `deploy.sh`) handles all board operations. Skills call `marvin board`, `marvin config get`, and related subcommands rather than constructing raw `gh project` invocations. The recipes below are provided for reference when debugging or scripting outside of skills.
+`marvin` (the bundled CLI, compiled into the plugin's `bin/marvin` by its `SessionStart` hook) handles all board operations. Skills call `marvin board`, `marvin config get`, and related subcommands rather than constructing raw `gh project` invocations. The recipes below are provided for reference when debugging or scripting outside of skills.
 
 ### Add an issue to the board and capture its item ID
 

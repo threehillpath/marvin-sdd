@@ -39,11 +39,11 @@ This plugin implements a full planning and development workflow:
 ### 1. Install the plugin
 
 ```bash
-# From a local directory
-claude --plugin-dir /path/to/plan-workflow
+claude plugin marketplace add threehillpath/marvin-sdd
+claude plugin install plan-workflow@plan-workflow-marketplace
 ```
 
-Or add to your project's `.claude/settings.json` once published to a marketplace.
+The plugin's `SessionStart` hook compiles the bundled `marvin` CLI on the next session start. To pick up a new release, run `claude plugin marketplace update plan-workflow-marketplace` and `claude plugin update plan-workflow@plan-workflow-marketplace`, then restart.
 
 ### 2. Configure for your project
 
@@ -76,8 +76,8 @@ Each plan traces back to a source GitHub issue. The source issue number becomes 
 
 ## Requirements
 
-**Install-time** (needed when running `deploy.sh`):
-- [Go SDK](https://go.dev/dl/) (`go` on PATH) — `deploy.sh` compiles the bundled `marvin` CLI and will fail with a clear error message if `go` is absent
+**Install-time**:
+- [Go SDK](https://go.dev/dl/) (`go` on PATH) — the plugin's `SessionStart` hook compiles the bundled `marvin` CLI; without `go`, it prints a diagnostic and `marvin` is unavailable
 
 **Runtime** (needed when using skills):
 - [`gh`](https://cli.github.com/) authenticated with access to your repo and project

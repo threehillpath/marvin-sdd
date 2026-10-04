@@ -3,11 +3,9 @@ set -euo pipefail
 
 # Compiles the marvin CLI from Go source into a target binary path, skipping
 # the build when the binary already exists and is newer than every file in
-# the source tree. Shared by deploy.sh (local-directory install, where the
-# caller has already hard-failed if Go is missing) and the plugin's
-# SessionStart hook (marketplace install, where tool/ ships alongside the
-# rest of the plugin and a missing Go SDK should degrade quietly instead of
-# blocking session start).
+# the source tree. Called by the plugin's SessionStart hook (marketplace
+# install, where tool/ ships alongside the rest of the plugin and a missing Go
+# SDK should degrade quietly instead of blocking session start).
 #
 # Usage: build.sh <tool_source_dir> <output_binary_path>
 

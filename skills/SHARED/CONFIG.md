@@ -168,7 +168,7 @@ Rules. `--guidance` prints the quoting, `|` block, heading, comment, document-ma
 | 2 | Config missing or malformed. Only `issue create` and `issue edit` return it (`render` and `validate` read no config). Reported alone; nothing else is collected. |
 | 3 | The draft or body does not conform. Findings are on stderr for `render --draft`, `issue create` and `issue edit`, and on stdout for `validate`. A failed check makes no mutating GitHub call. |
 
-Skills fix and retry a draft on exit 3 (at most 3 attempts), and surface exit 1 and 2 without retrying.
+Skills fix and retry a draft on exit 3 (at most 3 attempts per round of user changes), ask the user to approve again when a fix changes what the draft says, and surface exit 1 and 2 without retrying.
 
 ## Test Commands
 

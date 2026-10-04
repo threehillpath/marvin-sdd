@@ -389,3 +389,24 @@ sections:
 		t.Errorf("origin not reported:\n%s", stdout)
 	}
 }
+
+// TestTemplateValidateJSONOrdersErrorsFirst verifies --json lists findings in
+// the same order as the text output: errors before warnings.
+func TestTemplateValidateJSONOrdersErrorsFirst(t *testing.T) {
+	// An empty optional section (warning) comes before the missing
+	// verification (error) in Check's own order.
+	d := strings.Replace(phaseDraftNoVerification, "  components: |", "  tdd_entry_point: |\n  components: |", 1)
+	stdout, _, err := runCLI(t, "template", "validate", "impl-phase", "--draft", writeTemp(t, "d.yml", d), "--json")
+	wantCode(t, err, 3)
+	var out struct {
+		Findings []struct {
+			Severity string `json:"severity"`
+		} `json:"findings"`
+	}
+	if jerr := json.Unmarshal([]byte(stdout), &out); jerr != nil {
+		t.Fatal(jerr)
+	}
+	if len(out.Findings) < 2 || out.Findings[0].Severity != "error" || out.Findings[len(out.Findings)-1].Severity != "warning" {
+		t.Errorf("want the error first and a warning last, got %+v", out.Findings)
+	}
+}

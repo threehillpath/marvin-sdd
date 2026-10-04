@@ -76,7 +76,7 @@ Show the user the rendered issue, not the YAML:
 marvin template render arch-plan --draft <project-root>/.claude/cache/<plan>/arch-draft.yml
 ```
 
-Stdout is the issue body as markdown; show the draft's `title:` with it. If it exits 3 the draft does not conform: fix it per the findings on stderr and render again, within the retry limit in the create step. When the user asks for changes, edit the draft file and render again.
+Stdout is the issue body as markdown. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`), and ask for approval on the pasted text. If it exits 3 the draft does not conform: fix it per the findings on stderr and render again, within the retry limit in the create step. When the user asks for changes, edit the draft file and render again.
 
 Read `../SHARED/LABELS.md`. Infer domain labels from the plan content. Present the rendered draft with proposed labels: "I'll apply: `plan:arch`, `status:upcoming`, `domain:backend` — correct?" Allow corrections before proceeding.
 

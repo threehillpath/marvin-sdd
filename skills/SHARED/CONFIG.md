@@ -86,10 +86,10 @@ Render, validate, create and edit all follow this order, so a draft is checked a
 A schema (built-in or override) must declare:
 
 - `type:` — the type name, equal to the file name for an override.
-- `title_prefix:` — the title pattern, e.g. `"[PLAN-XXXXX-N] <Phase Title>"`. A draft's title must start with the real identifier this pattern names.
+- `title_prefix:` — the title pattern, e.g. `"[PLAN-XXXXX-N] <Phase Title>"`. It must begin with one of the four leading identifiers `[PLAN-XXXXX-ARCH]`, `[PLAN-XXXXX]`, `[PLAN-XXXXX-N]` or `[TASK-XXXXX]`, and the one that matches the type (`arch-plan`: `[PLAN-XXXXX-ARCH]`, `impl-plan`: `[PLAN-XXXXX]`, `impl-phase`: `[PLAN-XXXXX-N]`, `quick-task`: `[TASK-XXXXX]`); any other prefix is a schema error (exit 1). A draft's title must start with the real identifier this pattern names.
 - `named: true|false` on every `numbered: true` section. `true`: each instance's heading text comes from the draft (`impl-plan`'s Component sections); `false`: the heading is the schema heading (Verification Steps).
 
-**Migrating an override.** An override written before these fields were required fails with exit 1 and a message naming the missing field. Add `title_prefix:` copied from the built-in schema for that type, and add `named:` to each numbered section. Start from the built-in schemas in `tool/internal/template/schemas/` if unsure.
+**Migrating an override.** An override written before these fields were required fails with exit 1 and a message naming the missing field. Add `title_prefix:` copied from the built-in schema for that type, and add `named:` to each numbered section. If unsure what a built-in schema looks like, `marvin template render <type> --guidance` shows its sections, and the built-in schema files are in the plugin repository under `tool/internal/template/schemas/` (not in a consuming project).
 
 ### Draft format
 

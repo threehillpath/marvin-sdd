@@ -261,12 +261,14 @@ func TestTemplateValidateInputFlagsAreExclusive(t *testing.T) {
 	}
 }
 
+// conformingPhaseBody is a markdown body that conforms to impl-phase.
+const conformingPhaseBody = "**Implementation Plan:** #132 ([PLAN-00112])\n**Plan Number:** PLAN-00112\n**Status:** upcoming\n\n## Objective\n\nDo it.\n\n## Scope\n\nIn.\n\n## Components\n\nC.\n\n## Verification\n\nV.\n\n## Success Criteria\n\n- [ ] ok\n"
+
 // TestTemplateValidateBodyFile verifies the markdown path: a conforming
 // body exits 0, a missing --title is a title error (exit 3), and a missing
 // section is reported.
 func TestTemplateValidateBodyFile(t *testing.T) {
-	body := "**Implementation Plan:** #132 ([PLAN-00112])\n**Plan Number:** PLAN-00112\n**Status:** upcoming\n\n## Objective\n\nDo it.\n\n## Scope\n\nIn.\n\n## Components\n\nC.\n\n## Verification\n\nV.\n\n## Success Criteria\n\n- [ ] ok\n"
-	f := writeTemp(t, "b.md", body)
+	f := writeTemp(t, "b.md", conformingPhaseBody)
 	stdout, _, err := runCLI(t, "template", "validate", "impl-phase", "--body-file", f, "--title", "[PLAN-00112-5] Phase title")
 	if err != nil {
 		t.Fatalf("want exit 0, got %v\n%s", err, stdout)
@@ -300,9 +302,6 @@ func TestTemplateValidateJSON(t *testing.T) {
 		t.Errorf("unexpected JSON: %+v", out)
 	}
 }
-
-// conformingPhaseBody is a markdown body that conforms to impl-phase.
-const conformingPhaseBody = "**Implementation Plan:** #132 ([PLAN-00112])\n**Plan Number:** PLAN-00112\n**Status:** upcoming\n\n## Objective\n\nDo it.\n\n## Scope\n\nIn.\n\n## Components\n\nC.\n\n## Verification\n\nV.\n\n## Success Criteria\n\n- [ ] ok\n"
 
 // TestTemplateValidateGoldmarkBackstopOnDraft verifies a draft whose only
 // problem is an HTML block in Scope (which Check alone accepts) is refused.

@@ -53,7 +53,7 @@ func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineO
 	prevBlank, prevAccepted := true, false
 	for i, line := range lines[:end] {
 		origins[i] = lineOrigin{loc: "draft", what: "the text above the first \"## \" heading", line: i + 1, where: `above the first "## " heading`}
-		blank := strings.TrimSpace(line) == ""
+		blank := strings.Trim(line, " \t") == "" // CommonMark: only spaces and tabs
 		accepted := false
 		if mm := metadataLineRe.FindStringSubmatch(line); mm != nil {
 			key := mm[1]

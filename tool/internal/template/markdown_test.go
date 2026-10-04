@@ -441,3 +441,76 @@ func TestParseMarkdownAcceptedMetadataPlacements(t *testing.T) {
 		})
 	}
 }
+
+const aboveFirst = `above the first "## " heading`
+
+func errorsAt(res tmpl.Result, loc string) []tmpl.Finding {
+	var out []tmpl.Finding
+	for _, f := range res.Findings {
+		if f.Severity == tmpl.SeverityError && f.Location == loc {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// The text above the first heading gets the shared content guards, located
+// as such, with fixes that fit that location (review B3).
+func TestCheckMarkdownGuardsThePreamble(t *testing.T) {
+	cases := []struct {
+		name, body string
+		want       []string
+		notWant    []string
+	}{
+		{"lone carriage return", "note\r## Fake\n\n" + phaseBody, []string{"carriage return", "line 1"}, nil},
+		{"setext under the metadata", strings.Replace(phaseBody, "**Status:** Upcoming", "**Status:** Upcoming\n---", 1),
+			[]string{`**Status:** Upcoming`, `underline "---"`, "line 3"}, []string{`\#`}},
+		{"unclosed fence", "```\nnote\n\n" + phaseBody, []string{"never closed", "```", "line 1"}, nil},
+		{"raw html", "<details>\nhidden\n\n" + phaseBody, []string{`"<details>"`, "line 1"}, nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			errs := errorsAt(checkMD(t, c.body), "draft")
+			if len(errs) == 0 {
+				t.Fatalf("no draft-level error:\n%s", checkMD(t, c.body).Format())
+			}
+			msg := errs[0].Message
+			for _, w := range append(c.want, aboveFirst) {
+				if !strings.Contains(msg, w) {
+					t.Errorf("message %q missing %q", msg, w)
+				}
+			}
+			for _, w := range c.notWant {
+				if strings.Contains(msg, w) {
+					t.Errorf("message %q must not contain %q", msg, w)
+				}
+			}
+		})
+	}
+}
+
+// A body with no "## " heading at all is all preamble: its metadata is read
+// and its content is still guarded.
+func TestCheckMarkdownBodyWithNoHeadings(t *testing.T) {
+	body := "**Status:** Upcoming\n\n<details>\nhidden\n"
+	sc := loadBuiltIn(t, "impl-phase")
+	if got := tmpl.ParseMarkdown(sc, "[PLAN-00112-1] X", body).Metadata["Status"].Value; got != "Upcoming" {
+		t.Errorf("Status = %q", got)
+	}
+	errs := errorsAt(checkMD(t, body), "draft")
+	if len(errs) != 1 || !strings.Contains(errs[0].Message, `"<details>"`) || !strings.Contains(errs[0].Message, aboveFirst) {
+		t.Fatalf("draft errors = %+v", errs)
+	}
+}
+
+// verifyBody's wording for a heading above the first section reads as a
+// sentence (review N1).
+func TestCheckMarkdownVerifyFixTextForPreamble(t *testing.T) {
+	errs := errorsAt(checkMD(t, "# Big\n\n"+phaseBody), "draft")
+	if len(errs) != 1 {
+		t.Fatalf("errors = %+v", errs)
+	}
+	if !strings.Contains(errs[0].Message, `Edit it `+aboveFirst+`.`) {
+		t.Errorf("message = %q", errs[0].Message)
+	}
+}

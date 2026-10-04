@@ -379,10 +379,20 @@ func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, gu
 //     found by walking up from cwd (sibling to the config file's own lookup).
 //  2. Plugin default: the schema embedded in the marvin binary.
 //
-// The plugin default is always present for a known schema name and has no
-// CWD dependency, so lookup only fails when schemaName has neither an
-// override nor a built-in schema, or a present override cannot be read.
+// The plugin default is always present for a name in the fixed set and has no
+// CWD dependency, so lookup fails only when schemaName is not one of the
+// fixed types (checked first, before any override path is built) or a present
+// override of a fixed type cannot be read.
 func resolveSchema(schemaName string) (data []byte, origin string, err error) {
+	// The type name carries business-rule weight, so it must be one of the
+	// fixed built-in types. Check it before any path is built or any override
+	// file is looked up: a name outside the set is an error even if a file of
+	// that name exists, and a path-like name such as "../x" never reaches the
+	// filesystem.
+	builtin, ok := tmplpkg.DefaultSchema(schemaName)
+	if !ok {
+		return nil, "", fmt.Errorf("unknown schema %q: the template type must be one of %s", schemaName, strings.Join(tmplpkg.DefaultSchemaNames(), ", "))
+	}
 	// A failure to determine the CWD does not block the embedded-default
 	// fallback below, which needs no CWD at all — it only means a project
 	// override (which does need one) cannot be searched for.
@@ -395,10 +405,7 @@ func resolveSchema(schemaName string) (data []byte, origin string, err error) {
 			return overrideData, "project override: " + overridePath, nil
 		}
 	}
-	if data, ok := tmplpkg.DefaultSchema(schemaName); ok {
-		return data, "built-in", nil
-	}
-	return nil, "", fmt.Errorf("unknown schema %q: no project override and no plugin default. The built-in types are %s", schemaName, strings.Join(tmplpkg.DefaultSchemaNames(), ", "))
+	return builtin, "built-in", nil
 }
 
 // findSchemaOverride walks up from startDir looking for a project-supplied

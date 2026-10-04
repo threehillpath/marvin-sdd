@@ -249,7 +249,7 @@ marvin worktree prune
 marvin findings clear <task>
 ```
 
-`<task>` is `task_number` from B11 in lowercase (for example `task-00151`). `marvin findings clear` removes `.claude/cache/<task>/`, which holds the Task's draft and review findings; it exits 0 if the directory is already gone.
+`<task>` is `task_number` from B11 in lowercase (for example `task-00151`). `marvin findings clear` removes `.claude/cache/<task>/`, which holds the Task's draft; it exits 0 if the directory is already gone.
 
 `marvin worktree remove` resolves `<worktree_path>` against the repo root internally regardless of the invoking CWD — no need to resolve it to absolute manually first, unlike A8's sub-agent spawn, which hands the path to a sub-agent that isn't necessarily running from the repo root.
 

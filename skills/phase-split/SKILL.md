@@ -2,7 +2,7 @@
 name: phase-split
 description: Break an implementation plan into phases and create GitHub issues for each
 argument-hint: <impl-plan-issue-number>
-allowed-tools: Bash, Read, Glob, Grep
+allowed-tools: Bash, Read, Write, Glob, Grep
 model: opus
 ---
 

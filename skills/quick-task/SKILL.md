@@ -2,7 +2,7 @@
 name: quick-task
 description: Create and drive a single-cycle Task from a source issue through implementation and review to a merged PR, without the arch-plan/impl-plan/phase-split hierarchy
 argument-hint: <source-issue-number>
-allowed-tools: Bash, Read, Glob, Grep, Agent
+allowed-tools: Bash, Read, Write, Glob, Grep, Agent
 model: sonnet
 ---
 

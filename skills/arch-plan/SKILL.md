@@ -2,7 +2,7 @@
 name: arch-plan
 description: Interview and produce an architectural plan for a GitHub issue, stored as a new GitHub issue
 argument-hint: <source-issue-number>
-allowed-tools: Bash, Read, Glob, Grep
+allowed-tools: Bash, Read, Write, Glob, Grep
 model: opus
 ---
 

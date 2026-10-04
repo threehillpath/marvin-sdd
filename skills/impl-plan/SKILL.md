@@ -2,7 +2,7 @@
 name: impl-plan
 description: Create a technical implementation plan from an architecture plan issue
 argument-hint: <arch-plan-issue-number>
-allowed-tools: Bash, Read, Glob, Grep, Agent
+allowed-tools: Bash, Read, Write, Glob, Grep, Agent
 model: opus
 ---
 

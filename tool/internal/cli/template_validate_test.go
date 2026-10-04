@@ -327,3 +327,19 @@ func assertScopeHTMLBlock(t *testing.T, stdout string) {
 	}
 	t.Errorf("no \"error section:scope ... HTML block\" line in:\n%s", stdout)
 }
+
+// TestTemplateValidateDraftRejectsTitleFlag verifies --title with --draft is
+// a usage error rather than being dropped silently.
+func TestTemplateValidateDraftRejectsTitleFlag(t *testing.T) {
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	stdout, _, err := runCLI(t, "template", "validate", "impl-phase", "--draft", draft, "--title", "[PLAN-00999-ARCH] bogus")
+	ce := wantCode(t, err, 1)
+	if stdout != "" {
+		t.Errorf("want empty stdout, got %q", stdout)
+	}
+	for _, w := range []string{"--title", "title:", "--body-file"} {
+		if !strings.Contains(ce.Msg, w) {
+			t.Errorf("message %q missing %q", ce.Msg, w)
+		}
+	}
+}

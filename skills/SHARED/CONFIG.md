@@ -83,7 +83,7 @@ Run from the **repository root**. Use the framework's native invocation pattern 
 
 ## Board and Issue Operations
 
-`marvin` (the bundled CLI, compiled into `${PLUGIN_DIR}/bin/marvin` by `deploy.sh`) handles
+`marvin` (the bundled CLI, compiled into the plugin's `bin/marvin` by its `SessionStart` hook) handles
 all board and issue read operations. Skills call `marvin board`, `marvin issue`, and related
 subcommands rather than constructing raw `gh project` or `gh issue list` invocations.
 

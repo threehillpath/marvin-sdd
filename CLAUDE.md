@@ -75,9 +75,8 @@ docs/
 
 `marvin` is compiled from `tool/` by `tool/build.sh`, which writes the binary to a caller-supplied output path and skips the build when that binary is already newer than every file under `tool/`. Skills call it for all deterministic operations — board moves, label management, config access, name derivation, PR lookup, worktree lifecycle, findings cache — so that none of that logic needs to be re-synthesized from shell in skill prose.
 
-Two callers invoke `tool/build.sh`, covering the two install paths:
-- **`deploy.sh`** (local-directory install) — hard-fails first if `go` is absent, then builds into `${PLUGIN_DIR}/bin/marvin`.
-- **`hooks/hooks.json`** (marketplace install) — a `SessionStart` hook that builds into `${CLAUDE_PLUGIN_ROOT}/bin/marvin` on every session start, degrading quietly (stderr diagnostic, exit 0) if `go` is missing or `tool/` isn't present in that install, rather than blocking the session.
+The plugin is installed only from the GitHub marketplace (`plan-workflow@plan-workflow-marketplace`). `tool/build.sh` is invoked by:
+- **`hooks/hooks.json`** — a `SessionStart` hook that builds into `${CLAUDE_PLUGIN_ROOT}/bin/marvin` on every session start, degrading quietly (stderr diagnostic, exit 0) if `go` is missing or `tool/` isn't present in that install, rather than blocking the session.
 
 Subcommand groups: `config`, `names`, `parse`, `template`, `board`, `issue`, `label`, `pr`, `findings`, `worktree`, `version`.
 
@@ -129,8 +128,8 @@ Plan issue templates follow the same project-first resolution: `marvin template 
 
 ## Requirements (for consuming projects)
 
-**Install-time** (needed when running `deploy.sh`):
-- [Go SDK](https://go.dev/dl/) (`go` on PATH) — `deploy.sh` compiles `marvin` during install and hard-fails with a clear message if `go` is absent
+**Install-time**:
+- [Go SDK](https://go.dev/dl/) (`go` on PATH) — the `SessionStart` hook compiles `marvin` into the plugin's `bin/`; without `go`, it prints a stderr diagnostic and `marvin` is unavailable
 
 **Runtime** (needed when using skills):
 - `gh` CLI authenticated with repo and project access

@@ -60,6 +60,10 @@ type SectionMap struct {
 	// map keeps the first value. Markdown only.
 	RepeatedMetadata []RepeatedField
 
+	// Preamble is the text above the first "## " heading (the whole body when
+	// there is none), markdown only. Check applies the content guards to it.
+	Preamble string
+
 	// MisplacedMetadata lists metadata-shaped lines that GitHub does not show
 	// as metadata (markdown only).
 	MisplacedMetadata []MisplacedField
@@ -608,8 +612,11 @@ func contentLine(content string, n int) string {
 // structure: a "## " heading outside a fence, which would become a new
 // section, and a fence that is never closed, which would swallow every later
 // section.
-func (c *checker) checkContentStructure(loc, what, content string, line int) {
+func (c *checker) checkContentStructure(loc, what, content string, line int, whereOverride ...string) {
 	where := c.fix(fmt.Sprintf("inside the %q block", strings.TrimPrefix(loc, "section:")), "under that heading")
+	if len(whereOverride) > 0 {
+		where = whereOverride[0]
+	}
 	if norm := strings.ReplaceAll(content, "\r\n", "\n"); strings.Contains(norm, "\r") {
 		n := strings.Count(norm[:strings.Index(norm, "\r")], "\n") + 1
 		c.add(SeverityError, loc, line, "content of %s has a lone carriage return on line %d of the section, which GitHub renders as a line break the structure checks cannot see (for example \"a\\r## X\" becomes a heading). Fix: replace the carriage return with a line break (or remove it), %s.",
@@ -662,6 +669,7 @@ func (c *checker) checkMarkdownOnly() {
 	for _, key := range c.sc.Metadata {
 		known[key] = true
 	}
+	c.checkContentStructure("draft", "the text above the first \"## \" heading", c.m.Preamble, 1, "above the first \"## \" heading")
 	for _, f := range c.m.MisplacedMetadata {
 		if !known[f.Key] {
 			continue

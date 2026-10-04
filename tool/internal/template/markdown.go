@@ -43,9 +43,10 @@ func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineO
 	if len(heads) > 0 {
 		end = heads[0].Line - 1
 	}
+	m.Preamble = strings.Join(lines[:end], "\n")
 	prevBlank, prevAccepted := true, false
 	for i, line := range lines[:end] {
-		origins[i] = lineOrigin{loc: "draft", what: "the text above the first \"## \" heading", line: i + 1, where: "edit that text"}
+		origins[i] = lineOrigin{loc: "draft", what: "the text above the first \"## \" heading", line: i + 1, where: `above the first "## " heading`}
 		blank := strings.TrimSpace(line) == ""
 		accepted := false
 		if mm := metadataLineRe.FindStringSubmatch(line); mm != nil {
@@ -62,7 +63,7 @@ func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineO
 				} else {
 					m.Metadata[key] = Field{Value: strings.TrimSpace(mm[2]), Line: i + 1}
 				}
-				origins[i] = lineOrigin{loc: "metadata:" + key, what: fmt.Sprintf("metadata value %q", key), line: i + 1, where: fmt.Sprintf("edit the \"**%s:**\" line", key)}
+				origins[i] = lineOrigin{loc: "metadata:" + key, what: fmt.Sprintf("metadata value %q", key), line: i + 1, where: fmt.Sprintf("in the \"**%s:**\" line", key)}
 			}
 		}
 		prevBlank, prevAccepted = blank, accepted

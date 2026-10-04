@@ -179,7 +179,10 @@ func TestTemplateValidateReportsOverridePath(t *testing.T) {
 	}
 	chdir(t, dir)
 	draft := writeTemp(t, "d.yml", "title: \"[TASK-00001] x\"\nmetadata:\n  Source Issue: \"#1\"\nsections:\n  override_marker: |\n    hi\n")
-	stdout, _, _ := runCLI(t, "template", "validate", "quick-task", "--draft", draft)
+	stdout, _, err := runCLI(t, "template", "validate", "quick-task", "--draft", draft)
+	if err != nil {
+		t.Fatalf("want exit 0 under the override, got %v\n%s", err, stdout)
+	}
 	first := strings.SplitN(stdout, "\n", 2)[0]
 	// t.TempDir may sit behind a symlink (macOS /var), so compare the suffix.
 	if !strings.HasPrefix(first, "schema: quick-task (project override: ") || !strings.HasSuffix(first, filepath.Join(".claude", "plan-workflow-templates", "quick-task.yml")+")") {
@@ -341,5 +344,48 @@ func TestTemplateValidateDraftRejectsTitleFlag(t *testing.T) {
 		if !strings.Contains(ce.Msg, w) {
 			t.Errorf("message %q missing %q", ce.Msg, w)
 		}
+	}
+}
+
+// TestTemplateValidateOverrideChangesTheVerdict verifies the override is used,
+// not just reported: under an impl-phase override with no verification
+// section, the draft missing verification conforms.
+func TestTemplateValidateOverrideChangesTheVerdict(t *testing.T) {
+	dir := t.TempDir()
+	od := filepath.Join(dir, ".claude", "plan-workflow-templates")
+	if err := os.MkdirAll(od, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	override := `type: impl-phase
+title_prefix: "[PLAN-XXXXX-N] <Phase Title>"
+metadata:
+  - Implementation Plan
+  - Plan Number
+  - Status
+sections:
+  - id: objective
+    heading: Objective
+    required: true
+  - id: scope
+    heading: Scope
+    required: true
+  - id: components
+    heading: Components
+    required: true
+  - id: success_criteria
+    heading: Success Criteria
+    required: true
+`
+	if err := os.WriteFile(filepath.Join(od, "impl-phase.yml"), []byte(override), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, dir)
+	draft := writeTemp(t, "d.yml", phaseDraftNoVerification)
+	stdout, _, err := runCLI(t, "template", "validate", "impl-phase", "--draft", draft)
+	if err != nil {
+		t.Fatalf("want exit 0 under an override without verification, got %v\n%s", err, stdout)
+	}
+	if !strings.Contains(stdout, "project override: ") {
+		t.Errorf("origin not reported:\n%s", stdout)
 	}
 }

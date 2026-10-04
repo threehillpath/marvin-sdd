@@ -24,7 +24,7 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 		return nil, fmt.Errorf("%sparsing schema: %w", pre, err)
 	}
 	if strings.TrimSpace(sc.Type) == "" {
-		return nil, fmt.Errorf("%smissing \"type\". Add a \"type:\" line naming this schema; for a project override use the file's base name (impl-phase for impl-phase.yml). The built-in types are %s", pre, strings.Join(builtInTypes, ", "))
+		return nil, fmt.Errorf("%smissing \"type\". Add a \"type:\" line naming this schema; for a project override use the file's base name (impl-phase for impl-phase.yml). The built-in types are %s", pre, strings.Join(DefaultSchemaNames(), ", "))
 	}
 	if strings.TrimSpace(sc.TitlePrefix) == "" {
 		return nil, fmt.Errorf("%smissing \"title_prefix\" for type %q. %s", pre, sc.Type, titlePrefixHint(sc.Type))
@@ -42,9 +42,6 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 	sc.loaded = true
 	return &sc, nil
 }
-
-// builtInTypes lists the built-in schema names.
-var builtInTypes = []string{"arch-plan", "impl-plan", "impl-phase", "quick-task"}
 
 // titlePrefixHint tells the caller what to add for a missing title_prefix:
 // the built-in prefix for typ when there is one, else every accepted form.

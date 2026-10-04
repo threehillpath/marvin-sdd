@@ -205,7 +205,7 @@ func newTemplateCmd(stdout, stderr io.Writer) *cobra.Command {
 		Short: "Check a draft or markdown body against a plan schema",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runTemplateValidate(stdout, args[0], vDraft, vBody, vTitle, vJSON)
+			return runTemplateValidate(stdout, args[0], vDraft, vBody, vTitle, cmd.Flags().Changed("title"), vJSON)
 		},
 	}
 	validateCmd.Flags().StringVar(&vDraft, "draft", "", "YAML draft file to check")

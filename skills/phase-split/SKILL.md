@@ -99,7 +99,7 @@ marvin template validate impl-phase --draft <project-root>/.claude/cache/<plan>/
 
 Create issues only once every draft has exited 0.
 
-Do not show phase bodies by default; the user approved the phase list in step 2. If any draft produced warnings, or the user asks, show that phase's rendered markdown and wait for approval before the first create:
+Once every draft has validated, tell the user the drafts are ready, show them any warnings `validate` printed, and say they can ask to see any phase's rendered body. Do not paste bodies by default; the user approved the phase list in step 2. If a draft produced warnings, or the user asks, show that phase's rendered markdown and wait for approval before the first create:
 
 ```bash
 marvin template render impl-phase --draft <project-root>/.claude/cache/<plan>/phase-N-draft.yml

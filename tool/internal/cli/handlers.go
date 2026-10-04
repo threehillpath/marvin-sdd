@@ -429,6 +429,46 @@ func findSchemaOverride(startDir, schemaName string) ([]byte, string, bool, erro
 	}
 }
 
+// problems collects every usage problem found in one invocation so they are
+// reported together, one per line, rather than one rerun at a time.
+type problems []string
+
+func (p *problems) add(msg string) { *p = append(*p, msg) }
+
+// err returns nil for no problems, the bare message for one, and a single
+// exit-1 CLIError listing all of them for several.
+func (p problems) err() error {
+	switch len(p) {
+	case 0:
+		return nil
+	case 1:
+		return &CLIError{Code: 1, Msg: p[0]}
+	}
+	return &CLIError{Code: 1, Msg: fmt.Sprintf("%d problems:\n  - %s", len(p), strings.Join(p, "\n  - "))}
+}
+
+// errMsg is the message of err: a CLIError's Msg, else its Error().
+func errMsg(err error) string {
+	var ce *CLIError
+	if errors.As(err, &ce) {
+		return ce.Msg
+	}
+	return err.Error()
+}
+
+const (
+	titleWithDraftMsg = "--title applies only to --body-file: with --draft the title comes from the draft's \"title:\" key. Remove --title, or edit \"title:\" in the draft"
+	exactlyOneMsg     = "pass exactly one of --draft <file.yml> or --body-file <file.md>"
+)
+
+func emptyFlagMsg(prefix, name string) string {
+	return fmt.Sprintf("%s--%s was given an empty value: pass a file path, or leave the flag out", prefix, name)
+}
+
+func emptyTemplateMsg(prefix string) string {
+	return fmt.Sprintf("%s--template needs one of %s; it was given an empty value", prefix, strings.Join(tmplpkg.DefaultSchemaNames(), ", "))
+}
+
 // checkInput checks a YAML draft (draftPath) or a markdown body (bodyPath,
 // with title) against sc. Exactly one of the two paths must be set. For a
 // draft it renders, so the goldmark verification backstop runs too; the
@@ -437,11 +477,11 @@ func findSchemaOverride(startDir, schemaName string) ([]byte, string, bool, erro
 // a draft and the title argument for a markdown body.
 func checkInput(sc *tmplpkg.Schema, origin, draftPath, bodyPath, title string, titleSet bool) (string, string, tmplpkg.Result, error) {
 	if (draftPath == "") == (bodyPath == "") {
-		return "", "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: "pass exactly one of --draft <file.yml> or --body-file <file.md>"}
+		return "", "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: exactlyOneMsg}
 	}
 	if draftPath != "" {
 		if titleSet {
-			return "", "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: "--title applies only to --body-file: with --draft the title comes from the draft's \"title:\" key. Remove --title, or edit \"title:\" in the draft"}
+			return "", "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: titleWithDraftMsg}
 		}
 		data, err := os.ReadFile(draftPath)
 		if err != nil {
@@ -477,9 +517,28 @@ func loadSchema(schemaName string) (*tmplpkg.Schema, string, error) {
 
 // runTemplateValidate prints the formatted check Result to stdout and exits 3
 // when it holds an error finding.
-func runTemplateValidate(stdout io.Writer, schemaName, draftPath, bodyPath, title string, titleSet, jsonOut bool) error {
+func runTemplateValidate(stdout io.Writer, schemaName, draftPath, bodyPath, title string, titleSet, draftSet, bodySet, jsonOut bool) error {
+	var p problems
 	sc, origin, err := loadSchema(schemaName)
 	if err != nil {
+		p.add(errMsg(err))
+	}
+	if draftSet && draftPath == "" {
+		p.add(emptyFlagMsg("", "draft"))
+	}
+	if bodySet && bodyPath == "" {
+		p.add(emptyFlagMsg("", "body-file"))
+	}
+	if draftPath != "" && bodyPath != "" {
+		p.add("--draft and --body-file are mutually exclusive: " + exactlyOneMsg)
+	}
+	if !draftSet && !bodySet {
+		p.add(exactlyOneMsg)
+	}
+	if draftPath != "" && titleSet {
+		p.add(titleWithDraftMsg)
+	}
+	if err := p.err(); err != nil {
 		return err
 	}
 	_, _, res, err := checkInput(sc, origin, draftPath, bodyPath, title, titleSet)

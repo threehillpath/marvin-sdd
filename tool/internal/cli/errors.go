@@ -16,11 +16,11 @@ const configHint = "Run /configure-plan-plugin to create or repair the config fi
 
 // RunWithStreams executes fn and returns an exit code derived from the error:
 //   - nil → 0
-//   - *CLIError{Code:N} → N (3 means the checked input does not conform)
-//   - *CLIError{Code:N} → N (message to stderr; if Code==2 the config hint is appended)
+//   - *CLIError{Code:N} → N (message to stderr; Code 2 appends the config hint; Code 3 = input does not conform)
 //   - any other error → 1
 //
-// stdout is left empty on error; all diagnostics go to stderr.
+// stdout is left empty on error and all diagnostics go to stderr, except for
+// exit 3 from "template validate", whose stdout carries the findings.
 func RunWithStreams(stdout, stderr io.Writer, fn func() error) int {
 	err := fn()
 	if err == nil {

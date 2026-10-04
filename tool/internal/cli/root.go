@@ -180,7 +180,7 @@ func newParseCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 func newTemplateCmd(stdout, stderr io.Writer) *cobra.Command {
 	tmpl := &cobra.Command{
 		Use:   "template",
-		Short: "Render plan issue templates",
+		Short: "Render and validate plan issue templates",
 	}
 
 	typeList := strings.Join(tmplpkg.DefaultSchemaNames(), "|")
@@ -196,7 +196,7 @@ func newTemplateCmd(stdout, stderr io.Writer) *cobra.Command {
 		},
 	}
 	renderCmd.Flags().BoolVar(&skeleton, "skeleton", false, "Output an empty YAML draft for the schema")
-	renderCmd.Flags().BoolVar(&guidance, "guidance", false, "Output plain-text guidance for filling in a draft (exclusive with --skeleton)")
+	renderCmd.Flags().BoolVar(&guidance, "guidance", false, "Output plain-text guidance for filling in a draft (exclusive with --skeleton and --draft)")
 
 	var vDraft, vBody, vTitle string
 	var vJSON bool

@@ -426,3 +426,113 @@ func TestIssueEditMissingBodyFileMakesNoCalls(t *testing.T) {
 		t.Errorf("want zero gh calls, got %v", fake.Calls)
 	}
 }
+
+// runIssueExit runs marvin through RunWithStreams and returns the exit code,
+// stdout and stderr, so a test can see exactly what the caller sees.
+func runIssueExit(fake *exectest.FakeRunner, args ...string) (int, string, string) {
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, fake)
+	root.SetArgs(args)
+	code := cli.RunWithStreams(&stdout, &stderr, root.Execute)
+	return code, stdout.String(), stderr.String()
+}
+
+// TestSeveralUsageProblemsAreReportedTogether verifies one invocation with
+// several usage problems reports all of them in a single exit-1 error, one
+// problem per line, with zero gh calls and empty stdout.
+func TestSeveralUsageProblemsAreReportedTogether(t *testing.T) {
+	withConfigFixture(t)
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	body := writeTemp(t, "b.md", conformingPhaseBody)
+	for name, tc := range map[string]struct {
+		args []string
+		want []string
+	}{
+		"create: unknown type, empty draft, inline body": {
+			[]string{"issue", "create", "--template", "bogus", "--draft", "", "--body", "x"},
+			[]string{`unknown schema "bogus"`, "--draft was given an empty value", "--body"},
+		},
+		"create: draft with body-file and inline body": {
+			[]string{"issue", "create", "--template", "impl-phase", "--draft", draft, "--body-file", body, "--body", "x"},
+			[]string{"--draft and --body-file", "--body"},
+		},
+		"create: draft without template and no body": {
+			[]string{"issue", "create", "--draft", draft},
+			[]string{"--draft requires --template", "requires --title", "requires --body or --body-file"},
+		},
+		"create: empty template and empty body-file": {
+			[]string{"issue", "create", "--template", "", "--body-file", ""},
+			[]string{"--template needs one of", "--body-file was given an empty value"},
+		},
+		"edit: bad number, unknown type, empty draft": {
+			[]string{"issue", "edit", "seven", "--template", "bogus", "--draft", ""},
+			[]string{`invalid issue number "seven"`, `unknown schema "bogus"`, "--draft was given an empty value"},
+		},
+		"edit: no template and both inputs": {
+			[]string{"issue", "edit", "7", "--draft", draft, "--body-file", body},
+			[]string{"requires --template", "--draft and --body-file"},
+		},
+		"validate: unknown type, both inputs, title with draft": {
+			[]string{"template", "validate", "bogus", "--draft", draft, "--body-file", body, "--title", "T"},
+			[]string{`unknown schema "bogus"`, "--draft and --body-file", "--title"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake := &exectest.FakeRunner{}
+			code, stdout, stderr := runIssueExit(fake, tc.args...)
+			if code != 1 {
+				t.Errorf("exit code = %d, want 1\nstderr: %s", code, stderr)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(stderr, w) {
+					t.Errorf("stderr should mention %q:\n%s", w, stderr)
+				}
+			}
+			bullets := 0
+			for _, l := range strings.Split(stderr, "\n") {
+				if strings.HasPrefix(l, "  - ") {
+					bullets++
+				}
+			}
+			if bullets != len(tc.want) {
+				t.Errorf("want %d problem lines, got %d:\n%s", len(tc.want), bullets, stderr)
+			}
+			if len(fake.Calls) != 0 || stdout != "" {
+				t.Errorf("want zero gh calls and empty stdout, got %v / %q", fake.Calls, stdout)
+			}
+		})
+	}
+}
+
+// TestBadDraftWithMismatchedTitleReportsBoth verifies a bad draft plus a
+// mismatched --title prints the conformance findings and the mismatch
+// together and exits 1 (the invocation was wrong), with zero gh calls. A
+// bad draft with a usage problem other than the title behaves the same.
+func TestBadDraftWithMismatchedTitleReportsBoth(t *testing.T) {
+	withConfigFixture(t)
+	bad := writeTemp(t, "d.yml", phaseDraftNoVerification)
+	for name, tc := range map[string]struct {
+		args []string
+		want string
+	}{
+		"mismatched title": {[]string{"issue", "create", "--template", "impl-phase", "--draft", bad, "--title", "Something else"}, "does not match the draft's title"},
+		"inline body":      {[]string{"issue", "create", "--template", "impl-phase", "--draft", bad, "--body", "x"}, "inline --body"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake := &exectest.FakeRunner{}
+			code, stdout, stderr := runIssueExit(fake, tc.args...)
+			if code != 1 {
+				t.Errorf("exit code = %d, want 1\nstderr: %s", code, stderr)
+			}
+			if !strings.Contains(stderr, "error section:verification") {
+				t.Errorf("want the conformance finding on stderr:\n%s", stderr)
+			}
+			if !strings.Contains(stderr, tc.want) {
+				t.Errorf("want %q on stderr:\n%s", tc.want, stderr)
+			}
+			if len(fake.Calls) != 0 || stdout != "" {
+				t.Errorf("want zero gh calls and empty stdout, got %v / %q", fake.Calls, stdout)
+			}
+		})
+	}
+}

@@ -65,12 +65,110 @@ Precedence rules (highest to lowest):
 
 ## Plan Template Resolution
 
-Skills never read schema YAML directly — they call `marvin template render {type}`, which resolves the template for each plan type using this order:
+Skills never read schema YAML directly. Four commands resolve a plan type's schema, all in the same order:
 
-1. **Project override** (wins if present): `.claude/plan-workflow-templates/{type}.yml` in the consuming project, found by the same CWD-walk as the config file.
+- `marvin template render <type>` with `--skeleton` (an empty YAML draft), `--guidance` (the draft rules and per-section guidance) or `--draft <file.yml>` (the draft rendered to markdown on stdout).
+- `marvin template validate <type> (--draft <file.yml> | --body-file <file.md>) [--title <t>] [--json]`. It checks without creating anything and makes no config or GitHub call. `--title` goes with `--body-file` only; with `--draft` it is a usage error.
+- `marvin issue create --template <type> --draft <file.yml> --label ...`. The title comes from the draft; `--title` is accepted only if it equals the draft's title, and inline `--body` is rejected. A second mode checks an existing markdown body: `--template <type> --body-file <file.md> --title <t>` (`--title` is required there, and `--draft` and `--body-file` are mutually exclusive). The skills use the draft mode.
+- `marvin issue edit <n> --template <type> (--draft <file.yml> | --body-file <file.md>)`. `--draft` replaces the body and the title; `--body-file` replaces the body only.
+
+`{type}` is one of four built-in types: `arch-plan`, `impl-plan`, `impl-phase`, `quick-task`. Any other value is a usage error (exit 1). The commands that check a draft or body report the schema they used as `schema: <type> (built-in)` or `schema: <type> (project override: <path>)`: on stdout for `validate`, on stderr for `issue create` and `issue edit`, and on stderr for `render --draft` only when it has warnings or findings to print. `render --skeleton` prints no schema line. `render --guidance` prints `schema: <type>` as its first line and never shows an override's origin.
+
+Resolution order for the schema:
+
+1. **Project override** (wins if present): `.claude/plan-workflow-templates/{type}.yml` in the consuming project, found by the same CWD-walk as the config file. The override's `type:` line must equal the file name (`type: impl-phase` in `impl-phase.yml`); a mismatch is an error, not a fallback.
 2. **Plugin default** (always present): the schema compiled into the `marvin` binary at build time (`go:embed`, source at `tool/internal/template/schemas/` in the plugin repo). Because it's embedded rather than read from disk at runtime, the plugin default resolves correctly regardless of where `skills/` lives relative to the invoking directory — including a real marketplace install, where it isn't reachable from the consuming project's tree at all.
 
-Where `{type}` is `arch-plan`, `impl-plan`, `impl-phase`, or `quick-task`. `marvin` checks for the project override first; if the file is absent, it uses the embedded plugin default. The plugin default is always present, so rendering never fails for lack of a template.
+Render, validate, create and edit all follow this order, so a draft is checked against the same schema that rendered its skeleton. A malformed or mismatched override exits 1; marvin never falls back to the built-in when an override exists but is broken. There is no flag to point at an arbitrary template file.
+
+### Required schema fields
+
+A schema (built-in or override) must declare:
+
+- `type:` — the type name, equal to the file name for an override.
+- `title_prefix:` — the title pattern, e.g. `"[PLAN-XXXXX-N] <Phase Title>"`. It must begin with one of the four leading identifiers `[PLAN-XXXXX-ARCH]`, `[PLAN-XXXXX]`, `[PLAN-XXXXX-N]` or `[TASK-XXXXX]`, (`arch-plan`: `[PLAN-XXXXX-ARCH]`, `impl-plan`: `[PLAN-XXXXX]`, `impl-phase`: `[PLAN-XXXXX-N]`, `quick-task`: `[TASK-XXXXX]`). Any other prefix is a schema error (exit 1). A prefix of the wrong type still loads, but then every real title for that type exits 3 as the wrong kind of title, so keep the one that matches the type. A draft's title must start with the real identifier this pattern names.
+- `named: true|false` on every `numbered: true` section. `true`: each instance's heading text comes from the draft (`impl-plan`'s Component sections); `false`: the heading is the schema heading (Verification Steps).
+
+**Migrating an override.** An override written before these fields were required fails with exit 1 and a message naming the missing field. Add `title_prefix:` copied from the built-in schema for that type, and add `named:` to each numbered section. The exit-1 message names the value to copy. To see a whole built-in schema, open the plugin repository's `tool/internal/template/schemas/` (it is not in a consuming project), or run `marvin template render <type> --guidance` from a directory outside the project, where no override is found. Inside the project the command exits 1 while the broken override is present.
+
+### Draft format
+
+A draft is YAML with three top-level keys: `title`, `metadata` and `sections`. `marvin template render <type> --skeleton` prints it with every key present and empty. This is an abridged `impl-plan` skeleton; it leaves out the metadata keys `Architecture Plan`, `Source Issue`, `Author` and `Last Updated` and the sections `design_notes` and `success_criteria`:
+
+```yaml
+title: "[PLAN-XXXXX] <Title>"
+metadata:
+  Objective: ""
+  Status: ""
+sections:
+  scope: |
+  component:
+    - name: ""
+      content: |
+  verification_steps:
+    - |
+```
+
+A complete, filled `impl-plan` draft that passes `marvin template validate impl-plan --draft`:
+
+```yaml
+title: "[PLAN-00007] Add retry to the sync worker"
+metadata:
+  Objective: "Retry failed syncs with backoff."
+  Architecture Plan: "#7 ([PLAN-00007-ARCH])"
+  Source Issue: "#7"
+  Author: "A. Developer"
+  Status: "upcoming"
+  Last Updated: "2026-10-04"
+sections:
+  scope: |
+    **Includes**
+    - Retry with backoff in the sync worker.
+
+    **Does NOT include**
+    - Changes to the queue.
+  component:
+    - name: "Sync worker: retry loop"
+      content: |
+        **Specifications**
+        - `worker/sync.go`: add `retry(ctx, fn)`.
+
+        **Behavior**
+        - Retry up to 3 times, then return the last error.
+
+        **TDD Entry Point**
+        - A test in `worker/sync_test.go` asserts 3 calls before failure.
+  verification_steps:
+    - |
+      ```bash
+      go test ./worker/...
+      # expected: ok
+      ```
+  design_notes: |
+    Backoff is fixed; see the arch plan for why.
+  success_criteria: |
+    - [ ] A failing sync is retried 3 times.
+```
+
+The draft rules follow. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance; it does not mention the key, tab, tag, anchor and alias rules, which the loader enforces and which are listed here:
+
+- Section content is always a `|` block, never `>` or an inline value.
+- The title, every metadata value and every `name:` of a named section are always double-quoted (an unquoted name containing `: ` or ` #` breaks the YAML). Inside them write `\"` for a quote and `\\` for a backslash.
+- Each key appears once. A repeatable section is one list: `- |` items, or `- name: "…"` plus `content: |` for a named section.
+- Indent with spaces, never tabs.
+- No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`, except inside a code fence, where a `#` line is code and must stay unescaped (`\#` would print as is).
+- No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Success. Warnings alone do not change this: they are printed on stderr by `render --draft`, `issue create` and `issue edit`, and on stdout by `validate`. |
+| 1 | Usage or operational error: unknown type, unreadable file, malformed schema or override, or any usage problem. Several usage problems are reported together in one error with a header like `issue create: 3 problems:` and a bulleted list. If a non-conforming input is present too, the findings are still printed. |
+| 2 | Config missing or malformed. Only `issue create` and `issue edit` return it (`render` and `validate` read no config). Reported alone; nothing else is collected. |
+| 3 | The draft or body does not conform. Findings are on stderr for `render --draft`, `issue create` and `issue edit`, and on stdout for `validate`. A failed check makes no mutating GitHub call. |
+
+Skills fix and retry a draft on exit 3 (at most 3 attempts per round of user changes), ask the user to approve again when a fix changes what the draft says, and surface exit 1 and 2 without retrying.
 
 ## Test Commands
 
@@ -120,7 +218,7 @@ marvin issue tree <plan-issue-number>
 
 (`<plan-issue-number>` can be the arch, impl, or phase issue — any node of the plan resolves the whole tree.)
 
-This returns one pipe-delimited line per node — `<kind> | #<number> | <state> | <status> | <title>` — with `kind` one of `arch`, `impl`, `phase`. Filter for lines where `kind` is `phase`. If zero `phase` lines are found (not the same as an empty result — `issue tree` always emits the target's own node), the plan predates sub-issue linking; fall back to:
+This returns one pipe-delimited line per node — `<kind> | #<number> | <state> | <status> | <title>` — with `kind` one of `arch`, `impl`, `phase`, `task`. Filter for lines where `kind` is `phase`. If zero `phase` lines are found (not the same as an empty result — `issue tree` always emits the target's own node), the plan predates sub-issue linking; fall back to:
 
 ```bash
 marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX-" --state all

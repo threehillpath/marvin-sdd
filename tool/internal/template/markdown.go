@@ -97,3 +97,11 @@ func literalSection(sc *Schema, text string) (string, bool) {
 	}
 	return "", false
 }
+
+// CheckMarkdown parses body and checks it. It is the entry point for the
+// markdown path: the Result is Check's, and when Check finds no error the
+// body is also verified the way Render verifies what it emits.
+func CheckMarkdown(sc *Schema, origin, title, body string) Result {
+	m := ParseMarkdown(sc, title, body)
+	return Check(sc, origin, m)
+}

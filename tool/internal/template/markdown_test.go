@@ -320,3 +320,46 @@ func TestCheckMarkdownGuardsContentUnderUnknownHeading(t *testing.T) {
 		})
 	}
 }
+
+// The parser and GitHub must agree on the body's structure: a body whose
+// "## " lines the scanner sees as headings but GitHub renders inside a code
+// block is refused.
+func TestCheckMarkdownRefusesStructureGitHubReadsDifferently(t *testing.T) {
+	cases := []struct {
+		name, content string
+		want          []string
+	}{
+		{"list-item fence ended early", "1. Build:\n   ```bash\ngo build ./...\n   ```\n2. Test.",
+			[]string{`section "Scope"`, "fenced code block", "swallows", `"## Components"`, "indent every line"}},
+		{"level 1 heading", "intro\n\n# Big", []string{`section "Scope"`, "level-1 heading", "###"}},
+		{"html block", "text\n\n<div>\nx\n</div>", []string{`section "Scope"`, "HTML block", "<div>", "backticks"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			body := strings.Replace(phaseBody, "Includes things.", c.content, 1)
+			res := tmpl.CheckMarkdown(loadBuiltIn(t, "impl-phase"), builtIn, "[PLAN-00112-1] X", body)
+			wantOne(t, res, tmpl.SeverityError, "section:scope", c.want...)
+			f := res.Findings[0]
+			if f.Line == 0 {
+				t.Errorf("finding has no line: %+v", f)
+			}
+		})
+	}
+}
+
+func TestCheckMarkdownAcceptsBenignBodies(t *testing.T) {
+	for name, content := range map[string]string{
+		"table":      "| a | b |\n|---|---|\n| 1 | 2 |",
+		"task list":  "- [ ] one\n- [x] two",
+		"sub h3":     "### Sub\n\n**bold** text",
+		"list fence": "1. Build:\n   ```bash\n   go build ./...\n   ```\n2. Test.",
+	} {
+		t.Run(name, func(t *testing.T) {
+			body := "> revised\n\n" + strings.Replace(phaseBody, "Includes things.", content, 1)
+			res := tmpl.CheckMarkdown(loadBuiltIn(t, "impl-phase"), builtIn, "[PLAN-00112-1] X", body)
+			if len(res.Findings) != 0 {
+				t.Fatalf("want no findings:\n%s", res.Format())
+			}
+		})
+	}
+}

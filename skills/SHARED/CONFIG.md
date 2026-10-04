@@ -150,7 +150,7 @@ sections:
     - [ ] A failing sync is retried 3 times.
 ```
 
-Rules. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance; it does not mention the key, tab, tag, anchor and alias rules, which the loader enforces and which are listed here:
+The draft rules follow. `--guidance` prints the quoting, `|` block, heading, comment, document-marker, code-fence and HTML rules plus the per-section guidance; it does not mention the key, tab, tag, anchor and alias rules, which the loader enforces and which are listed here:
 
 - Section content is always a `|` block, never `>` or an inline value.
 - The title, every metadata value and every `name:` of a named section are always double-quoted (an unquoted name containing `: ` or ` #` breaks the YAML). Inside them write `\"` for a quote and `\\` for a backslash.

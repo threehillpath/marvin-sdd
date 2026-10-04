@@ -363,3 +363,20 @@ func TestCheckMarkdownAcceptsBenignBodies(t *testing.T) {
 		})
 	}
 }
+
+func checkMD(t *testing.T, body string) tmpl.Result {
+	t.Helper()
+	return tmpl.CheckMarkdown(loadBuiltIn(t, "impl-phase"), builtIn, "[PLAN-00112-1] X", body)
+}
+
+// A repeated metadata line keeps the first value and is an error naming both
+// lines, like the YAML path's repeated key.
+func TestCheckMarkdownRepeatedMetadataKey(t *testing.T) {
+	body := strings.Replace(phaseBody, "**Status:** Upcoming", "**Status:** Upcoming\n**Plan Number:** PLAN-00113", 1)
+	sc := loadBuiltIn(t, "impl-phase")
+	if got := tmpl.ParseMarkdown(sc, "[PLAN-00112-1] X", body).Metadata["Plan Number"].Value; got != "PLAN-00112" {
+		t.Errorf("Plan Number = %q, want the first value", got)
+	}
+	wantOne(t, checkMD(t, body), tmpl.SeverityError, "metadata:Plan Number",
+		`metadata key "Plan Number" appears twice (line 2 and line 4)`, "Remove the duplicate line or merge its value into the first")
+}

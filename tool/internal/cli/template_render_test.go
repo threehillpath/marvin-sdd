@@ -214,8 +214,8 @@ func TestTemplateRenderRemovedFlagsAreUnknown(t *testing.T) {
 	}
 }
 
-// TestTemplateRenderWithoutSkeletonSaysWhatToDo verifies that, with the JSON
-// path gone and draft input not yet available, a plain render fails with a
+// TestTemplateRenderWithoutSkeletonSaysWhatToDo verifies that, with no mode flag,
+// a plain render fails with a
 // message naming the supported call rather than printing nothing.
 func TestTemplateRenderWithoutSkeletonSaysWhatToDo(t *testing.T) {
 	var stdout, stderr bytes.Buffer
@@ -226,7 +226,7 @@ func TestTemplateRenderWithoutSkeletonSaysWhatToDo(t *testing.T) {
 	if !errors.As(err, &cliErr) || cliErr.Code != 1 {
 		t.Fatalf("want a CLIError with code 1, got %T: %v", err, err)
 	}
-	for _, w := range []string{"--skeleton", "--guidance", "impl-plan"} {
+	for _, w := range []string{"--skeleton", "--guidance", "--draft", "impl-plan"} {
 		if !strings.Contains(cliErr.Msg, w) {
 			t.Errorf("message %q missing %q", cliErr.Msg, w)
 		}

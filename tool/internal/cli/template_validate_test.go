@@ -410,3 +410,16 @@ func TestTemplateValidateJSONOrdersErrorsFirst(t *testing.T) {
 		t.Errorf("want the error first and a warning last, got %+v", out.Findings)
 	}
 }
+
+// TestTemplateRenderDraftIsExclusiveWithOtherModes verifies --draft combined
+// with --skeleton or --guidance is a usage error that prints nothing.
+func TestTemplateRenderDraftIsExclusiveWithOtherModes(t *testing.T) {
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	for _, other := range []string{"--skeleton", "--guidance"} {
+		stdout, _, err := runCLI(t, "template", "render", "impl-phase", "--draft", draft, other)
+		ce := wantCode(t, err, 1)
+		if stdout != "" || !strings.Contains(ce.Msg, "--draft") || !strings.Contains(ce.Msg, other) {
+			t.Errorf("%s: stdout %q msg %q", other, stdout, ce.Msg)
+		}
+	}
+}

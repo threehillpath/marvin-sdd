@@ -84,3 +84,73 @@ func TestParseMarkdownFencedHeadingIsContent(t *testing.T) {
 		})
 	}
 }
+
+const implPlanBody = `**Objective:** Build it
+**Architecture Plan:** #14
+**Source Issue:** #14
+**Author:** Test
+**Status:** Upcoming
+**Last Updated:** 2026-01-01
+
+## Scope
+
+Stuff.
+
+## 1. First Component
+
+One.
+
+## 2. Second Component
+
+Two.
+
+## 3. Verification Steps
+
+Verify.
+
+## Success Criteria
+
+- [ ] Done
+`
+
+func TestParseMarkdownNumberedHeadings(t *testing.T) {
+	sc := loadBuiltIn(t, "impl-plan")
+	m := tmpl.ParseMarkdown(sc, "[PLAN-00014] Build", implPlanBody)
+
+	comp := m.Sections["component"]
+	if len(comp) != 2 || comp[0].Name != "First Component" || comp[1].Name != "Second Component" {
+		t.Fatalf("component entries = %+v", comp)
+	}
+	if comp[0].Number != 1 || comp[1].Number != 2 || comp[0].Content != "One." {
+		t.Errorf("component numbers/content = %+v", comp)
+	}
+	vs := m.Sections["verification_steps"]
+	if len(vs) != 1 || vs[0].Name != "" || vs[0].Number != 3 || vs[0].Content != "Verify." {
+		t.Fatalf("verification_steps = %+v", vs)
+	}
+	if len(m.UnknownHeadings) != 0 {
+		t.Errorf("unknown headings: %+v", m.UnknownHeadings)
+	}
+	if res := tmpl.Check(sc, builtIn, m); len(res.Findings) != 0 {
+		t.Fatalf("want no findings:\n%s", res.Format())
+	}
+}
+
+// A numbered heading no section claims is unknown, not forced into the named
+// section when the schema has none (impl-phase has no numbered sections).
+func TestParseMarkdownNumberedHeadingWithoutNamedSectionIsUnknown(t *testing.T) {
+	sc := loadBuiltIn(t, "impl-phase")
+	m := tmpl.ParseMarkdown(sc, "[PLAN-00112-1] X", phaseBody+"\n## 1. Extra\n\nx\n")
+	if len(m.UnknownHeadings) != 1 || m.UnknownHeadings[0].Text != "1. Extra" {
+		t.Fatalf("unknown headings = %+v", m.UnknownHeadings)
+	}
+}
+
+// Literal headings match case-sensitively.
+func TestParseMarkdownLiteralHeadingIsCaseSensitive(t *testing.T) {
+	sc := loadBuiltIn(t, "impl-phase")
+	m := tmpl.ParseMarkdown(sc, "[PLAN-00112-1] X", strings.Replace(phaseBody, "## Scope", "## scope", 1))
+	if len(m.UnknownHeadings) != 1 || m.UnknownHeadings[0].Text != "scope" || len(m.Sections["scope"]) != 0 {
+		t.Fatalf("unknown = %+v, scope = %+v", m.UnknownHeadings, m.Sections["scope"])
+	}
+}

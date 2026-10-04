@@ -91,18 +91,10 @@ For any domain label not covered by `--builtins`, ensure it individually:
 marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 ```
 
-`quick-task` has no `Write` tool. Write the approved, rendered body to a scratch file via a `Bash` heredoc:
+Then create the issue from the approved draft file, capturing the returned number and URL:
 
 ```bash
-cat > /tmp/quick-task-body.md <<'EOF'
-<approved body>
-EOF
-```
-
-Then create the issue, capturing the returned number and URL:
-
-```bash
-marvin issue create --title "<title_prefix.task> <Title>" --body-file /tmp/quick-task-body.md --label "plan:task,status:upcoming,<domain-labels>,<type-label>"
+marvin issue create --template quick-task --draft /tmp/quick-task-draft.yml --label "plan:task,status:upcoming,<domain-labels>,<type-label>"
 ```
 
 Comment-link the source issue — informational only, not a GitHub-native sub-issue link, since Tasks are deliberately outside the arch/impl/phase hierarchy `marvin issue tree` walks:

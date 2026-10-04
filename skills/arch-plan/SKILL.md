@@ -83,18 +83,10 @@ For any domain or source-type labels not covered by `--builtins`, ensure each on
 marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 ```
 
-`arch-plan` has no `Write` tool. Write the approved, rendered body to a scratch file via a `Bash` heredoc:
+Then create the issue from the approved draft file, capturing the returned number and URL:
 
 ```bash
-cat > /tmp/arch-plan-body.md <<'EOF'
-<approved content>
-EOF
-```
-
-Then create the issue, capturing the returned number and URL:
-
-```bash
-marvin issue create --title "[PLAN-XXXXX-ARCH] <Title>" --body-file /tmp/arch-plan-body.md --label "plan:arch,status:upcoming,<domain-labels>,<source-issue-type-if-applicable>"
+marvin issue create --template arch-plan --draft /tmp/arch-plan-draft.yml --label "plan:arch,status:upcoming,<domain-labels>,<source-issue-type-if-applicable>"
 ```
 
 ### 8. Link to source issue

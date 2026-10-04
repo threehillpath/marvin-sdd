@@ -156,7 +156,7 @@ The draft rules follow. `--guidance` prints the quoting, `|` block, heading, com
 - The title, every metadata value and every `name:` of a named section are always double-quoted (an unquoted name containing `: ` or ` #` breaks the YAML). Inside them write `\"` for a quote and `\\` for a backslash.
 - Each key appears once. A repeatable section is one list: `- |` items, or `- name: "…"` plus `content: |` for a named section.
 - Indent with spaces, never tabs.
-- No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`.
+- No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`, except inside a code fence, where a `#` line is code and must stay unescaped (`\#` would print as is).
 - No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
 
 ### Exit codes

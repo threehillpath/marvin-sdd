@@ -80,7 +80,7 @@ Fill every key of the skeleton with phase-specific content, except that `tdd_ent
 - The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
 - Two metadata values are checked: `Implementation Plan` starts with the issue reference, `#<n>` (for example `#132 ([PLAN-00112])`), and `Plan Number` is the title's plan number without brackets (`PLAN-00112` for the title `[PLAN-00112-3] ...`).
 - Each key appears once. Indent with spaces, never tabs.
-- No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`.
+- No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`, except inside a code fence, where a `#` line is code and must stay unescaped (`\#` would print as is).
 - No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
 
 Once a phase's sections are filled in, `Write` it to that phase's own draft file, `<project-root>/.claude/cache/<plan>/phase-N-draft.yml`, where `<project-root>` is the repo root, `<plan>` is the lowercase PLAN-XXXXX number (for example `plan-00112`) and `N` is the phase number (for a multi-impl track use `phase-<suffix>-N-draft.yml`, e.g. `phase-A-1-draft.yml`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use each phase's own path in every command below.

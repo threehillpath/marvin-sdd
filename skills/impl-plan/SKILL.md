@@ -73,7 +73,7 @@ Fill every key of the skeleton with substantive content from the arch plan analy
 - The title, every metadata value and every component `name:` are always double-quoted (an unquoted name containing `: ` or ` #` breaks the YAML). Write `\"` for a quote and `\\` for a backslash inside them.
 - Two metadata values are checked: `Architecture Plan` and `Source Issue` each start with an issue reference, `#<n>` (for example `#131 ([PLAN-00112-ARCH])`). If they name a plan, it must be the title's plan number.
 - Each key appears once. Indent with spaces, never tabs.
-- No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`.
+- No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`, except inside a code fence, where a `#` line is code and must stay unescaped (`\#` would print as is).
 - No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
 
 **TDD**: Each component section must include a TDD Entry Point. The only exemption is for **rendered controls** — the JSX/template markup, styling, and rendering itself. All logic that lives inside a component (event handlers, derived state, validation, formatting, conditional-render predicates) must be extracted to a non-component module and given a TDD entry point. The litmus test: if it can be tested with the DOM removed, it is logic. See `SUPPLEMENTS/TDD.md` for full scope.

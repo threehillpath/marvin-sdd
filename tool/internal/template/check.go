@@ -75,7 +75,10 @@ type MisplacedField struct {
 	Key     string
 	Line    int
 	InFence bool
-	Above   string
+	// Indented is set for a line indented 4 or more columns after a blank
+	// line, which GitHub shows as code.
+	Indented bool
+	Above    string
 }
 
 // RepeatedField is a metadata key written a second time, at Line, after
@@ -681,6 +684,10 @@ func (c *checker) checkMarkdownOnly() {
 		why := fmt.Sprintf("directly below the line %q, so GitHub shows it as part of that paragraph, quote or list item", f.Above)
 		if f.InFence {
 			why = "inside a code fence, so GitHub shows it as code"
+		}
+		if f.Indented {
+			c.add(SeverityError, "metadata:"+f.Key, f.Line, "the \"**%s:**\" line (line %d) is indented 4 or more spaces, so GitHub shows it as code, not as metadata. Remove the indentation.", f.Key, f.Line)
+			continue
 		}
 		c.add(SeverityError, "metadata:"+f.Key, f.Line, "the \"**%s:**\" line (line %d) is %s, not as metadata. Put it above the first \"## \" heading as the first line of the body, after a blank line, or directly below another metadata line.", f.Key, f.Line, why)
 	}

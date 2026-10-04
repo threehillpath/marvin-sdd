@@ -55,11 +55,25 @@ func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineO
 		origins[i] = lineOrigin{loc: "draft", what: "the text above the first \"## \" heading", line: i + 1, where: `above the first "## " heading`}
 		blank := strings.Trim(line, " \t") == "" // CommonMark: only spaces and tabs
 		accepted := false
-		if mm := metadataLineRe.FindStringSubmatch(line); mm != nil {
+		// Up to 3 columns of indent are allowed (a tab counts as 4); a
+		// continuation line of a metadata paragraph may be indented further.
+		indent := 0
+		for _, r := range line {
+			if r == ' ' {
+				indent++
+			} else if r == '\t' {
+				indent += 4 - indent%4
+			} else {
+				break
+			}
+		}
+		if mm := metadataLineRe.FindStringSubmatch(strings.TrimLeft(line, " \t")); mm != nil {
 			key := mm[1]
 			switch {
 			case scan.InFence[i]:
 				m.MisplacedMetadata = append(m.MisplacedMetadata, MisplacedField{Key: key, Line: i + 1, InFence: true})
+			case indent >= 4 && prevBlank:
+				m.MisplacedMetadata = append(m.MisplacedMetadata, MisplacedField{Key: key, Line: i + 1, Indented: true})
 			case !prevBlank && !prevAccepted:
 				m.MisplacedMetadata = append(m.MisplacedMetadata, MisplacedField{Key: key, Line: i + 1, Above: strings.TrimSpace(lines[i-1])})
 			default:

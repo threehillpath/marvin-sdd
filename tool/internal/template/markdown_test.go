@@ -380,3 +380,64 @@ func TestCheckMarkdownRepeatedMetadataKey(t *testing.T) {
 	wantOne(t, checkMD(t, body), tmpl.SeverityError, "metadata:Plan Number",
 		`metadata key "Plan Number" appears twice (line 2 and line 4)`, "Remove the duplicate line or merge its value into the first")
 }
+
+// A "**Key:**" line counts as metadata only outside a fence and when it is
+// the first non-blank line, follows a blank line or follows another accepted
+// metadata line. Otherwise GitHub shows it as code or as part of a quote or
+// list item, and the schema key is an error with a fix.
+func TestCheckMarkdownMetadataLikeLinesGitHubDoesNotShowAsMetadata(t *testing.T) {
+	status := "**Status:** Upcoming\n"
+	cases := []struct {
+		name, preamble string
+		want           []string
+	}{
+		{"inside a fence", "```\n" + status + "```\n\n", []string{"code fence", "line 2"}},
+		{"after a quote line", "> Revised note\n" + status + "\n", []string{"directly below", "line 2", "blank line"}},
+		{"after a list item", "- note\n" + status + "\n", []string{"directly below", "line 2", "blank line"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			body := c.preamble + strings.Replace(phaseBody, status, "", 1)
+			sc := loadBuiltIn(t, "impl-phase")
+			m := tmpl.ParseMarkdown(sc, "[PLAN-00112-1] X", body)
+			if _, ok := m.Metadata["Status"]; ok {
+				t.Errorf("Status was read as metadata: %+v", m.Metadata["Status"])
+			}
+			res := checkMD(t, body)
+			var got []tmpl.Finding
+			for _, f := range res.Findings {
+				if f.Location == "metadata:Status" && f.Line > 0 {
+					got = append(got, f)
+				}
+			}
+			if len(got) != 1 {
+				t.Fatalf("want one located metadata:Status error, got:\n%s", res.Format())
+			}
+			for _, w := range append(c.want, `"**Status:**"`) {
+				if !strings.Contains(got[0].Message, w) {
+					t.Errorf("message %q missing %q", got[0].Message, w)
+				}
+			}
+		})
+	}
+}
+
+func TestParseMarkdownAcceptedMetadataPlacements(t *testing.T) {
+	sc := loadBuiltIn(t, "impl-phase")
+	for name, pre := range map[string]string{
+		"first line":             "",
+		"after a blank line":     "> Revised note\n\n",
+		"after leading blanks":   "\n\n",
+		"after a code block end": "```\nx\n```\n\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := tmpl.ParseMarkdown(sc, "[PLAN-00112-1] X", pre+phaseBody)
+			if len(m.Metadata) != 3 {
+				t.Fatalf("metadata = %+v", m.Metadata)
+			}
+			if res := checkMD(t, pre+phaseBody); len(res.Findings) != 0 {
+				t.Fatalf("want no findings:\n%s", res.Format())
+			}
+		})
+	}
+}

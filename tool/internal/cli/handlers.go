@@ -494,7 +494,7 @@ func runTemplateValidate(stdout io.Writer, schemaName, draftPath, bodyPath, titl
 			Origin   string        `json:"origin"`
 			Findings []jsonFinding `json:"findings"`
 		}{Schema: res.Type, Origin: res.Origin, Findings: []jsonFinding{}}
-		for _, f := range res.Findings {
+		for _, f := range res.Sorted() {
 			out.Findings = append(out.Findings, jsonFinding{string(f.Severity), f.Location, f.Line, f.Message})
 		}
 		enc := json.NewEncoder(stdout)

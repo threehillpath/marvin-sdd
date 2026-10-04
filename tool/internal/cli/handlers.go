@@ -355,7 +355,7 @@ func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, gu
 		fmt.Fprint(stdout, tmplpkg.Skeleton(sc))
 		return nil
 	}
-	body, res, err := checkInput(sc, origin, draftPath, "", "", false)
+	body, _, res, err := checkInput(sc, origin, draftPath, "", "", false)
 	if err != nil {
 		return err
 	}
@@ -432,31 +432,32 @@ func findSchemaOverride(startDir, schemaName string) ([]byte, string, bool, erro
 // checkInput checks a YAML draft (draftPath) or a markdown body (bodyPath,
 // with title) against sc. Exactly one of the two paths must be set. For a
 // draft it renders, so the goldmark verification backstop runs too; the
-// rendered body is returned when the draft conforms.
-func checkInput(sc *tmplpkg.Schema, origin, draftPath, bodyPath, title string, titleSet bool) (string, tmplpkg.Result, error) {
+// rendered body is returned when the draft conforms. The returned title is the
+// draft's "title:" for a draft and the title argument for a markdown body.
+func checkInput(sc *tmplpkg.Schema, origin, draftPath, bodyPath, title string, titleSet bool) (string, string, tmplpkg.Result, error) {
 	if (draftPath == "") == (bodyPath == "") {
-		return "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: "pass exactly one of --draft <file.yml> or --body-file <file.md>"}
+		return "", "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: "pass exactly one of --draft <file.yml> or --body-file <file.md>"}
 	}
 	if draftPath != "" {
 		if titleSet {
-			return "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: "--title applies only to --body-file: with --draft the title comes from the draft's \"title:\" key. Remove --title, or edit \"title:\" in the draft"}
+			return "", "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: "--title applies only to --body-file: with --draft the title comes from the draft's \"title:\" key. Remove --title, or edit \"title:\" in the draft"}
 		}
 		data, err := os.ReadFile(draftPath)
 		if err != nil {
-			return "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: fmt.Sprintf("reading draft: %v", err)}
+			return "", "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: fmt.Sprintf("reading draft: %v", err)}
 		}
 		m, findings := tmplpkg.LoadDraft(sc, data)
 		if len(findings) > 0 {
-			return "", tmplpkg.Result{Type: sc.Type, Origin: origin, Findings: findings}, nil
+			return "", "", tmplpkg.Result{Type: sc.Type, Origin: origin, Findings: findings}, nil
 		}
 		body, res := tmplpkg.Render(sc, origin, m)
-		return body, res, nil
+		return body, m.Title, res, nil
 	}
 	data, err := os.ReadFile(bodyPath)
 	if err != nil {
-		return "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: fmt.Sprintf("reading body file: %v", err)}
+		return "", "", tmplpkg.Result{}, &CLIError{Code: 1, Msg: fmt.Sprintf("reading body file: %v", err)}
 	}
-	return "", tmplpkg.CheckMarkdown(sc, origin, title, string(data)), nil
+	return "", title, tmplpkg.CheckMarkdown(sc, origin, title, string(data)), nil
 }
 
 // loadSchema resolves and loads the schema for schemaName; any failure is
@@ -480,7 +481,7 @@ func runTemplateValidate(stdout io.Writer, schemaName, draftPath, bodyPath, titl
 	if err != nil {
 		return err
 	}
-	_, res, err := checkInput(sc, origin, draftPath, bodyPath, title, titleSet)
+	_, _, res, err := checkInput(sc, origin, draftPath, bodyPath, title, titleSet)
 	if err != nil {
 		return err
 	}

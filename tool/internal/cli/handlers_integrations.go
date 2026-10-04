@@ -567,13 +567,17 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, title string, 
 		if err != nil {
 			return err
 		}
-		_, res, err := checkInput(sc, origin, draft, bodyFile, title, false)
+		checkedBody, checkedTitle, res, err := checkInput(sc, origin, draft, bodyFile, title, false)
 		if err != nil {
 			return err
 		}
 		if res.HasErrors() {
 			fmt.Fprint(stderr, res.Format())
 			return clierr.NonConforming(fmt.Sprintf("the issue does not conform to the %s schema; nothing was created. Fix the findings above and run again", tmplType))
+		}
+		fmt.Fprint(stderr, res.Format())
+		if draft != "" {
+			title, body = checkedTitle, checkedBody
 		}
 	}
 	if title == "" {

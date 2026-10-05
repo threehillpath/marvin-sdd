@@ -69,14 +69,14 @@ Fill every key of the skeleton with substantive content from the arch analysis. 
 - No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`, except inside a code fence, where a `#` line is code and must stay unescaped (`\#` would print as is).
 - No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
 
-Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<plan>/arch-draft.yml`, where `<project-root>` is the root of the main checkout (the directory holding `.claude/plan-workflow-config.yml`, not a linked worktree) and `<plan>` is `plan-` plus the 5-digit plan number from step 3 (for example `plan-00112`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below.
+Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<plan>/arch-draft.yml`, where `<project-root>` is the main checkout's git root, as defined in `../SHARED/CONFIG.md` (not a linked worktree) and `<plan>` is `plan-` plus the 5-digit plan number from step 3 (for example `plan-00112`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below, in double quotes, because the path may contain spaces.
 
 ### 6. Present for review
 
 Show the user the rendered issue, not the YAML:
 
 ```bash
-marvin template render arch-plan --draft <project-root>/.claude/cache/<plan>/arch-draft.yml
+marvin template render arch-plan --draft "<project-root>/.claude/cache/<plan>/arch-draft.yml"
 ```
 
 Stdout is the issue body as markdown. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`). If it exits 1 (for example a malformed project override), show stderr to the user and stop. If it exits 3 the draft does not conform: rewrite the draft file with `Write` to fix the findings on stderr and render again. Make at most 3 fix-and-render attempts per round of user changes; if it still exits 3, show the user the findings and ask how to proceed. When the user asks for changes, rewrite the draft file with `Write` and render again.
@@ -104,7 +104,7 @@ marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 Then create the issue from the approved draft file, capturing the returned number and URL:
 
 ```bash
-marvin issue create --template arch-plan --draft <project-root>/.claude/cache/<plan>/arch-draft.yml --label "<labels>"
+marvin issue create --template arch-plan --draft "<project-root>/.claude/cache/<plan>/arch-draft.yml" --label "<labels>"
 ```
 
 `<labels>` is one comma-joined string of only the labels that exist: `plan:arch`, `status:upcoming`, each domain label, and the source issue's type label (`bug` or `enhancement`) if it has one. Leave out any part that is absent; never leave an empty entry or a leading or trailing comma (marvin would pass an empty `--label` to `gh`). Put no spaces around the commas. Example: `--label "plan:arch,status:upcoming,domain:backend,enhancement"`.

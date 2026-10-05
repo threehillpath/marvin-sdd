@@ -63,6 +63,10 @@ Precedence rules (highest to lowest):
 2. `.claude/plan-workflow-config.yml` found by CWD-walk
 3. `.claude/plan-workflow-config.md` found by CWD-walk (legacy fallback)
 
+## Project root
+
+`<project-root>` in skill commands means the main checkout's git root, where marvin keeps `.claude/cache/`; it holds `.claude/plan-workflow-config.yml` or the legacy `.md`. In a linked worktree it is the main checkout, not the worktree. Quote every path built from it in a command, since the path may contain spaces.
+
 ## Plan Template Resolution
 
 Skills never read schema YAML directly. Four commands resolve a plan type's schema, all in the same order:

@@ -205,6 +205,11 @@ func TestTemplateRenderDraft(t *testing.T) {
 	if strings.Contains(stdout, "schema:") {
 		t.Errorf("stdout must be the body only:\n%s", stdout)
 	}
+	// The schema line always goes to stderr, so whoever approves the body
+	// sees which schema shaped it.
+	if stderr != "schema: impl-phase (built-in)\n" {
+		t.Errorf("stderr on a clean success = %q, want the schema line alone", stderr)
+	}
 
 	stdout, stderr, err = runCLI(t, "template", "render", "impl-phase", "--draft", writeTemp(t, "bad.yml", phaseDraftNoVerification))
 	wantCode(t, err, 3)
@@ -224,7 +229,7 @@ func TestTemplateRenderDraftWarningsGoToStderr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(stdout, "warning") || !strings.Contains(stderr, "warning section:tdd_entry_point") {
+	if strings.Contains(stdout, "warning") || !strings.HasPrefix(stderr, "schema: impl-phase (built-in)\n") || !strings.Contains(stderr, "warning section:tdd_entry_point") {
 		t.Errorf("stdout:\n%s\nstderr:\n%s", stdout, stderr)
 	}
 }
@@ -468,5 +473,27 @@ func TestTemplateMalformedOverrideStructureExits1(t *testing.T) {
 		if stdout != "" {
 			t.Errorf("%v: want no stdout, got %q", args, stdout)
 		}
+	}
+}
+
+// TestTemplateRenderDraftNamesTheOverrideOnStderr verifies a clean render
+// under a project override still reports which schema file was used.
+func TestTemplateRenderDraftNamesTheOverrideOnStderr(t *testing.T) {
+	dir := t.TempDir()
+	od := filepath.Join(dir, ".claude", "plan-workflow-templates")
+	if err := os.MkdirAll(od, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(od, "quick-task.yml"), []byte(overrideSchemaFixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, dir)
+	draft := writeTemp(t, "d.yml", "title: \"[TASK-00001] x\"\nmetadata:\n  Source Issue: \"#1\"\nsections:\n  override_marker: |\n    hi\n")
+	stdout, stderr, err := runCLI(t, "template", "render", "quick-task", "--draft", draft)
+	if err != nil {
+		t.Fatalf("want success, got %v\n%s", err, stderr)
+	}
+	if !strings.HasPrefix(stderr, "schema: quick-task (project override: ") || stdout == "" {
+		t.Errorf("stderr = %q, stdout = %q", stderr, stdout)
 	}
 }

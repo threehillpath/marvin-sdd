@@ -371,9 +371,9 @@ func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, gu
 		fmt.Fprint(stderr, res.Format())
 		return clierr.NonConforming(fmt.Sprintf("the draft does not conform to the %s schema; nothing was rendered. Fix the findings above and run again", schemaName))
 	}
-	if len(res.Findings) > 0 {
-		fmt.Fprint(stderr, res.Format())
-	}
+	// Always print the schema line (and any warnings): whoever approves the
+	// body should see which schema shaped it.
+	fmt.Fprint(stderr, res.Format())
 	fmt.Fprint(stdout, body)
 	return nil
 }

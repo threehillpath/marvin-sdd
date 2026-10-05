@@ -948,6 +948,11 @@ func TestCheckRawHTMLIsBanned(t *testing.T) {
 		{"escaped backticks do not make a code span", "ok\nUse \\`<details>\\` literally", 2, "<details>"},
 		{"a run of the wrong length does not match", "Use `` here <details> and ``` there", 1, "<details>"},
 		{"unmatched run does not carry over a blank line", "A ` tick\n\nthen <details> and ` tock", 3, "<details>"},
+		{"processing instruction", "see <?php echo 1; ?> here", 1, "<?"},
+		{"unclosed processing instruction", "a\nb <? start\nc", 2, "<?"},
+		{"cdata", "x <![CDATA[ hidden", 1, "<![CDATA["},
+		{"declaration", "see <!DOCTYPE html> here", 1, "<!"},
+		{"lowercase declaration", "see <!doctype x", 1, "<!"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -969,6 +974,7 @@ func TestCheckRawHTMLInCodeOrHarmlessTagsIsFine(t *testing.T) {
 		"similar tag name":                   "<prefix>x</prefix> and <stylesheet>",
 		"br":                                 "line<br>break",
 		"a comment-like text":                "<! not a comment",
+		"a lone question mark":               "Is it fine? <3 and < ? too",
 	} {
 		m := phaseMap()
 		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
@@ -1050,5 +1056,34 @@ func TestCheckRawHTMLInUnknownMarkdownMetadata(t *testing.T) {
 	}
 	if !sawErr || !sawWarn {
 		t.Fatalf("want the raw-HTML error and the not-in-schema warning:\n%s", res.Format())
+	}
+}
+
+// TestCheckInlineHTMLOpenersInMetadata covers the cross-line case: a
+// processing instruction or declaration opened in one metadata value would
+// swallow the following metadata lines, and GitHub then shows
+// "raw HTML omitted" where the parser saw values.
+func TestCheckInlineHTMLOpenersInMetadata(t *testing.T) {
+	for _, c := range []struct{ value, tag string }{
+		{"<?php start", "<?"},
+		{"<![CDATA[ start", "<![CDATA["},
+		{"<!DOCTYPE start", "<!"},
+	} {
+		m := implPlanMap()
+		m.Metadata["Objective"] = tmpl.Field{Value: c.value, Line: 3}
+		m.Metadata["Author"] = tmpl.Field{Value: "end ?>", Line: 4}
+		wantOne(t, check(t, "impl-plan", m), tmpl.SeverityError, "metadata:Objective", "raw HTML", `"`+c.tag, banFix)
+	}
+}
+
+// TestCheckMarkdownInlineHTMLOpenerAcrossMetadataLines verifies the markdown
+// path refuses a body whose metadata lines are joined into one raw HTML
+// construct.
+func TestCheckMarkdownInlineHTMLOpenerAcrossMetadataLines(t *testing.T) {
+	sc := loadBuiltIn(t, "impl-phase")
+	body := "**Implementation Plan:** <?x\n**Plan Number:** ?>\n**Status:** upcoming\n\n## Objective\n\nc\n\n## Scope\n\nc\n\n## Components\n\nc\n\n## Verification\n\nc\n\n## Success Criteria\n\n- [ ] c\n"
+	res := tmpl.CheckMarkdown(sc, builtIn, "[PLAN-00112-1] T", body)
+	if !res.HasErrors() || !strings.Contains(res.Format(), "raw HTML") || !strings.Contains(res.Format(), "Implementation Plan") {
+		t.Errorf("want a raw HTML error naming the Implementation Plan metadata value:\n%s", res.Format())
 	}
 }

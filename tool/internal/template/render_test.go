@@ -428,6 +428,7 @@ func TestGuidancePrintsSectionsAndRules(t *testing.T) {
 		"indent the opening fence, every code line and the closing fence",
 		"Don't start a line with an HTML tag, <? or <!",
 		"Use no raw HTML",
+		"<?, <![CDATA[ or <! followed by a letter",
 		"Put it in backticks as inline code",
 	} {
 		if !strings.Contains(out, rule) {

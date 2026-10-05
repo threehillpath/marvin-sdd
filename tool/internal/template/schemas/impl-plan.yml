@@ -2,6 +2,7 @@
 # XXXXX derivation and -A/-B multi-impl edge case: see skills/SHARED/GLOSSARY.md
 # Label rules: see skills/SHARED/LABELS.md
 
+# type and title_prefix are required; see skills/SHARED/CONFIG.md
 type: impl-plan
 
 # Title prefix pattern. XXXXX = zero-padded GitHub source issue number (see GLOSSARY.md).
@@ -34,7 +35,6 @@ metadata:
 #                schema heading (impl-plan Verification Steps). The conformance check
 #                and rendering both use it.
 #   guidance   — how-to-fill prose co-located with the section definition
-# type and title_prefix are required; see skills/SHARED/CONFIG.md
 sections:
   - id: scope
     heading: Scope

@@ -164,7 +164,7 @@ The draft rules follow. `--guidance` prints the quoting, `|` block, heading, com
 | Code | Meaning |
 |---|---|
 | 0 | Success. Warnings alone do not change this: they are printed on stderr by `render --draft`, `issue create` and `issue edit`, and on stdout by `validate`. |
-| 1 | Usage or operational error: unknown type, unreadable file, malformed schema or override, or any usage problem. Several usage problems are reported together in one error with a header like `issue create: 3 problems:` and a bulleted list. If a non-conforming input is present too, the findings are still printed. |
+| 1 | Usage or operational error: unknown type, unreadable file, malformed schema or override, or any usage problem. Several usage problems are reported together in one error with a header like `issue create: 3 problems:` and a bulleted list. `issue create`, `issue edit` and `validate` collect every usage problem and every finding. `render` is the exception: it reports an unknown schema, or the first usage problem, on its own and prints no draft findings alongside it, because with an unknown schema or a bad flag combination the rest of its output would be meaningless. |
 | 2 | Config missing or malformed. Only `issue create` and `issue edit` return it (`render` and `validate` read no config). Reported alone; nothing else is collected. |
 | 3 | The draft or body does not conform. Findings are on stderr for `render --draft`, `issue create` and `issue edit`, and on stdout for `validate`. A failed check makes no mutating GitHub call. |
 

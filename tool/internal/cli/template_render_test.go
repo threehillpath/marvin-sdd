@@ -275,6 +275,8 @@ func TestTemplateRenderSkeletonAndGuidanceAreExclusive(t *testing.T) {
 
 // TestTemplateRenderUnknownSchemaIsReportedBeforeFlagAdvice verifies that the
 // schema is resolved first, so no message suggests a command that then fails.
+// Stopping at the unknown schema is deliberate: report-every-problem is a
+// default, and with an unknown schema the remaining flag advice is meaningless.
 func TestTemplateRenderUnknownSchemaIsReportedBeforeFlagAdvice(t *testing.T) {
 	for _, args := range [][]string{
 		{"template", "render", "nosuch"},

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 
 	"threehillpath.com/marvin-sdd/tool/internal/cli"
@@ -36,12 +35,14 @@ sections:
 var phaseDraftNoVerification = strings.Replace(phaseDraftOK, "  verification: |\n    go test ./...\n", "", 1)
 
 // runCLI runs marvin with args and returns stdout, stderr and the error. It
-// first changes into an empty temp directory unless the test already chose a
-// directory with chdir, so no plan-workflow-templates/ override in the repo or
+// first changes into an empty temp directory unless the working directory is
+// no longer the one the test binary started in (the test, or its parent test,
+// already chose one with chdir; the working directory is process-wide, so a
+// subtest inherits it), so no plan-workflow-templates/ override in the repo or
 // in ~/.claude can change which schema the test runs against.
 func runCLI(t *testing.T, args ...string) (string, string, error) {
 	t.Helper()
-	if _, ok := chdirred.Load(t); !ok {
+	if wd, err := os.Getwd(); err != nil || wd == startDir {
 		chdir(t, t.TempDir())
 	}
 	var stdout, stderr bytes.Buffer
@@ -160,9 +161,9 @@ func TestTemplateValidateWarningsAloneExit0(t *testing.T) {
 	}
 }
 
-// chdirred records the tests that already changed directory, so runCLI keeps
-// the directory they chose.
-var chdirred sync.Map
+// startDir is the working directory the test binary started in (the package
+// directory), whose parents may hold real plan-workflow-templates/ or config.
+var startDir, _ = os.Getwd()
 
 func chdir(t *testing.T, dir string) {
 	t.Helper()
@@ -173,11 +174,7 @@ func chdir(t *testing.T, dir string) {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	chdirred.Store(t, true)
-	t.Cleanup(func() {
-		chdirred.Delete(t)
-		os.Chdir(orig)
-	})
+	t.Cleanup(func() { os.Chdir(orig) })
 }
 
 // TestTemplateValidateReportsOverridePath verifies the origin names the
@@ -512,4 +509,33 @@ func TestTemplateRenderDraftNamesTheOverrideOnStderr(t *testing.T) {
 	if !strings.HasPrefix(stderr, "schema: quick-task (project override: ") || stdout == "" {
 		t.Errorf("stderr = %q, stdout = %q", stderr, stdout)
 	}
+}
+
+// TestRunCLIKeepsTheDirectoryAParentTestChose verifies a subtest that calls
+// runCLI keeps the directory its parent changed into (so a project override
+// the parent planted is still used), and that a test that chose nothing runs
+// away from the starting directory.
+func TestRunCLIKeepsTheDirectoryAParentTestChose(t *testing.T) {
+	dir := t.TempDir()
+	od := filepath.Join(dir, ".claude", "plan-workflow-templates")
+	if err := os.MkdirAll(od, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(od, "quick-task.yml"), []byte(overrideSchemaFixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, dir)
+	t.Run("sub", func(t *testing.T) {
+		stdout, _, err := runCLI(t, "template", "render", "quick-task", "--skeleton")
+		if err != nil || !strings.Contains(stdout, "override_marker") {
+			t.Errorf("the subtest lost its parent's directory: err=%v\n%s", err, stdout)
+		}
+	})
+	t.Run("unchosen directory", func(t *testing.T) {
+		chdir(t, startDir) // as if no test had chosen one
+		runCLI(t, "template", "render", "quick-task", "--skeleton")
+		if wd, _ := os.Getwd(); wd == startDir {
+			t.Errorf("runCLI left the working directory at the package directory")
+		}
+	})
 }

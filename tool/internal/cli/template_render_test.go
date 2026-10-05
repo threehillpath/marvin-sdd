@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 const overrideSchemaFixture = `
 type: quick-task
+title_prefix: "[TASK-XXXXX] <Title>"
 metadata:
   - Source Issue
 sections:
@@ -21,6 +23,7 @@ sections:
     required: false
     repeatable: false
     numbered: false
+    named: false
 `
 
 // TestTemplateRenderProjectOverrideWinsOverEmbeddedDefault verifies that a
@@ -63,10 +66,10 @@ func TestTemplateRenderProjectOverrideWinsOverEmbeddedDefault(t *testing.T) {
 	}
 
 	got := stdout.String()
-	if !strings.Contains(got, "OVERRIDE-MARKER-SECTION") {
-		t.Errorf("expected project override content in output, got:\n%s", got)
+	if !strings.Contains(got, "override_marker: |") {
+		t.Errorf("expected the override's section key in the YAML skeleton, got:\n%s", got)
 	}
-	if strings.Contains(got, "Problem Statement") {
+	if strings.Contains(got, "problem_statement") || strings.Contains(got, "Problem Statement") {
 		t.Errorf("expected embedded default's sections to be absent when an override is present, got:\n%s", got)
 	}
 }
@@ -95,8 +98,11 @@ func TestTemplateRenderFallsBackToEmbeddedDefault(t *testing.T) {
 		t.Fatalf("template render quick-task --skeleton returned error: %v\nstderr: %s", err, stderr.String())
 	}
 
-	if !strings.Contains(stdout.String(), "Problem Statement") {
-		t.Errorf("expected embedded default schema's Problem Statement heading, got:\n%s", stdout.String())
+	if !strings.Contains(stdout.String(), "problem_statement: |") {
+		t.Errorf("expected embedded default schema's problem_statement key, got:\n%s", stdout.String())
+	}
+	if !strings.HasPrefix(stdout.String(), "title: \"[TASK-XXXXX] <Title>\"\n") {
+		t.Errorf("expected a double-quoted YAML title placeholder, got:\n%s", stdout.String())
 	}
 }
 
@@ -139,7 +145,180 @@ func TestTemplateRenderUnreadableOverrideFails(t *testing.T) {
 	if err := root.Execute(); err == nil {
 		t.Fatalf("expected an error for an unreadable override, got success with stdout:\n%s", stdout.String())
 	}
-	if strings.Contains(stdout.String(), "Problem Statement") {
+	if strings.Contains(stdout.String(), "problem_statement") {
 		t.Errorf("expected no output from the embedded default when the override is unreadable, got:\n%s", stdout.String())
+	}
+}
+
+// TestTemplateRenderSkeletonRejectsMalformedOverride verifies that a project
+// override missing title_prefix fails the render with exit 1 and a message
+// that names the origin and the field, rather than rendering from a schema
+// the conformance check could not use.
+func TestTemplateRenderSkeletonRejectsMalformedOverride(t *testing.T) {
+	dir := t.TempDir()
+	overrideDir := filepath.Join(dir, ".claude", "plan-workflow-templates")
+	if err := os.MkdirAll(overrideDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bad := "type: quick-task\nmetadata:\n  - Source Issue\nsections: []\n"
+	if err := os.WriteFile(filepath.Join(overrideDir, "quick-task.yml"), []byte(bad), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(orig) })
+
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"template", "render", "quick-task", "--skeleton"})
+
+	err = root.Execute()
+	var cliErr *cli.CLIError
+	if !errors.As(err, &cliErr) {
+		t.Fatalf("want *CLIError, got %T: %v", err, err)
+	}
+	if cliErr.Code != 1 {
+		t.Errorf("Code = %d, want 1", cliErr.Code)
+	}
+	for _, w := range []string{"project override", "title_prefix"} {
+		if !strings.Contains(cliErr.Msg, w) {
+			t.Errorf("message %q missing %q", cliErr.Msg, w)
+		}
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("want no stdout, got %q", stdout.String())
+	}
+}
+
+// TestTemplateRenderRemovedFlagsAreUnknown verifies that the JSON input path
+// is gone: --sections and --meta are unknown flags, a usage error (exit 1).
+func TestTemplateRenderRemovedFlagsAreUnknown(t *testing.T) {
+	for _, flag := range []string{"--sections", "--meta"} {
+		t.Run(flag, func(t *testing.T) {
+			chdir(t, t.TempDir())
+			var stdout, stderr bytes.Buffer
+			root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+			root.SetArgs([]string{"template", "render", "impl-plan", flag, "x.json"})
+			err := root.Execute()
+			if err == nil {
+				t.Fatalf("%s must be an unknown flag, got success with stdout:\n%s", flag, stdout.String())
+			}
+			if !strings.Contains(err.Error(), "unknown flag") || !strings.Contains(err.Error(), flag) {
+				t.Errorf("want an unknown-flag error naming %s, got: %v", flag, err)
+			}
+		})
+	}
+}
+
+// TestTemplateRenderWithoutSkeletonSaysWhatToDo verifies that, with no mode flag,
+// a plain render fails with a
+// message naming the supported call rather than printing nothing.
+func TestTemplateRenderWithoutSkeletonSaysWhatToDo(t *testing.T) {
+	chdir(t, t.TempDir())
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"template", "render", "impl-plan"})
+	err := root.Execute()
+	var cliErr *cli.CLIError
+	if !errors.As(err, &cliErr) || cliErr.Code != 1 {
+		t.Fatalf("want a CLIError with code 1, got %T: %v", err, err)
+	}
+	for _, w := range []string{"--skeleton", "--guidance", "--draft", "impl-plan"} {
+		if !strings.Contains(cliErr.Msg, w) {
+			t.Errorf("message %q missing %q", cliErr.Msg, w)
+		}
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("want no stdout, got %q", stdout.String())
+	}
+}
+
+// TestTemplateRenderGuidancePrintsPlainText verifies --guidance prints the
+// per-section guidance and the draft-writing rules.
+func TestTemplateRenderGuidancePrintsPlainText(t *testing.T) {
+	chdir(t, t.TempDir())
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"template", "render", "quick-task", "--guidance"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("--guidance returned error: %v\nstderr: %s", err, stderr.String())
+	}
+	for _, w := range []string{"schema: quick-task", "Problem Statement (required)", "problem_statement: a single | block", "no # comments"} {
+		if !strings.Contains(stdout.String(), w) {
+			t.Errorf("guidance output missing %q:\n%s", w, stdout.String())
+		}
+	}
+}
+
+// TestTemplateRenderSkeletonAndGuidanceAreExclusive verifies that passing
+// both flags exits 1 and says to pick one.
+func TestTemplateRenderSkeletonAndGuidanceAreExclusive(t *testing.T) {
+	chdir(t, t.TempDir())
+	var stdout, stderr bytes.Buffer
+	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+	root.SetArgs([]string{"template", "render", "quick-task", "--skeleton", "--guidance"})
+	err := root.Execute()
+	var cliErr *cli.CLIError
+	if !errors.As(err, &cliErr) || cliErr.Code != 1 {
+		t.Fatalf("want a CLIError with code 1, got %T: %v", err, err)
+	}
+	for _, w := range []string{"--skeleton", "--guidance", "only one"} {
+		if !strings.Contains(cliErr.Msg, w) {
+			t.Errorf("message %q missing %q", cliErr.Msg, w)
+		}
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("want no stdout, got %q", stdout.String())
+	}
+}
+
+// TestTemplateRenderUnknownSchemaIsReportedBeforeFlagAdvice verifies that the
+// schema is resolved first, so no message suggests a command that then fails.
+// Stopping at the unknown schema is deliberate: report-every-problem is a
+// default, and with an unknown schema the remaining flag advice is meaningless.
+func TestTemplateRenderUnknownSchemaIsReportedBeforeFlagAdvice(t *testing.T) {
+	for _, args := range [][]string{
+		{"template", "render", "nosuch"},
+		{"template", "render", "nosuch", "--skeleton", "--guidance"},
+		{"template", "render", "nosuch", "--draft", ""},
+	} {
+		chdir(t, t.TempDir())
+		var stdout, stderr bytes.Buffer
+		root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
+		root.SetArgs(args)
+		err := root.Execute()
+		var cliErr *cli.CLIError
+		if !errors.As(err, &cliErr) || cliErr.Code != 1 {
+			t.Fatalf("%v: want a CLIError with code 1, got %T: %v", args, err, err)
+		}
+		if !strings.Contains(cliErr.Msg, `unknown schema "nosuch"`) || strings.Contains(cliErr.Msg, "--skeleton") || strings.Contains(cliErr.Msg, "empty value") {
+			t.Errorf("%v: want the unknown-schema error alone, got %q", args, cliErr.Msg)
+		}
+	}
+}
+
+// TestTemplateRenderGoldmarkBackstopOnDraft verifies a draft whose only
+// problem is an HTML block in Scope (which Check alone accepts) exits 3 with
+// the finding on stderr and nothing on stdout.
+func TestTemplateRenderGoldmarkBackstopOnDraft(t *testing.T) {
+	draft := writeTemp(t, "d.yml", strings.Replace(phaseDraftOK, "    In scope.\n", "    In scope.\n\n    <div>\n    hidden\n    </div>\n", 1))
+	stdout, stderr, err := runCLI(t, "template", "render", "impl-phase", "--draft", draft)
+	wantCode(t, err, 3)
+	if stdout != "" {
+		t.Errorf("want empty stdout, got %q", stdout)
+	}
+	found := false
+	for _, l := range strings.Split(stderr, "\n") {
+		if strings.HasPrefix(l, "error section:scope") && strings.Contains(l, "HTML block") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no \"error section:scope ... HTML block\" line on stderr:\n%s", stderr)
 	}
 }

@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"threehillpath.com/marvin-sdd/tool/internal/exec"
+	tmplpkg "threehillpath.com/marvin-sdd/tool/internal/template"
 )
 
 // NewRootCmd constructs the root Cobra command with all subcommand groups registered.
@@ -178,24 +180,43 @@ func newParseCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 func newTemplateCmd(stdout, stderr io.Writer) *cobra.Command {
 	tmpl := &cobra.Command{
 		Use:   "template",
-		Short: "Render plan issue templates",
+		Short: "Render and validate plan issue templates",
 	}
 
-	var metaFile, sectionsFile string
-	var skeleton bool
+	typeList := strings.Join(tmplpkg.DefaultSchemaNames(), "|")
+	var skeleton, guidance bool
+	var rDraft string
 
 	renderCmd := &cobra.Command{
-		Use:   "render <arch-plan|impl-plan|impl-phase>",
-		Short: "Render a plan template from schema",
+		Use:   "render <" + typeList + ">",
+		Short: "Render a skeleton, guidance, or a draft for a plan schema",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runTemplateRender(stdout, stderr, args[0], metaFile, sectionsFile, skeleton)
+			return runTemplateRender(stdout, stderr, args[0], skeleton, guidance, rDraft, cmd.Flags().Changed("draft"))
 		},
 	}
-	renderCmd.Flags().StringVar(&metaFile, "meta", "", "Path to meta JSON file")
-	renderCmd.Flags().StringVar(&sectionsFile, "sections", "", "Path to sections JSON file")
-	renderCmd.Flags().BoolVar(&skeleton, "skeleton", false, "Output empty section headings without requiring content")
+	renderCmd.Flags().BoolVar(&skeleton, "skeleton", false, "Output an empty YAML draft for the schema")
+	renderCmd.Flags().BoolVar(&guidance, "guidance", false, "Output plain-text guidance for filling in a draft (exclusive with --skeleton and --draft)")
 
-	tmpl.AddCommand(renderCmd)
+	var v validateFlags
+	validateCmd := &cobra.Command{
+		Use:   "validate <" + typeList + ">",
+		Short: "Check a draft or markdown body against a plan schema",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			v.titleSet = cmd.Flags().Changed("title")
+			v.draftSet = cmd.Flags().Changed("draft")
+			v.bodySet = cmd.Flags().Changed("body-file")
+			return runTemplateValidate(stdout, stderr, args[0], v)
+		},
+	}
+	validateCmd.Flags().StringVar(&v.draft, "draft", "", "YAML draft file to check")
+	validateCmd.Flags().StringVar(&v.body, "body-file", "", "Markdown body file to check")
+	validateCmd.Flags().StringVar(&v.title, "title", "", "Issue title (with --body-file)")
+	validateCmd.Flags().BoolVar(&v.json, "json", false, "Output JSON instead of plain text")
+
+	renderCmd.Flags().StringVar(&rDraft, "draft", "", "YAML draft file to render to markdown on stdout")
+
+	tmpl.AddCommand(renderCmd, validateCmd)
 	return tmpl
 }

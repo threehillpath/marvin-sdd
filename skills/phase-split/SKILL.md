@@ -2,7 +2,7 @@
 name: phase-split
 description: Break an implementation plan into phases and create GitHub issues for each
 argument-hint: <impl-plan-issue-number>
-allowed-tools: Bash, Read, Glob, Grep
+allowed-tools: Bash, Read, Write, Glob, Grep
 model: opus
 ---
 
@@ -51,7 +51,7 @@ Before creating any issues, check whether phases already exist for this plan:
 marvin issue tree $0
 ```
 
-This returns one pipe-delimited line per node — `<kind> | #<number> | <state> | <status> | <title>` — with `kind` one of `arch`, `impl`, `phase`. Filter for lines where `kind` is `phase`. If zero `phase` lines are found (not the same as an empty result — `issue tree` always emits the target's own node), this plan predates sub-issue linking; fall back to:
+This returns one pipe-delimited line per node — `<kind> | #<number> | <state> | <status> | <title>` — with `kind` one of `arch`, `impl`, `phase`, `task`. Filter for lines where `kind` is `phase`. If zero `phase` lines are found (not the same as an empty result — `issue tree` always emits the target's own node), this plan predates sub-issue linking; fall back to:
 
 ```bash
 marvin issue list --label "plan:phase" --title-prefix "[PLAN-XXXXX-" --state all
@@ -65,13 +65,47 @@ If any phase issues are found by either method, show the existing phases and sto
 
 If `marvin` exits with code 2, surface to the user: "Configuration missing — run `/configure-plan-plugin` first."
 
-Render the phase issue template:
+Get the empty YAML draft and the rules for filling it:
 
 ```bash
 marvin template render impl-phase --skeleton
+marvin template render impl-phase --guidance
 ```
 
-Use the rendered skeleton as the structural frame for each phase issue body, filling in phase-specific content.
+If either command exits 1 (for example a malformed project override, or an unknown type), show stderr to the user and stop. Neither command reads the config, so neither returns exit 2.
+
+Fill every key of the skeleton with phase-specific content, except that `tdd_entry_point` is optional: for a phase with no TDD entry point, keep the key and write `None.` followed by the reason. Do not omit the key: an omitted key passes `validate` silently, and an empty block leaves a bare `## TDD Entry Point` heading; neither triggers review-phase's structural pre-check. In `title:`, replace `XXXXX`, `N` and `<Phase Title>` with the real plan number, phase number and title (for a multi-impl track the identifier is `[PLAN-XXXXX-<suffix>-N]`). Follow every rule `--guidance` prints (its code-fence, heading-underline and HTML rules are not repeated here), plus the loader's key, tab, tag, anchor and alias rules, which `--guidance` does not print and which are in the list below. `../SHARED/CONFIG.md` describes the format. The rules most often broken:
+
+- Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
+- The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
+- Every metadata value must be non-empty. `Implementation Plan` starts with the issue reference, `#<n>` (for example `#132 ([PLAN-00112])`; if it names a plan, that plan must be the title's), and `Plan Number` is the title's plan number without brackets (`PLAN-00112` for the title `[PLAN-00112-3] ...`).
+- Each key appears once. Indent with spaces, never tabs.
+- No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`, except inside a code fence, where a `#` line is code and must stay unescaped (`\#` would print as is).
+- No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
+
+Once a phase's sections are filled in, `Write` it to that phase's own draft file, `<project-root>/.claude/cache/<plan>/phase-N-draft.yml`, where `<project-root>` is the main checkout's git root, as defined in `../SHARED/CONFIG.md` (not a linked worktree), `<plan>` is the lowercase PLAN-XXXXX number (for example `plan-00112`) and `N` is the phase number (for a multi-impl track use `phase-<suffix>-N-draft.yml`, e.g. `phase-A-1-draft.yml`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use each phase's own path in every command below, in double quotes, because the path may contain spaces.
+
+Write each phase's title and body together in its one draft file, never as two separate lists. Write every phase's draft first, then validate every one of them **before the first `issue create`**:
+
+```bash
+marvin template validate impl-phase --draft "<project-root>/.claude/cache/<plan>/phase-N-draft.yml"
+```
+
+`validate` makes no config or GitHub call and creates nothing. Exit codes:
+
+- **0** — the draft conforms. Any warnings are printed on stdout after the `schema:` line; a warning alone does not fail the draft.
+- **3** — the draft does not conform. The findings are on stdout, most naming a draft line, all saying how to fix it. Rewrite that draft file with `Write` to fix the findings and validate it again. Make at most 3 fix-and-retry attempts per draft; if it still exits 3, show the user the findings and stop, with no issue created.
+- **1** — a usage or operational error (for example an unreadable draft). Show stderr to the user and stop. Do not retry.
+
+Create issues only once every draft has exited 0.
+
+Once every draft has validated, tell the user the drafts are ready, show them any warnings `validate` printed, and say they can ask to see any phase's rendered body. Do not paste bodies by default; the user approved the phase list in step 2. If a draft produced warnings, or the user asks, show that phase's rendered markdown and wait for approval before the first create:
+
+```bash
+marvin template render impl-phase --draft "<project-root>/.claude/cache/<plan>/phase-N-draft.yml"
+```
+
+Also show the `schema:` line from stderr (and any warnings) above the pasted body, so the user sees which schema shaped it. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`). If the user asks for changes, rewrite that draft file with `Write` and validate it again.
 
 Read `../SHARED/LABELS.md` for label conventions. Infer domain labels from the impl plan content — confirm with the user once before creating all issues ("I'll apply `plan:phase`, `status:upcoming`, `domain:backend` to all phases — correct?").
 
@@ -89,21 +123,22 @@ For any domain labels not covered by `--builtins`, ensure each one individually:
 marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 ```
 
-For each approved phase, compose the title and body **together, as one atomic unit, immediately before creating that issue** — do not draft all bodies in a separate pass from titles, and do not hold titles and content as two lists tracked independently. Title/body pairing drift (a body describing a different phase than its own title) has happened before and is easy to introduce silently when title and content are generated in separate passes.
-
-`phase-split` has no `Write` tool. For each phase, write its approved, rendered body to a scratch file via a `Bash` heredoc:
+Then create the phase issues in phase order, each from its draft file, capturing the returned number and URL:
 
 ```bash
-cat > /tmp/phase-split-body-N.md <<'EOF'
-<phase content>
-EOF
+marvin issue create --template impl-phase --draft "<project-root>/.claude/cache/<plan>/phase-N-draft.yml" --label "<labels>"
 ```
 
-Then create the issue, capturing the returned number and URL:
+`<labels>` is one comma-joined string of only the labels that exist: `plan:phase`, `status:upcoming`, and each domain label. Leave out any part that is absent; never leave an empty entry or a leading or trailing comma (marvin would pass an empty `--label` to `gh`). Put no spaces around the commas. Example: `--label "plan:phase,status:upcoming,domain:backend"`.
 
-```bash
-marvin issue create --title "[PLAN-XXXXX-N] <Phase Title>" --body-file /tmp/phase-split-body-N.md --label "plan:phase,status:upcoming,<domain-labels>"
-```
+The title comes from the draft, so do not pass `--title` or `--body`. On success stdout is the new issue number, then its URL; capture both. Warnings on stderr are fine. Handle the exit code:
+
+- **0** — created.
+- **3** — the draft does not conform; nothing was created. The findings are on stderr, most naming a draft line, all saying how to fix it. Rewrite the draft file with `Write` to fix the findings and run the same command again. Make at most 3 fix-and-retry attempts; if it still exits 3, show the user the findings and stop.
+- **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry.
+- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry.
+
+If a create stops the run (exit 1, 2, or 3 after the retries), tell the user: which phase issues were already created (number and title for each) and whether `link-parent` ran for each; which phases were not created, with each one's draft file path; and that steps 3b (title/body check), 4 (phases-created comment) and 5 (board moves) did not run. That lets the split be finished by hand. Do not delete the created issues and do not start over: step 3's existing-phase check would refuse a second run.
 
 Immediately after each phase issue is created, set a real GitHub-native sub-issue link so `marvin issue tree` can resolve this plan's hierarchy without relying on title matching:
 
@@ -123,7 +158,12 @@ Before moving to step 4, re-fetch every created issue and confirm each one's bod
 gh issue view <issue-number> --repo <repo> --json title,body
 ```
 
-For each issue, check that the `## Objective` and `## Components` sections reference the same phase number and component(s) named in the title. If any issue's body describes a different phase, fix it immediately with `gh issue edit <issue-number> --repo <repo> --body-file <file>` before proceeding — do not defer this to a later skill.
+For each issue, check that the `## Objective` and `## Components` sections reference the same phase number and component(s) named in the title. If any issue's body describes a different phase, fix it immediately: rewrite that phase's draft file (`<project-root>/.claude/cache/<plan>/phase-N-draft.yml`, with N taken from that issue's title) with `Write` and run `marvin issue edit <issue-number> --template impl-phase --draft "<project-root>/.claude/cache/<plan>/phase-N-draft.yml"` (it replaces the body and the title, and prints nothing on stdout when it succeeds) before proceeding — do not defer this to a later skill. You handle the exit code of the fix-up:
+
+- **0** — fixed.
+- **3** — the corrected draft does not conform; nothing was changed. The findings are on stderr. Rewrite the draft file with `Write` to fix them and run the same command again. Make at most 3 fix attempts; if it still exits 3, show the user the findings and stop.
+- **1** — a usage or operational error. Show stderr to the user and stop. Do not retry.
+- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry.
 
 ### 4. Post the phases-created comment
 

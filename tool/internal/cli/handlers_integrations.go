@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"threehillpath.com/marvin-sdd/tool/internal/board"
+	"threehillpath.com/marvin-sdd/tool/internal/clierr"
 	"threehillpath.com/marvin-sdd/tool/internal/config"
 	"threehillpath.com/marvin-sdd/tool/internal/exec"
 	"threehillpath.com/marvin-sdd/tool/internal/findings"
@@ -19,6 +20,7 @@ import (
 	"threehillpath.com/marvin-sdd/tool/internal/issue"
 	"threehillpath.com/marvin-sdd/tool/internal/label"
 	"threehillpath.com/marvin-sdd/tool/internal/pr"
+	tmplpkg "threehillpath.com/marvin-sdd/tool/internal/template"
 	"threehillpath.com/marvin-sdd/tool/internal/worktree"
 )
 
@@ -508,12 +510,13 @@ func newWorktreeResolveCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.
 func newIssueCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
 	issueCmd := &cobra.Command{
 		Use:   "issue",
-		Short: "Read GitHub issues",
+		Short: "List, create, edit and link GitHub issues",
 	}
 	issueCmd.AddCommand(newIssueListCmd(stdout, stderr, runner))
 	issueCmd.AddCommand(newIssueTreeCmd(stdout, stderr, runner))
 	issueCmd.AddCommand(newIssueLinkParentCmd(stdout, stderr, runner))
 	issueCmd.AddCommand(newIssueCreateCmd(stdout, stderr, runner))
+	issueCmd.AddCommand(newIssueEditCmd(stdout, stderr, runner))
 	return issueCmd
 }
 
@@ -523,66 +526,212 @@ type issueCreateOutput struct {
 	URL    string `json:"url"`
 }
 
+// issueCreateFlags is the state of issue create's flags, including which were
+// passed at all (a flag passed with an empty value is not the same as absent).
+type issueCreateFlags struct {
+	title, body, bodyFile, labels, tmplType, draft string
+	titleSet, tmplSet, bodySet, draftSet           bool
+	bodyFileSet, labelSet, jsonOut                 bool
+	args                                           []string
+}
+
 func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
-	var title, body, bodyFile, labelsFlag string
-	var jsonOut bool
+	var f issueCreateFlags
 
 	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Create a new GitHub issue (--body or --body-file, mutually exclusive)",
-		Args:  cobra.NoArgs,
+		Short: "Create a GitHub issue (--title with --body/--body-file, or --template with --draft/--body-file to check it first)",
+		// The argument count is checked in runIssueCreate so a stray positional
+		// is reported together with the other problems.
+		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// A missing config is an environment problem that blocks everything,
+			// so it is reported alone, before any usage problem is collected.
 			cfg, err := loadConfig()
 			if err != nil {
 				return err
 			}
-			return runIssueCreate(stdout, stderr, cfg, title, body, bodyFile, labelsFlag, jsonOut, runner)
+			f.args = args
+			f.titleSet = cmd.Flags().Changed("title")
+			f.tmplSet = cmd.Flags().Changed("template")
+			f.bodySet = cmd.Flags().Changed("body")
+			f.draftSet = cmd.Flags().Changed("draft")
+			f.bodyFileSet = cmd.Flags().Changed("body-file")
+			f.labelSet = cmd.Flags().Changed("label")
+			return runIssueCreate(stdout, stderr, cfg, f, runner)
 		},
 	}
-	cmd.Flags().StringVar(&title, "title", "", "Issue title (required)")
-	cmd.Flags().StringVar(&body, "body", "", "Issue body (mutually exclusive with --body-file)")
-	cmd.Flags().StringVar(&bodyFile, "body-file", "", "Path to a file containing the issue body (mutually exclusive with --body)")
-	cmd.Flags().StringVar(&labelsFlag, "label", "", "Comma-separated label names")
-	cmd.Flags().BoolVar(&jsonOut, "json", false, "Output JSON instead of plain text")
+	types := strings.Join(tmplpkg.DefaultSchemaNames(), ", ")
+	cmd.Flags().StringVar(&f.tmplType, "template", "", "Check the issue against this plan schema before creating (one of "+types+"); exit 3 if it does not conform")
+	cmd.Flags().StringVar(&f.draft, "draft", "", "YAML draft file (with --template); the title comes from the draft")
+	cmd.Flags().StringVar(&f.title, "title", "", "Issue title (required unless --template --draft, where it must equal the draft's title)")
+	cmd.Flags().StringVar(&f.body, "body", "", "Issue body (mutually exclusive with --body-file; not with --template)")
+	cmd.Flags().StringVar(&f.bodyFile, "body-file", "", "Path to a file containing the issue body (mutually exclusive with --body)")
+	cmd.Flags().StringVar(&f.labels, "label", "", "Comma-separated label names")
+	cmd.Flags().BoolVar(&f.jsonOut, "json", false, "Output JSON instead of plain text")
 	return cmd
 }
 
-// runIssueCreate validates --title/--body/--body-file, resolves the body
-// (reading --body-file's contents when given), creates the issue, and
-// prints the result. jsonOut selects JSON output (--json); by default,
-// plain-text mode prints the issue number on one line then the URL on the
-// next.
-func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, title, body, bodyFile, labelsFlag string, jsonOut bool, runner exec.Runner) error {
-	if title == "" {
-		return &CLIError{Code: 1, Msg: "issue create requires --title"}
+// runIssueCreate validates the flags, creates the issue, and prints the
+// result. jsonOut selects JSON output (--json); by default, plain-text mode
+// prints the issue number on one line then the URL on the next.
+//
+// With --template <type> the input (--draft or --body-file) is checked against
+// that schema first, and the checked title and body are what gets created.
+// Every usage problem found in the invocation is reported together in one
+// exit-1 error, and when the input can be loaded its conformance findings
+// are printed with them. Otherwise a non-conforming input exits 3 with the
+// findings on stderr. Either way no gh call is made. Warnings and the schema
+// line go to stderr. Each input file is read once, and those bytes are what
+// is checked and sent.
+func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, f issueCreateFlags, runner exec.Runner) error {
+	p := problems{prefix: "issue create: "}
+
+	if len(f.args) > 0 {
+		quoted := make([]string, len(f.args))
+		for i, a := range f.args {
+			quoted[i] = strconv.Quote(a)
+		}
+		p.add(fmt.Sprintf("takes no positional arguments: got %s (the title and body come from flags)", strings.Join(quoted, ", ")))
 	}
-	if body != "" && bodyFile != "" {
-		return &CLIError{Code: 1, Msg: "issue create: --body and --body-file are mutually exclusive"}
+	var sc *tmplpkg.Schema
+	var origin string
+	if f.tmplSet {
+		if f.tmplType == "" {
+			p.add(emptyTemplateMsg())
+		} else if s, o, err := loadSchema(f.tmplType); err != nil {
+			p.add(errMsg(err))
+		} else {
+			sc, origin = s, o
+		}
 	}
-	if body == "" && bodyFile == "" {
-		return &CLIError{Code: 1, Msg: "issue create requires --body or --body-file"}
+	if f.draftSet && f.draft == "" {
+		p.add(emptyFlagMsg("draft"))
+	}
+	if f.bodyFileSet && f.bodyFile == "" {
+		p.add(emptyFlagMsg("body-file"))
+	}
+	if f.draft != "" && f.bodyFile != "" {
+		p.add(bothInputsMsg)
+	}
+	titleProblem := false
+	if f.tmplSet {
+		if f.bodySet {
+			p.add("--template does not accept an inline --body: use --draft <file.yml> or --body-file <file.md>")
+		}
+		if !f.draftSet && !f.bodyFileSet {
+			p.add(exactlyOneMsg)
+		}
+		if f.draft == "" && f.bodyFile != "" && f.title == "" {
+			if f.titleSet {
+				p.add(emptyTitleMsg)
+			} else {
+				p.add("--template with --body-file requires --title (with --draft the title comes from the draft)")
+			}
+			titleProblem = true
+		}
+	} else if f.draftSet {
+		// Say only this: also demanding --title and --body would steer toward
+		// the unchecked path.
+		p.add("--draft requires --template <type> (one of " + strings.Join(tmplpkg.DefaultSchemaNames(), ", ") + ")")
+	} else {
+		if f.title == "" {
+			if f.titleSet {
+				p.add(emptyTitleMsg)
+			} else {
+				p.add("requires --title")
+			}
+		}
+		if f.bodySet && f.body == "" {
+			p.add("--body was given an empty value: pass the body, or leave the flag out")
+		}
+		if f.bodySet && f.bodyFileSet {
+			p.add("--body and --body-file are mutually exclusive")
+		}
+		if !f.bodySet && !f.bodyFileSet {
+			p.add("requires --body or --body-file")
+		}
+	}
+	// An explicitly empty --label is a mistake, not "no labels". (An empty
+	// element such as "a,,b" is a separate matter, tracked in #152.)
+	if f.labelSet && f.labels == "" {
+		p.add("--label was given an empty value: pass a label name, or leave the flag out")
 	}
 
-	resolvedBody := body
-	if bodyFile != "" {
-		data, err := os.ReadFile(bodyFile)
-		if err != nil {
-			return &CLIError{Code: 1, Msg: fmt.Sprintf("issue create: reading --body-file %q: %v", bodyFile, err)}
+	// Read each input once, during collection, so an unreadable file is
+	// reported with the other problems.
+	var draftData, bodyData []byte
+	draftRead, bodyRead := false, false
+	if f.draft != "" {
+		if data, err := readInputFile("draft", f.draft); err != nil {
+			p.add(errMsg(err))
+		} else {
+			draftData, draftRead = data, true
 		}
-		resolvedBody = string(data)
+	}
+	if f.bodyFile != "" {
+		if data, err := readInputFile("body-file", f.bodyFile); err != nil {
+			p.add(errMsg(err))
+		} else {
+			bodyData, bodyRead = data, true
+		}
+	}
+
+	// Check the input whenever it can be loaded, even with usage problems
+	// already found, so they are all reported in one run.
+	var checkedBody, checkedTitle string
+	var res tmplpkg.Result
+	checked := false
+	if sc != nil {
+		switch {
+		case draftRead && f.bodyFile == "":
+			checkedBody, checkedTitle, res = checkDraftBytes(sc, origin, draftData)
+			checked = true
+		case bodyRead && f.draft == "":
+			checkedBody, checkedTitle, res = string(bodyData), f.title, checkBodyBytes(sc, origin, f.title, bodyData)
+			checked = true
+		}
+	}
+	// A loaded draft's title is compared whether or not the draft conforms.
+	if checked && f.draft != "" && f.titleSet && checkedTitle != "" && f.title != checkedTitle {
+		p.add(fmt.Sprintf("--title %q does not match the draft's title %q: the title comes from the draft, so remove --title or make it equal to the draft's \"title:\"", f.title, checkedTitle))
+	}
+	if checked {
+		if titleProblem {
+			res = dropTitleFindings(res) // already reported once, as a usage problem
+		}
+		fmt.Fprint(stderr, res.Format())
+		if titleProblem {
+			fmt.Fprint(stderr, titleChecksNote)
+		}
+	}
+	if err := p.err(); err != nil {
+		return err
+	}
+	if res.HasErrors() {
+		return clierr.NonConforming(fmt.Sprintf("the issue does not conform to the %s schema; nothing was created. Fix the findings above and run again", f.tmplType))
+	}
+
+	title, body := f.title, f.body
+	switch {
+	case checked:
+		// Send exactly what was checked.
+		title, body = checkedTitle, checkedBody
+	case bodyRead:
+		body = string(bodyData)
 	}
 
 	var labels []string
-	if labelsFlag != "" {
-		labels = strings.Split(labelsFlag, ",")
+	if f.labels != "" {
+		labels = strings.Split(f.labels, ",")
 	}
 
-	number, url, err := issue.Create(context.Background(), runner, cfg, title, resolvedBody, labels)
+	number, url, err := issue.Create(context.Background(), runner, cfg, title, body, labels)
 	if err != nil {
 		return &CLIError{Code: 1, Msg: err.Error()}
 	}
 
-	if !jsonOut {
+	if !f.jsonOut {
 		fmt.Fprintln(stdout, number)
 		fmt.Fprintln(stdout, url)
 		return nil
@@ -591,6 +740,175 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, title, body, b
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(issueCreateOutput{Number: number, URL: url})
+}
+
+// issueEditFlags is the state of issue edit's flags, including which were
+// passed at all. --body is a hidden flag that exists only so that using it is
+// a reported usage problem with advice, not a bare unknown-flag error.
+type issueEditFlags struct {
+	tmplType, draft, bodyFile, body string
+	title, label                    string
+	tmplSet, draftSet               bool
+	bodyFileSet, bodySet            bool
+	titleSet, labelSet              bool
+}
+
+func newIssueEditCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {
+	var f issueEditFlags
+
+	cmd := &cobra.Command{
+		Use:   "edit <issue-number>",
+		Short: "Replace an issue's body after checking it against a plan schema (--template with --draft, which also sets the title, or --body-file)",
+		// The argument count is checked in runIssueEdit so it is reported
+		// together with the other problems.
+		Args: cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// A missing config is an environment problem that blocks everything,
+			// so it is reported alone, before any usage problem is collected.
+			cfg, err := loadConfig()
+			if err != nil {
+				return err
+			}
+			f.tmplSet = cmd.Flags().Changed("template")
+			f.draftSet = cmd.Flags().Changed("draft")
+			f.bodyFileSet = cmd.Flags().Changed("body-file")
+			f.bodySet = cmd.Flags().Changed("body")
+			f.titleSet = cmd.Flags().Changed("title")
+			f.labelSet = cmd.Flags().Changed("label")
+			return runIssueEdit(stderr, cfg, args, f, runner)
+		},
+	}
+	cmd.Flags().StringVar(&f.tmplType, "template", "", "Plan schema to check against (required; one of "+strings.Join(tmplpkg.DefaultSchemaNames(), ", ")+")")
+	cmd.Flags().StringVar(&f.draft, "draft", "", "YAML draft file: sets the rendered body and the title")
+	cmd.Flags().StringVar(&f.bodyFile, "body-file", "", "Markdown body file: sets the body only, the title is unchanged")
+	cmd.Flags().StringVar(&f.body, "body", "", "Not supported: there is no inline body, use --draft or --body-file")
+	cmd.Flags().StringVar(&f.title, "title", "", "Not supported: --draft sets the title")
+	cmd.Flags().StringVar(&f.label, "label", "", "Not supported: edit does not change labels")
+	for _, n := range []string{"body", "title", "label"} {
+		_ = cmd.Flags().MarkHidden(n)
+	}
+	return cmd
+}
+
+// runIssueEdit checks the input against the schema and only then edits the
+// issue. Every usage problem found is reported together in one exit-1 error,
+// with the conformance findings when the input could be checked; a check
+// error alone exits 3. Either way no mutating gh call is made. For
+// --body-file the title is read from the issue (a non-mutating gh call) only
+// when no other problem exists. Each input file is read once, and those
+// bytes are what is checked and sent.
+func runIssueEdit(stderr io.Writer, cfg *config.Config, args []string, f issueEditFlags, runner exec.Runner) error {
+	p := problems{prefix: "issue edit: "}
+
+	number := 0
+	if len(args) != 1 {
+		p.add(fmt.Sprintf("needs exactly one <issue-number> argument, got %d", len(args)))
+	} else if n, err := strconv.Atoi(args[0]); err != nil {
+		p.add(fmt.Sprintf("invalid issue number %q: %v", args[0], err))
+	} else {
+		number = n
+	}
+	var sc *tmplpkg.Schema
+	var origin string
+	types := strings.Join(tmplpkg.DefaultSchemaNames(), ", ")
+	switch {
+	case f.tmplSet && f.tmplType == "":
+		p.add(emptyTemplateMsg())
+	case f.tmplType == "":
+		p.add("requires --template <type> (one of " + types + "): it checks the new body against that plan schema")
+	default:
+		if s, o, err := loadSchema(f.tmplType); err != nil {
+			p.add(errMsg(err))
+		} else {
+			sc, origin = s, o
+		}
+	}
+	if f.bodySet {
+		p.add("there is no inline --body: use --draft <file.yml> or --body-file <file.md>")
+	}
+	if f.titleSet {
+		p.add("--title is not supported: --draft sets the title from the draft's \"title:\", --body-file keeps the current title")
+	}
+	if f.labelSet {
+		p.add("--label is not supported: issue edit changes the body (and, with --draft, the title) only")
+	}
+	if f.draftSet && f.draft == "" {
+		p.add(emptyFlagMsg("draft"))
+	}
+	if f.bodyFileSet && f.bodyFile == "" {
+		p.add(emptyFlagMsg("body-file"))
+	}
+	if f.draft != "" && f.bodyFile != "" {
+		p.add(bothInputsMsg)
+	}
+	if !f.draftSet && !f.bodyFileSet {
+		p.add(exactlyOneMsg)
+	}
+
+	var draftData, bodyData []byte
+	draftRead, bodyRead := false, false
+	if f.draft != "" {
+		if data, err := readInputFile("draft", f.draft); err != nil {
+			p.add(errMsg(err))
+		} else {
+			draftData, draftRead = data, true
+		}
+	}
+	if f.bodyFile != "" {
+		if data, err := readInputFile("body-file", f.bodyFile); err != nil {
+			p.add(errMsg(err))
+		} else {
+			bodyData, bodyRead = data, true
+		}
+	}
+
+	var body, title string
+	var res tmplpkg.Result
+	checked, titleUnknown := false, false
+	if sc != nil {
+		switch {
+		case draftRead && f.bodyFile == "":
+			body, title, res = checkDraftBytes(sc, origin, draftData)
+			checked = true
+		case bodyRead && f.draft == "":
+			// The body is checked against the issue's current title, which is
+			// read only when nothing else is wrong (so a usage error still
+			// means zero gh calls) and is left unchanged by the edit. Without
+			// the title the body is still checked, minus the title findings,
+			// and the note says what did not run.
+			currentTitle, titleKnown := "", false
+			if !p.any() {
+				t, err := issue.Title(context.Background(), runner, cfg, number)
+				if err != nil {
+					p.add(err.Error())
+				} else {
+					currentTitle, titleKnown = t, true
+				}
+			}
+			body, res = string(bodyData), checkBodyBytes(sc, origin, currentTitle, bodyData)
+			checked = true
+			if !titleKnown {
+				res = dropTitleFindings(res)
+				titleUnknown = true
+			}
+		}
+	}
+	if checked {
+		fmt.Fprint(stderr, res.Format())
+		if titleUnknown {
+			fmt.Fprint(stderr, titleChecksNote)
+		}
+	}
+	if err := p.err(); err != nil {
+		return err
+	}
+	if res.HasErrors() {
+		return clierr.NonConforming(fmt.Sprintf("the input does not conform to the %s schema; issue #%d was not changed. Fix the findings above and run again", f.tmplType, number))
+	}
+	if err := issue.Edit(context.Background(), runner, cfg, number, title, body); err != nil {
+		return &CLIError{Code: 1, Msg: err.Error()}
+	}
+	return nil
 }
 
 func newIssueListCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Command {

@@ -3,6 +3,8 @@ package parse_test
 import (
 	"testing"
 
+	"threehillpath.com/marvin-sdd/tool/internal/names"
+
 	"threehillpath.com/marvin-sdd/tool/internal/parse"
 )
 
@@ -137,5 +139,46 @@ func TestTitleSlugEmDash(t *testing.T) {
 	want := "backend-domain"
 	if got != want {
 		t.Errorf("TitleSlug = %q, want %q", got, want)
+	}
+}
+
+func TestClassify(t *testing.T) {
+	tests := []struct {
+		title string
+		kind  names.Kind
+		found bool
+		task  int // expected task number when kind == Task
+	}{
+		{"[TASK-00091] Fix X", names.Task, true, 91},
+		{"  [TASK-00091] leading space", names.Task, true, 91},
+		{"[PLAN-00112-ARCH] X", names.Arch, true, 0},
+		{"[PLAN-00112] X", names.Impl, true, 0},
+		{"[PLAN-00112-A] X", names.Impl, true, 0},
+		{"[PLAN-00042-a] X", names.Impl, true, 0},
+		{"[PLAN-00112-3] X", names.Phase, true, 0},
+		{"[PLAN-00112-A-2] X", names.Phase, true, 0},
+		{"[TASK-00140] Fix regression from [PLAN-00112-3]", names.Task, true, 140},
+		{"Notes on [PLAN-00042-1]", names.Arch, false, 0},
+		{"Fix X", names.Arch, false, 0},
+		{"", names.Arch, false, 0},
+		{"[PLAN-XXXXX-ARCH] X", names.Arch, false, 0},
+		{"[TASK-XXXXX] X", names.Arch, false, 0},
+		{"[OTHER-00001] X", names.Arch, false, 0},
+		{"[PLAN-000421] X", names.Arch, false, 0},
+		{"[PLAN-00042-] X", names.Arch, false, 0},
+		{"[PLAN-00042-0] X", names.Arch, false, 0},
+		{"[PLAN-00042-A1] X", names.Arch, false, 0},
+		{"[PLAN-00042-1-2] X", names.Arch, false, 0},
+	}
+	for _, tc := range tests {
+		kind, ok := parse.Classify(tc.title)
+		if ok != tc.found || (ok && kind != tc.kind) {
+			t.Errorf("Classify(%q) = (%v, %v), want (%v, %v)", tc.title, kind, ok, tc.kind, tc.found)
+		}
+		n, tok := parse.TaskIdent(tc.title)
+		wantTask := tc.found && tc.kind == names.Task
+		if tok != wantTask || n != tc.task {
+			t.Errorf("TaskIdent(%q) = (%d, %v), want (%d, %v)", tc.title, n, tok, tc.task, wantTask)
+		}
 	}
 }

@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-A Claude Code plugin defining a structured architecture-to-implementation workflow on top of GitHub issues and Projects v2 boards. Includes `marvin`, a compiled Go CLI that encapsulates the deterministic shell operations (board reads and moves, issue listing, label management, PR lookup, worktree lifecycle, config access, findings cache) so skills can call a single binary rather than re-synthesizing `gh`/`jq`/`git` invocations.
+A Claude Code plugin defining a structured architecture-to-implementation workflow on top of GitHub issues and Projects v2 boards. Includes `marvin`, a compiled Go CLI that encapsulates the deterministic shell operations (board reads and moves, issue listing, checked issue create and edit, template render and validate, label management, PR lookup, worktree lifecycle, config access, findings cache) so skills can call a single binary rather than re-synthesizing `gh`/`jq`/`git` invocations.
 
 ## Repository structure
 
@@ -24,9 +24,9 @@ tool/                          ← Go module for the marvin CLI
   cmd/marvin/main.go           ← Entry point; compiled to bin/marvin at install time
   internal/
     board/                     ← GitHub Projects v2 board operations (add, move, list, status)
-    issue/                     ← GitHub issue reads (list with label/prefix/state filters)
-    cli/                       ← Cobra command handlers
-    clierr/                    ← Exit-code constants (0 / 1 / 2)
+    issue/                     ← GitHub issue reads (list with label/prefix/state filters), plus plain `gh` create/edit wrappers
+    cli/                       ← Cobra command handlers (issue create/edit run the `template/` check here before calling `issue/`)
+    clierr/                    ← Exit-code constants (0 / 1 / 2 / 3)
     config/                    ← YAML config loader, legacy markdown fallback, CWD-walk discovery
     exec/                      ← Runner interface (injectable for tests)
     exectest/                  ← Fake runner for unit tests (no network / no git state)
@@ -36,7 +36,7 @@ tool/                          ← Go module for the marvin CLI
     names/                     ← Plan name derivation (PLAN-XXXXX, branch, worktree path, prefix)
     parse/                     ← Identifier parsing (issue titles → plan numbers)
     pr/                        ← PR discovery and target resolution
-    template/                  ← Plan-template render from YAML schemas
+    template/                  ← Plan-template render, and validation of YAML drafts and markdown bodies, from YAML schemas
       schemas/                 ← Built-in schemas, embedded into the binary (go:embed) — canonical source
         arch-plan.yml          ← Schema for arch plan issues (sections, validation)
         impl-plan.yml          ← Schema for implementation plan issues
@@ -73,14 +73,14 @@ docs/
 
 ## The marvin tool
 
-`marvin` is compiled from `tool/` by `tool/build.sh`, which writes the binary to a caller-supplied output path and skips the build when that binary is already newer than every file under `tool/`. Skills call it for all deterministic operations — board moves, label management, config access, name derivation, PR lookup, worktree lifecycle, findings cache — so that none of that logic needs to be re-synthesized from shell in skill prose.
+`marvin` is compiled from `tool/` by `tool/build.sh`, which writes the binary to a caller-supplied output path and skips the build when that binary is already newer than every file under `tool/`. Skills call it for all deterministic operations — board moves, issue create and edit, template render and validate, label management, config access, name derivation, PR lookup, worktree lifecycle, findings cache — so that none of that logic needs to be re-synthesized from shell in skill prose.
 
 The plugin is installed only from the GitHub marketplace (`plan-workflow@plan-workflow-marketplace`). `tool/build.sh` is invoked by:
 - **`hooks/hooks.json`** — a `SessionStart` hook that builds into `${CLAUDE_PLUGIN_ROOT}/bin/marvin` on every session start, degrading quietly (stderr diagnostic, exit 0) if `go` is missing or `tool/` isn't present in that install, rather than blocking the session.
 
 Subcommand groups: `config`, `names`, `parse`, `template`, `board`, `issue`, `label`, `pr`, `findings`, `worktree`, `version`.
 
-Exit-code contract: `0` = success, `1` = operational error, `2` = config missing or malformed. Output contract: `stdout` = data, `stderr` = diagnostics.
+Exit-code contract: `0` = success, `1` = operational error, `2` = config missing or malformed, `3` = a draft or body that does not conform to its plan schema. Output contract: `stdout` = data, `stderr` = diagnostics. The one exception is `marvin template validate`, whose findings are its data and go to stdout.
 
 ## Skills (in workflow order)
 
@@ -109,7 +109,7 @@ Each findings JSON is the stable contract a future auto-fix loop will consume �
 
 Skills read `.claude/plan-workflow-config.yml` (preferred) or `.claude/plan-workflow-config.md` (legacy) in the **consuming project**, not this repo. The file is generated by `/configure-plan-plugin` and holds GitHub repo, project IDs, status option IDs, and test commands. Template at `skills/SHARED/CONFIG.md`.
 
-Plan issue templates follow the same project-first resolution: `marvin template render` checks the consuming project for `.claude/plan-workflow-templates/{type}.yml` (CWD-walk) before falling back to the plugin's built-in schema, which is compiled into the binary (`tool/internal/template/schemas/`, `go:embed`) rather than read from `skills/SHARED/` at runtime — so rendering never depends on plugin source being reachable on disk from the invoking directory. Full precedence in `skills/SHARED/CONFIG.md`.
+Plan issue templates follow the same project-first resolution: `marvin template render` checks the consuming project for `.claude/plan-workflow-templates/{type}.yml` (CWD-walk) before falling back to the plugin's built-in schema, which is compiled into the binary (`tool/internal/template/schemas/`, `go:embed`) rather than read from `skills/SHARED/` at runtime — so rendering never depends on plugin source being reachable on disk from the invoking directory. `marvin template validate`, `marvin issue create --template` and `marvin issue edit --template` follow the same precedence, so a draft is checked against the schema that rendered its skeleton. Full precedence and the draft format in `skills/SHARED/CONFIG.md`.
 
 ## Skill authoring conventions
 

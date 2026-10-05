@@ -782,6 +782,7 @@ func TestEditBodyFileIsCheckedDespiteOtherProblems(t *testing.T) {
 // TestValidateReadsInputsEvenWithoutASchema verifies validate reports an
 // unreadable input together with an unknown schema or both inputs given.
 func TestValidateReadsInputsEvenWithoutASchema(t *testing.T) {
+	chdir(t, t.TempDir())
 	missing := filepath.Join(t.TempDir(), "nope.yml")
 	missingBody := filepath.Join(t.TempDir(), "nope.md")
 	for name, tc := range map[string]struct {
@@ -810,6 +811,7 @@ func TestValidateReadsInputsEvenWithoutASchema(t *testing.T) {
 // --body-file is correct even when an empty --draft is also (wrongly) given:
 // only the empty draft is reported.
 func TestValidateNoFalseTitleProblemWithBodyFile(t *testing.T) {
+	chdir(t, t.TempDir())
 	body := writeTemp(t, "b.md", conformingPhaseBody)
 	code, _, stderr := runIssueExit(&exectest.FakeRunner{}, "template", "validate", "impl-phase", "--draft", "", "--body-file", body, "--title", "T")
 	if code != 1 {
@@ -827,6 +829,7 @@ func TestValidateNoFalseTitleProblemWithBodyFile(t *testing.T) {
 // --draft combined with --skeleton reports both problems, with the
 // "template render:" prefix.
 func TestRenderReportsEmptyDraftAndModeConflictTogether(t *testing.T) {
+	chdir(t, t.TempDir())
 	code, stdout, stderr := runIssueExit(&exectest.FakeRunner{}, "template", "render", "impl-phase", "--skeleton", "--draft", "")
 	if code != 1 || stdout != "" {
 		t.Errorf("code=%d stdout=%q", code, stdout)

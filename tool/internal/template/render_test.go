@@ -666,3 +666,61 @@ func TestGuidanceNeverSplitsCheckboxMarker(t *testing.T) {
 		t.Errorf("the list item should start with its marker intact:\n%s", out)
 	}
 }
+
+// guidanceFor loads a one-section schema whose guidance is yml's literal text
+// and returns that section's output lines (without the two-space indent).
+func guidanceFor(t *testing.T, guidance string) []string {
+	t.Helper()
+	body := ""
+	for _, l := range strings.Split(guidance, "\n") {
+		body += "      " + l + "\n"
+	}
+	yml := "type: impl-phase\ntitle_prefix: \"[PLAN-XXXXX-N] <T>\"\nmetadata: [Status]\nsections:\n  - id: a\n    heading: A\n    required: true\n    guidance: |\n" + body
+	sc, err := tmpl.LoadSchema(builtIn, []byte(yml))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := tmpl.Guidance(sc)
+	out = out[strings.Index(out, "\n  a: a single | block\n")+len("\n  a: a single | block\n"):]
+	var lines []string
+	for _, l := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
+		lines = append(lines, strings.TrimPrefix(l, "  "))
+	}
+	return lines
+}
+
+// TestGuidanceHangsOnlyIndentedListAndLabelLines verifies prose that merely
+// contains a colon wraps flush left, while an indented list item or label line
+// hangs its continuation, and a mid-line checkbox marker stays with the word
+// after it.
+func TestGuidanceHangsOnlyIndentedListAndLabelLines(t *testing.T) {
+	long := strings.Repeat("word ", 20)
+	t.Run("prose with a colon is flush left", func(t *testing.T) {
+		for _, l := range guidanceFor(t, "Note: "+long+"\nSecond: "+long) {
+			if strings.HasPrefix(l, " ") {
+				t.Errorf("a prose continuation must not hang: %q", l)
+			}
+		}
+	})
+	t.Run("an indented list item hangs", func(t *testing.T) {
+		lines := guidanceFor(t, "Items:\n  - [ ] "+long+"end")
+		if len(lines) < 3 || lines[0] != "Items:" || !strings.HasPrefix(lines[1], "  - [ ] word") || !strings.HasPrefix(lines[2], "    word") {
+			t.Errorf("want the item hung two spaces in, got %q", lines)
+		}
+	})
+	t.Run("an indented label line hangs", func(t *testing.T) {
+		lines := guidanceFor(t, "Format:\n  Where: "+long+"end")
+		if len(lines) < 3 || !strings.HasPrefix(lines[1], "  Where: word") || !strings.HasPrefix(lines[2], "    word") {
+			t.Errorf("want the label continuation hung, got %q", lines)
+		}
+	})
+	t.Run("a mid-line checkbox marker stays with the next word", func(t *testing.T) {
+		for n := 1; n <= 12; n++ { // vary where the marker falls against the width
+			for _, l := range guidanceFor(t, strings.Repeat("filler ", n)+"Format: - [ ] <measurable requirement>") {
+				if strings.HasSuffix(l, "- [ ]") {
+					t.Errorf("%d fillers: the marker was left at the end of a line: %q", n, l)
+				}
+			}
+		}
+	})
+}

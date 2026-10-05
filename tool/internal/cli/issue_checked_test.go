@@ -986,3 +986,39 @@ func TestCreateStrayPositionalIsReportedWithOtherProblems(t *testing.T) {
 		}
 	}
 }
+
+// TestIssueCreateUncheckedExplicitEmptyFlagsAreReported verifies the
+// unchecked path tests --body and --label by whether they were passed, not by
+// value: an explicitly empty --body or --label is a reported problem, and
+// --body with --body-file is mutually exclusive even when --body is empty.
+// Each exits 1 with zero gh calls.
+func TestIssueCreateUncheckedExplicitEmptyFlagsAreReported(t *testing.T) {
+	withConfigFixture(t)
+	bodyFile := writeTemp(t, "b.md", "a body\n")
+	for name, tc := range map[string]struct {
+		args []string
+		want []string
+	}{
+		"empty body alone":            {[]string{"--title", "T", "--body", ""}, []string{"--body was given an empty value: pass the body, or leave the flag out"}},
+		"empty body with a body file": {[]string{"--title", "T", "--body", "", "--body-file", bodyFile}, []string{"--body was given an empty value", "--body and --body-file are mutually exclusive"}},
+		"body with a body file":       {[]string{"--title", "T", "--body", "x", "--body-file", bodyFile}, []string{"--body and --body-file are mutually exclusive"}},
+		"empty label":                 {[]string{"--title", "T", "--body", "x", "--label", ""}, []string{"--label was given an empty value: pass a label name, or leave the flag out"}},
+		"empty label with empty body": {[]string{"--title", "T", "--body", "", "--label", ""}, []string{"--body was given an empty value", "--label was given an empty value"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake := &exectest.FakeRunner{}
+			code, stdout, stderr := runIssueExit(fake, append([]string{"issue", "create"}, tc.args...)...)
+			if code != 1 || stdout != "" || len(fake.Calls) != 0 {
+				t.Fatalf("code=%d stdout=%q calls=%v\nstderr: %s", code, stdout, fake.Calls, stderr)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(stderr, w) {
+					t.Errorf("stderr should contain %q:\n%s", w, stderr)
+				}
+			}
+			if strings.Contains(stderr, "requires --body or --body-file") {
+				t.Errorf("an explicitly empty --body is not an absent one:\n%s", stderr)
+			}
+		})
+	}
+}

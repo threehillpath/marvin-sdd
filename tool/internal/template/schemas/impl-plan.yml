@@ -32,8 +32,9 @@ metadata:
 #   named      — required on every numbered section. true: each instance's heading text
 #                comes from content (impl-plan Component); false: the heading is the
 #                schema heading (impl-plan Verification Steps). The conformance check
-#                uses it now; rendering applies it from Phase 3.
+#                and rendering both use it.
 #   guidance   — how-to-fill prose co-located with the section definition
+# type and title_prefix are required; see skills/SHARED/CONFIG.md
 sections:
   - id: scope
     heading: Scope

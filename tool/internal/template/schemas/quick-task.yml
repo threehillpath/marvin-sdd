@@ -27,6 +27,7 @@ metadata:
 #   repeatable — whether the section may appear more than once
 #   numbered   — when true on a repeatable section, each instance is prefixed ## 1., ## 2., …
 #   guidance   — how-to-fill prose co-located with the section definition
+# type and title_prefix are required; see skills/SHARED/CONFIG.md
 sections:
   - id: problem_statement
     heading: Problem Statement

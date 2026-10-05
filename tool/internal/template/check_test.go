@@ -1158,3 +1158,20 @@ func TestLoadSchemaRejectsWhatItsOwnRenderWouldFail(t *testing.T) {
 		})
 	}
 }
+
+// TestLoadSchemaUnknownFieldErrorsSayWhereNotWhichGoType verifies an
+// unknown-field error says where the field is, not which Go type failed to
+// decode it.
+func TestLoadSchemaUnknownFieldErrorsSayWhereNotWhichGoType(t *testing.T) {
+	const head = "type: impl-plan\ntitle_prefix: \"[PLAN-XXXXX] <T>\"\n"
+	for name, c := range map[string]struct{ yaml, want string }{
+		"top level":  {head + "requried: true\n", "requried not found at the top level"},
+		"in section": {head + "sections:\n  - id: a\n    heading: A\n    requried: true\n", "requried not found in a section"},
+		"validation": {head + "validation:\n  rulez: []\n", "rulez not found under validation"},
+	} {
+		_, err := tmpl.LoadSchema(overrideOrigin, []byte(c.yaml))
+		if err == nil || !strings.Contains(err.Error(), c.want) || strings.Contains(err.Error(), "template.") {
+			t.Errorf("%s: want %q and no Go type name, got %v", name, c.want, err)
+		}
+	}
+}

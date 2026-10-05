@@ -567,3 +567,17 @@ func TestRenderRefusesLoneCarriageReturnInContent(t *testing.T) {
 	m := scopeMap("a\r## X")
 	wantRefusedAt(t, "impl-phase", m, "section:scope", 1, `"Scope"`, "carriage return", "replace the carriage return with a line break")
 }
+
+// TestGuidanceTDDEntryPointSaysNoneWithReason verifies impl-phase guidance
+// tells the author to write None. plus a reason instead of omitting the
+// section: an omitted section passes validate silently and review-phase's
+// structural pre-check never runs.
+func TestGuidanceTDDEntryPointSaysNoneWithReason(t *testing.T) {
+	out := tmpl.Guidance(loadBuiltIn(t, "impl-phase"))
+	if strings.Contains(out, "Omit this section") {
+		t.Errorf("guidance still says to omit tdd_entry_point:\n%s", out)
+	}
+	if !strings.Contains(out, "None.") {
+		t.Errorf("guidance should tell the author to write None. plus the reason:\n%s", out)
+	}
+}

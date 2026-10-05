@@ -1175,3 +1175,46 @@ func TestLoadSchemaUnknownFieldErrorsSayWhereNotWhichGoType(t *testing.T) {
 		}
 	}
 }
+
+// TestCheckInlineHTMLOpenersInCodeAndNearMissesStayLegal pins what the new
+// openers do not touch: code spans, fences, and text that merely looks close.
+func TestCheckInlineHTMLOpenersInCodeAndNearMissesStayLegal(t *testing.T) {
+	for name, ok := range map[string]string{
+		"pi in a code span":           "Write `<?php echo 1; ?>` in the template.",
+		"cdata in a code span":        "Use ``<![CDATA[x]]>`` here.",
+		"declaration in a code span":  "Start with `<!DOCTYPE html>`.",
+		"pi in a fence":               "```xml\n<?xml version=\"1.0\"?>\n```",
+		"cdata and declaration fence": "~~~\n<![CDATA[x]]>\n<!DOCTYPE html>\n~~~",
+		"generic type":                "A Vec<T> and Map<K, V> are fine.",
+		"less-than word":              "when a <b then c",
+		"bang then space":             "<! not a declaration",
+		"bang dash":                   "see <!- here",
+		"bang digit":                  "see <!1 here",
+		"question without a bracket":  "a ? b and ?> alone",
+	} {
+		m := phaseMap()
+		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
+		if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
+			t.Errorf("%s: content %q: want no findings:\n%s", name, ok, res.Format())
+		}
+	}
+}
+
+// TestCheckInlineHTMLOpenersAreConservative pins the decided trade-off: a
+// Java wildcard generic and a backslash-escaped opener are refused too,
+// because the check does not try to tell them from real raw HTML. The fix is
+// backticks, which the message and --guidance say.
+func TestCheckInlineHTMLOpenersAreConservative(t *testing.T) {
+	for name, content := range map[string]string{
+		"wildcard generic": "Takes a List<?> argument.",
+		"escaped opener":   "Write \\<?php to show it.",
+		"declaration-like": "see <!Foo bar",
+	} {
+		m := phaseMap()
+		m.Sections["scope"] = []tmpl.Entry{{Content: content}}
+		res := check(t, "impl-phase", m)
+		if !res.HasErrors() || !strings.Contains(res.Format(), "raw HTML") || !strings.Contains(res.Format(), "backticks") {
+			t.Errorf("%s: content %q: want a raw HTML error naming backticks:\n%s", name, content, res.Format())
+		}
+	}
+}

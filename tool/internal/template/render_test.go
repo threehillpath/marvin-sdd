@@ -429,6 +429,9 @@ func TestGuidancePrintsSectionsAndRules(t *testing.T) {
 		"Don't start a line with an HTML tag, <? or <!",
 		"Use no raw HTML",
 		"<?, <![CDATA[ or <! followed by a letter",
+		"List<?>",
+		"backslash-escaped",
+		"put them in backticks",
 		"Put it in backticks as inline code",
 	} {
 		if !strings.Contains(out, rule) {

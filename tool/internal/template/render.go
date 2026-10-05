@@ -255,9 +255,10 @@ var labelLineRe = regexp.MustCompile(`^[A-Za-z][A-Za-z ]{0,30}:(?:\s|$)`)
 // wrapGuidance wraps each newline-separated line of text on its own to at
 // most width characters, so a schema's guidance keeps its line structure (a
 // "Key:" label line, a "- " list item or a checkbox item starts its own
-// output line, with continuation lines hanging two spaces in). A line's own
-// leading indent is kept. A "- [ ]" checkbox marker is never split, and a
-// list marker stays with the word after it.
+// output line). A line's own leading indent is kept, and an indented "- "
+// item or "Key:" label line hangs its continuation lines two spaces in; prose
+// that merely contains a colon does not hang. A "- [ ]" checkbox marker is
+// never split and never left at the end of a line.
 func wrapGuidance(text string, width int) []string {
 	var out []string
 	for _, raw := range strings.Split(text, "\n") {
@@ -267,7 +268,7 @@ func wrapGuidance(text string, width int) []string {
 		}
 		indent := raw[:len(raw)-len(strings.TrimLeft(raw, " \t"))]
 		hang := indent
-		if strings.HasPrefix(body, "- ") || labelLineRe.MatchString(body) {
+		if indent != "" && (strings.HasPrefix(body, "- ") || labelLineRe.MatchString(body)) {
 			hang += "  "
 		}
 		words := glueMarkers(strings.Fields(body))
@@ -290,24 +291,31 @@ func wrapGuidance(text string, width int) []string {
 }
 
 // glueMarkers joins the tokens of a checkbox marker ("-", "[", "]" or "-",
-// "[x]") into one word, and a list marker at the start of the line to the
-// word after it.
+// "[x]") into one word and glues it to the word after it, so a line never
+// ends on the marker; a list marker at the start of the line is glued to the
+// word after it too.
 func glueMarkers(words []string) []string {
 	var out []string
+	glueNext := false
 	for i := 0; i < len(words); i++ {
 		w := words[i]
+		marker := false
 		switch {
 		case w == "-" && i+2 < len(words) && words[i+1] == "[" && words[i+2] == "]":
-			w = "- [ ]"
+			w, marker = "- [ ]", true
 			i += 2
 		case w == "-" && i+1 < len(words) && (words[i+1] == "[x]" || words[i+1] == "[X]"):
-			w = "- " + words[i+1]
+			w, marker = "- "+words[i+1], true
 			i++
+		case w == "-" && i == 0:
+			marker = true
 		}
-		out = append(out, w)
-	}
-	if len(out) > 1 && (out[0] == "-" || out[0] == "- [ ]" || strings.HasPrefix(out[0], "- [")) {
-		out = append([]string{out[0] + " " + out[1]}, out[2:]...)
+		if glueNext {
+			out[len(out)-1] += " " + w
+		} else {
+			out = append(out, w)
+		}
+		glueNext = marker
 	}
 	return out
 }

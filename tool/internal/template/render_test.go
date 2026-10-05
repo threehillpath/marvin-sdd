@@ -653,6 +653,7 @@ func TestGuidanceNeverSplitsCheckboxMarker(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := tmpl.Guidance(sc)
+	out = out[strings.Index(out, "\nA (required"):] // the section guidance, not the rules above it
 	for _, l := range guidanceLines(out) {
 		if strings.HasSuffix(l, "- [") || strings.HasSuffix(l, "-") || strings.HasPrefix(l, "]") {
 			t.Errorf("a checkbox marker was split at %q:\n%s", l, out)

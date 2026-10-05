@@ -6,6 +6,7 @@ package template
 import (
 	"embed"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -242,29 +243,71 @@ func Guidance(sc *Schema) string {
 		default:
 			fmt.Fprintf(&sb, "  %s: a single | block\n", sec.ID)
 		}
-		for _, line := range wrapComment(sec.Guidance, 76) {
+		for _, line := range wrapGuidance(sec.Guidance, 76) {
 			fmt.Fprintf(&sb, "  %s\n", line)
 		}
 	}
 	return sb.String()
 }
 
-// wrapComment folds text to lines of at most width characters.
-func wrapComment(text string, width int) []string {
-	var lines []string
-	line := ""
-	for _, w := range strings.Fields(text) {
-		if line != "" && len(line)+1+len(w) > width {
-			lines = append(lines, line)
-			line = ""
+var labelLineRe = regexp.MustCompile(`^[A-Za-z][A-Za-z ]{0,30}:(?:\s|$)`)
+
+// wrapGuidance wraps each newline-separated line of text on its own to at
+// most width characters, so a schema's guidance keeps its line structure (a
+// "Key:" label line, a "- " list item or a checkbox item starts its own
+// output line, with continuation lines hanging two spaces in). A line's own
+// leading indent is kept. A "- [ ]" checkbox marker is never split, and a
+// list marker stays with the word after it.
+func wrapGuidance(text string, width int) []string {
+	var out []string
+	for _, raw := range strings.Split(text, "\n") {
+		body := strings.TrimSpace(raw)
+		if body == "" {
+			continue
 		}
-		if line != "" {
-			line += " "
+		indent := raw[:len(raw)-len(strings.TrimLeft(raw, " \t"))]
+		hang := indent
+		if strings.HasPrefix(body, "- ") || labelLineRe.MatchString(body) {
+			hang += "  "
 		}
-		line += w
+		words := glueMarkers(strings.Fields(body))
+		line := indent
+		blank := true // nothing but the indent on the line yet
+		for _, w := range words {
+			if !blank && len(line)+1+len(w) > width {
+				out = append(out, line)
+				line, blank = hang, true
+			}
+			if !blank {
+				line += " "
+			}
+			line += w
+			blank = false
+		}
+		out = append(out, line)
 	}
-	if line != "" {
-		lines = append(lines, line)
+	return out
+}
+
+// glueMarkers joins the tokens of a checkbox marker ("-", "[", "]" or "-",
+// "[x]") into one word, and a list marker at the start of the line to the
+// word after it.
+func glueMarkers(words []string) []string {
+	var out []string
+	for i := 0; i < len(words); i++ {
+		w := words[i]
+		switch {
+		case w == "-" && i+2 < len(words) && words[i+1] == "[" && words[i+2] == "]":
+			w = "- [ ]"
+			i += 2
+		case w == "-" && i+1 < len(words) && (words[i+1] == "[x]" || words[i+1] == "[X]"):
+			w = "- " + words[i+1]
+			i++
+		}
+		out = append(out, w)
 	}
-	return lines
+	if len(out) > 1 && (out[0] == "-" || out[0] == "- [ ]" || strings.HasPrefix(out[0], "- [")) {
+		out = append([]string{out[0] + " " + out[1]}, out[2:]...)
+	}
+	return out
 }

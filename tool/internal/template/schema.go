@@ -28,6 +28,10 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 	if err := dec.Decode(&sc); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("%sparsing schema: %w%s", pre, err, unknownFieldHint(err))
 	}
+	var second yaml.Node
+	if err := dec.Decode(&second); err == nil {
+		return nil, fmt.Errorf("%scontains a second YAML document (after a \"---\" line), which would be ignored silently. Remove the \"---\" line and everything after it, or move that content into the first document", pre)
+	}
 	if strings.TrimSpace(sc.Type) == "" {
 		return nil, fmt.Errorf("%smissing \"type\". Add a \"type:\" line naming this schema; for a project override use the file's base name (impl-phase for impl-phase.yml). The built-in types are %s", pre, strings.Join(DefaultSchemaNames(), ", "))
 	}
@@ -36,6 +40,9 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 	}
 	seenKey := map[string]bool{}
 	for _, k := range sc.Metadata {
+		if strings.TrimSpace(k) == "" {
+			return nil, fmt.Errorf("%sa metadata key in \"metadata\" is empty. Remove it or give it a name", pre)
+		}
 		if seenKey[k] {
 			return nil, fmt.Errorf("%smetadata key %q is listed twice. Remove the duplicate from \"metadata\"", pre, k)
 		}
@@ -55,10 +62,11 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 			return nil, fmt.Errorf("%sthe \"id\" %q appears twice in \"sections\". Rename one so every section id is unique", pre, sec.ID)
 		}
 		seenID[sec.ID] = true
-		if seenHeading[sec.Heading] {
-			return nil, fmt.Errorf("%sthe \"heading\" %q appears twice in \"sections\". Rename one so every heading is unique", pre, sec.Heading)
+		heading := strings.TrimSpace(sec.Heading)
+		if seenHeading[heading] {
+			return nil, fmt.Errorf("%sthe \"heading\" %q appears twice in \"sections\" (ignoring surrounding spaces). Rename one so every heading is unique", pre, heading)
 		}
-		seenHeading[sec.Heading] = true
+		seenHeading[heading] = true
 		if sec.Numbered && sec.Named == nil {
 			return nil, fmt.Errorf("%ssection %q is numbered but has no \"named\" field. Add \"named: true\" if headings come from content, else \"named: false\"", pre, sec.ID)
 		}

@@ -756,17 +756,27 @@ func TestCheckSectionContentH2ReportsLineWithinSection(t *testing.T) {
 	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "section:scope", `"##   Foo"`, "line 3 of the section", "###")
 }
 
-func TestFindH2LinesOneBasedAndStripsMarker(t *testing.T) {
+// TestHeadingLinesAreOneBasedAndStripMarker guards what FindH2Lines used to:
+// headings outside fences are found with one-based lines and the "##" marker
+// and surrounding spaces stripped, and a fenced "## " line is not a heading.
+// It asserts it through the markdown path production uses (UnknownHeadings
+// from the parser, and the findings CheckMarkdown reports).
+func TestHeadingLinesAreOneBasedAndStripMarker(t *testing.T) {
+	sc := loadBuiltIn(t, "impl-phase")
 	body := "## First\ntext\n```\n## fenced\n```\n  ##   Spaced  \n##\n"
-	got := tmpl.FindH2Lines(body)
+	got := tmpl.ParseMarkdown(sc, "[PLAN-00112-1] X", body).UnknownHeadings
 	want := []tmpl.Heading{{Text: "First", Line: 1}, {Text: "Spaced", Line: 6}, {Text: "", Line: 7}}
 	if len(got) != len(want) {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
 	for i := range want {
-		if got[i] != want[i] {
+		if got[i].Text != want[i].Text || got[i].Line != want[i].Line {
 			t.Errorf("heading %d = %+v, want %+v", i, got[i], want[i])
 		}
+	}
+	res := tmpl.CheckMarkdown(sc, builtIn, "[PLAN-00112-1] X", body)
+	if strings.Contains(res.Format(), "fenced") {
+		t.Errorf("the fenced line must not be reported as a heading:\n%s", res.Format())
 	}
 }
 

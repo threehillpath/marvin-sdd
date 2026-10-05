@@ -609,23 +609,6 @@ func scanContent(body string) contentScan {
 	return out
 }
 
-// scanFences returns the "## " headings outside fences and, when the text
-// ends inside a fence, that fence.
-func scanFences(body string) ([]Heading, *openFence) {
-	s := scanContent(body)
-	return s.Headings, s.Fence
-}
-
-// FindH2Lines returns, for each "## " heading line of body that is outside a
-// fenced code block, its one-based line number and its text without the "##"
-// marker, trimmed (the same convention as SectionMap.UnknownHeadings). Fences
-// follow CommonMark, see scanFences. Markdown parsers should use this to
-// split a body into sections.
-func FindH2Lines(body string) []Heading {
-	hs, _ := scanFences(body)
-	return hs
-}
-
 // contentLine returns the trimmed text of the one-based line n of content.
 func contentLine(content string, n int) string {
 	lines := strings.Split(content, "\n")

@@ -26,7 +26,7 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&sc); err != nil && !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("%sparsing schema: %w. A field marvin does not know is an error (a misspelt key would otherwise be ignored silently): correct or remove it", pre, err)
+		return nil, fmt.Errorf("%sparsing schema: %w%s", pre, err, unknownFieldHint(err))
 	}
 	if strings.TrimSpace(sc.Type) == "" {
 		return nil, fmt.Errorf("%smissing \"type\". Add a \"type:\" line naming this schema; for a project override use the file's base name (impl-phase for impl-phase.yml). The built-in types are %s", pre, strings.Join(DefaultSchemaNames(), ", "))
@@ -76,6 +76,21 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 	sc.ExpectedKind = kind
 	sc.loaded = true
 	return &sc, nil
+}
+
+// unknownFieldHint is the advice appended to a decode error that includes an
+// unknown field (and only then: a syntax or type error has no misspelt key).
+func unknownFieldHint(err error) string {
+	var te *yaml.TypeError
+	if !errors.As(err, &te) {
+		return ""
+	}
+	for _, e := range te.Errors {
+		if strings.Contains(e, "not found in type") {
+			return ". A field marvin does not know is an error (a misspelt key would otherwise be ignored silently): correct or remove it"
+		}
+	}
+	return ""
 }
 
 // titlePrefixHint tells the caller what to add for a missing title_prefix:

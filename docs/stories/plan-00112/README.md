@@ -8,7 +8,7 @@ Development documentation for PLAN-00112, the Schema-checked plan issue creation
 
 - **[architecture.md](./architecture.md)** — the original architecture plan (issue #131): system design, data model, and component boundaries decided before implementation began.
 - **[implementation-plan.md](./implementation-plan.md)** — the implementation plan (issue #132): how the architecture was broken into phases, with a phase index table below.
-- **[retrospective.md](./retrospective.md)** — a cross-phase synthesis of decisions, scope changes, deferred items, and corrections, plus the pre-implementation red-team critique if one was run.
+- **[retrospective.md](./retrospective.md)** — a cross-phase synthesis of decisions, scope changes, deferred items, and corrections, plus the pre-implementation red-team critique if one was run, and a closing section on the changes made after the implementation PR's own cross-phase review (#154, with the fixes in #157).
 - **`phase-01-*.md` through `phase-07-*.md`** — one document per phase: its original spec (objective, scope, TDD entry point, success criteria) plus an implementation summary, test results, decisions, scope changes, deferred items, and corrections made during code review.
 
 ## Phase index

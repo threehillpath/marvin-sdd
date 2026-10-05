@@ -1026,3 +1026,18 @@ func TestIssueCreateUncheckedExplicitEmptyFlagsAreReported(t *testing.T) {
 		})
 	}
 }
+
+// TestIssueCreateTemplatePathEmptyLabelIsReported verifies an explicitly empty
+// --label is a reported problem on the checked path too: exit 1, no gh call.
+func TestIssueCreateTemplatePathEmptyLabelIsReported(t *testing.T) {
+	withConfigFixture(t)
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	fake := &exectest.FakeRunner{}
+	code, stdout, stderr := runIssueExit(fake, "issue", "create", "--template", "impl-phase", "--draft", draft, "--label", "")
+	if code != 1 || stdout != "" || len(fake.Calls) != 0 {
+		t.Fatalf("code=%d stdout=%q calls=%v\nstderr: %s", code, stdout, fake.Calls, stderr)
+	}
+	if !strings.Contains(stderr, "--label was given an empty value: pass a label name, or leave the flag out") {
+		t.Errorf("stderr:\n%s", stderr)
+	}
+}

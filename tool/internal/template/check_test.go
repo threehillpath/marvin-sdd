@@ -1122,3 +1122,39 @@ func TestLoadSchemaOnlyUnknownFieldErrorsGetTheUnknownFieldHint(t *testing.T) {
 		t.Errorf("several unknown fields: want both named and the hint once, got %v", err)
 	}
 }
+
+// TestLoadSchemaRejectsWhatItsOwnRenderWouldFail covers overrides that load
+// but then render something the markdown check refuses: headings equal once
+// trimmed, an empty metadata key, and a second YAML document that would be
+// ignored silently.
+func TestLoadSchemaRejectsWhatItsOwnRenderWouldFail(t *testing.T) {
+	const head = "type: impl-plan\ntitle_prefix: \"[PLAN-XXXXX] <T>\"\n"
+	sec := func(id, heading string) string {
+		return fmt.Sprintf("  - id: %s\n    heading: %s\n    required: true\n", id, heading)
+	}
+	cases := []struct {
+		name string
+		yaml string
+		want []string
+	}{
+		{"headings equal once trimmed", head + "sections:\n" + sec("a", `" A"`) + sec("b", "A"),
+			[]string{overrideOrigin, `"heading"`, "twice", "Rename"}},
+		{"empty metadata key", head + "metadata: [Author, \"\"]\n",
+			[]string{overrideOrigin, "metadata", "empty", "Remove"}},
+		{"second document", head + "sections:\n" + sec("a", "A") + "---\ntype: other\n",
+			[]string{overrideOrigin, "second YAML document", "---"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := tmpl.LoadSchema(overrideOrigin, []byte(c.yaml))
+			if err == nil {
+				t.Fatal("want a schema error, got nil")
+			}
+			for _, w := range c.want {
+				if !strings.Contains(err.Error(), w) {
+					t.Errorf("error %q missing %q", err, w)
+				}
+			}
+		})
+	}
+}

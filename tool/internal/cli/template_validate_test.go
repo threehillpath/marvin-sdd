@@ -438,3 +438,35 @@ func TestTemplateRenderDraftIsExclusiveWithOtherModes(t *testing.T) {
 		}
 	}
 }
+
+// TestTemplateMalformedOverrideStructureExits1 verifies an override with a
+// duplicate section id (which would render its content twice) exits 1 on
+// every command that loads a schema, naming the override file.
+func TestTemplateMalformedOverrideStructureExits1(t *testing.T) {
+	dir := t.TempDir()
+	od := filepath.Join(dir, ".claude", "plan-workflow-templates")
+	if err := os.MkdirAll(od, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	override := "type: impl-phase\ntitle_prefix: \"[PLAN-XXXXX-N] <T>\"\nmetadata: [Status]\nsections:\n  - id: objective\n    heading: Objective\n    required: true\n  - id: objective\n    heading: Goal\n    required: true\n"
+	path := filepath.Join(od, "impl-phase.yml")
+	if err := os.WriteFile(path, []byte(override), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, dir)
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	for _, args := range [][]string{
+		{"template", "validate", "impl-phase", "--draft", draft},
+		{"template", "render", "impl-phase", "--skeleton"},
+		{"template", "render", "impl-phase", "--draft", draft},
+	} {
+		stdout, _, err := runCLI(t, args...)
+		cliErr := wantCode(t, err, 1)
+		if !strings.Contains(cliErr.Msg, path) || !strings.Contains(cliErr.Msg, `"id"`) || !strings.Contains(cliErr.Msg, "twice") {
+			t.Errorf("%v: want the override path, field and fix in %q", args, cliErr.Msg)
+		}
+		if stdout != "" {
+			t.Errorf("%v: want no stdout, got %q", args, stdout)
+		}
+	}
+}

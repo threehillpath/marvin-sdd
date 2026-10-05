@@ -157,7 +157,7 @@ func TestLoadSchemaRejectsMalformedStructure(t *testing.T) {
 		{"duplicate metadata key", head + "metadata: [Author, Status, Author]\n",
 			[]string{overrideOrigin, "metadata", `"Author"`, "twice", "Remove"}},
 		{"two named numbered sections", head + "sections:\n" + section("a", "A") + "    repeatable: true\n    numbered: true\n    named: true\n" + section("b", "B") + "    repeatable: true\n    numbered: true\n    named: true\n",
-			[]string{overrideOrigin, `"named"`, `"a"`, `"b"`, "at most one", "named: false"}},
+			[]string{overrideOrigin, "named: true", `"a"`, `"b"`, "at most one", "named: false"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -61,12 +61,22 @@ type SchemaSection struct {
 	Guidance string `yaml:"guidance"`
 }
 
+// SchemaValidation mirrors the YAML validation block.
+type SchemaValidation struct {
+	RequiredSections []string `yaml:"required_sections"`
+	Rules            []string `yaml:"rules"`
+}
+
 // Schema is the top-level YAML structure.
 type Schema struct {
-	Type        string          `yaml:"type"`
-	TitlePrefix string          `yaml:"title_prefix"`
-	Metadata    []string        `yaml:"metadata"`
-	Sections    []SchemaSection `yaml:"sections"`
+	Type        string `yaml:"type"`
+	TitlePrefix string `yaml:"title_prefix"`
+	// DefaultLabels and Validation are documentation of the schema file: no
+	// code reads them, but LoadSchema decodes strictly, so they must be known.
+	DefaultLabels []string         `yaml:"default_labels"`
+	Metadata      []string         `yaml:"metadata"`
+	Sections      []SchemaSection  `yaml:"sections"`
+	Validation    SchemaValidation `yaml:"validation"`
 
 	// ExpectedKind is the title kind derived from TitlePrefix by LoadSchema.
 	ExpectedKind names.Kind `yaml:"-"`

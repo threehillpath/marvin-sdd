@@ -1,7 +1,10 @@
 package template
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"strings"
 
@@ -20,8 +23,10 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 		pre = origin + ": "
 	}
 	var sc Schema
-	if err := yaml.Unmarshal(data, &sc); err != nil {
-		return nil, fmt.Errorf("%sparsing schema: %w", pre, err)
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(&sc); err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("%sparsing schema: %w. A field marvin does not know is an error (a misspelt key would otherwise be ignored silently): correct or remove it", pre, err)
 	}
 	if strings.TrimSpace(sc.Type) == "" {
 		return nil, fmt.Errorf("%smissing \"type\". Add a \"type:\" line naming this schema; for a project override use the file's base name (impl-phase for impl-phase.yml). The built-in types are %s", pre, strings.Join(DefaultSchemaNames(), ", "))
@@ -29,10 +34,40 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 	if strings.TrimSpace(sc.TitlePrefix) == "" {
 		return nil, fmt.Errorf("%smissing \"title_prefix\" for type %q. %s", pre, sc.Type, titlePrefixHint(sc.Type))
 	}
-	for _, sec := range sc.Sections {
+	seenKey := map[string]bool{}
+	for _, k := range sc.Metadata {
+		if seenKey[k] {
+			return nil, fmt.Errorf("%smetadata key %q is listed twice. Remove the duplicate from \"metadata\"", pre, k)
+		}
+		seenKey[k] = true
+	}
+	seenID := map[string]bool{}
+	seenHeading := map[string]bool{}
+	var named []string
+	for i, sec := range sc.Sections {
+		if strings.TrimSpace(sec.ID) == "" {
+			return nil, fmt.Errorf("%ssection %d has an empty \"id\". Set a unique id such as \"scope\"", pre, i+1)
+		}
+		if strings.TrimSpace(sec.Heading) == "" {
+			return nil, fmt.Errorf("%ssection %q has an empty \"heading\". Set the heading text to render", pre, sec.ID)
+		}
+		if seenID[sec.ID] {
+			return nil, fmt.Errorf("%sthe \"id\" %q appears twice in \"sections\". Rename one so every section id is unique", pre, sec.ID)
+		}
+		seenID[sec.ID] = true
+		if seenHeading[sec.Heading] {
+			return nil, fmt.Errorf("%sthe \"heading\" %q appears twice in \"sections\". Rename one so every heading is unique", pre, sec.Heading)
+		}
+		seenHeading[sec.Heading] = true
 		if sec.Numbered && sec.Named == nil {
 			return nil, fmt.Errorf("%ssection %q is numbered but has no \"named\" field. Add \"named: true\" if headings come from content, else \"named: false\"", pre, sec.ID)
 		}
+		if sec.Numbered && sec.Named != nil && *sec.Named {
+			named = append(named, fmt.Sprintf("%q", sec.ID))
+		}
+	}
+	if len(named) > 1 {
+		return nil, fmt.Errorf("%sthe numbered sections %s all set \"named: true\", but at most one may. Set \"named: false\" on all but one", pre, strings.Join(named, ", "))
 	}
 	kind, err := expectedKind(sc.TitlePrefix)
 	if err != nil {

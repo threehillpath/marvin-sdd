@@ -531,7 +531,7 @@ type issueCreateOutput struct {
 type issueCreateFlags struct {
 	title, body, bodyFile, labels, tmplType, draft string
 	titleSet, tmplSet, bodySet, draftSet           bool
-	bodyFileSet, jsonOut                           bool
+	bodyFileSet, labelSet, jsonOut                 bool
 	args                                           []string
 }
 
@@ -557,6 +557,7 @@ func newIssueCreateCmd(stdout, stderr io.Writer, runner exec.Runner) *cobra.Comm
 			f.bodySet = cmd.Flags().Changed("body")
 			f.draftSet = cmd.Flags().Changed("draft")
 			f.bodyFileSet = cmd.Flags().Changed("body-file")
+			f.labelSet = cmd.Flags().Changed("label")
 			return runIssueCreate(stdout, stderr, cfg, f, runner)
 		},
 	}
@@ -641,12 +642,20 @@ func runIssueCreate(stdout, stderr io.Writer, cfg *config.Config, f issueCreateF
 				p.add("requires --title")
 			}
 		}
-		if f.body != "" && f.bodyFile != "" {
+		if f.bodySet && f.body == "" {
+			p.add("--body was given an empty value: pass the body, or leave the flag out")
+		}
+		if f.bodySet && f.bodyFileSet {
 			p.add("--body and --body-file are mutually exclusive")
 		}
-		if f.body == "" && f.bodyFile == "" && !f.bodyFileSet {
+		if !f.bodySet && !f.bodyFileSet {
 			p.add("requires --body or --body-file")
 		}
+	}
+	// An explicitly empty --label is a mistake, not "no labels". (An empty
+	// element such as "a,,b" is a separate matter, tracked in #152.)
+	if f.labelSet && f.labels == "" {
+		p.add("--label was given an empty value: pass a label name, or leave the flag out")
 	}
 
 	// Read each input once, during collection, so an unreadable file is

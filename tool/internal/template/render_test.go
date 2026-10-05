@@ -478,18 +478,17 @@ func scopeMap(content string) *tmpl.SectionMap {
 	return m
 }
 
-// TestRenderRefusesHTMLBlocksOfEveryType covers blocks the line scanner never
-// sees: processing instructions, CDATA, declarations and a lone tag, all of
-// which swallow what follows or render nothing.
+// TestRenderRefusesHTMLBlocksOfEveryType covers HTML blocks the line scanner
+// never sees: a lone tag, which swallows what follows or renders nothing.
+// Processing instructions, CDATA and declarations are reported by Check as
+// raw HTML before the goldmark backstop runs; the backstop's own handling of
+// them is guarded in verify_internal_test.go.
 func TestRenderRefusesHTMLBlocksOfEveryType(t *testing.T) {
 	cases := []struct {
 		name, content string
 		line          int
 		quote         string
 	}{
-		{"unclosed processing instruction", "Every file must start with\n<?php declare(strict_types=1);", 2, "<?php declare(strict_types=1);"},
-		{"cdata", "intro\n\n<![CDATA[ stuff", 3, "<![CDATA["},
-		{"doctype without >", "<!DOCTYPE html\nbody", 1, "<!DOCTYPE html"},
 		{"div", "text\n\n<div>\nx\n</div>", 3, "<div>"},
 		{"a lone inline tag becomes a block", "text\n\n<kbd>\n\nmore", 3, "<kbd>"},
 	}
@@ -497,6 +496,27 @@ func TestRenderRefusesHTMLBlocksOfEveryType(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			wantRefusedAt(t, "impl-phase", scopeMap(c.content), "section:scope", c.line,
 				"HTML block", c.quote, "swallow", "backticks", "remove")
+		})
+	}
+}
+
+// TestRenderRefusesProcessingInstructionCDATAAndDeclaration verifies the
+// openers that used to reach only the backstop are now refused by Check as
+// raw HTML, with the line and the opener named.
+func TestRenderRefusesProcessingInstructionCDATAAndDeclaration(t *testing.T) {
+	cases := []struct {
+		name, content string
+		line          int
+		quote         string
+	}{
+		{"unclosed processing instruction", "Every file must start with\n<?php declare(strict_types=1);", 2, "<?"},
+		{"cdata", "intro\n\n<![CDATA[ stuff", 3, "<![CDATA["},
+		{"doctype without >", "<!DOCTYPE html\nbody", 1, "<!"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			wantRefusedAt(t, "impl-phase", scopeMap(c.content), "section:scope", c.line,
+				"raw HTML", `"`+c.quote, "swallow", "backticks", "remove")
 		})
 	}
 }

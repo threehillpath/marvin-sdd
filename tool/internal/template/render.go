@@ -215,7 +215,7 @@ func Guidance(sc *Schema) string {
 	sb.WriteString("- Close every code fence in the section that opens it: an open fence swallows the sections after it.\n")
 	sb.WriteString("- Inside a list item, indent the opening fence, every code line and the closing fence at least as far as the opening fence: a less-indented line ends the item and leaves the fence open.\n")
 	sb.WriteString("- Don't start a line with an HTML tag, <? or <!, as in <div>, a tag alone on its line, <?php or <!DOCTYPE: markdown reads it as an HTML block that can swallow what follows.\n")
-	sb.WriteString("- Use no raw HTML (<!--, <details>, <pre>, <script>, <style>, <textarea>, opening or closing) in content, metadata values, names or the title. Put it in backticks as inline code.\n")
+	sb.WriteString("- Use no raw HTML (<!--, <details>, <pre>, <script>, <style>, <textarea>, opening or closing; also <?, <![CDATA[ or <! followed by a letter) in content, metadata values, names or the title. Put it in backticks as inline code.\n")
 	fmt.Fprintf(&sb, "\nMetadata keys (each required, one line): %s\n", strings.Join(sc.Metadata, ", "))
 	sb.WriteString("\nSections, in render order:\n")
 	for _, sec := range sc.Sections {

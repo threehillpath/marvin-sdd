@@ -28,7 +28,7 @@ type emittedHeading struct {
 	text string
 }
 
-var inlineBannedRe = regexp.MustCompile(`(?i)^(?:<!--|</?(?:details|pre|script|style|textarea)(?:[\s/>]|$))`)
+var inlineBannedRe = regexp.MustCompile(`(?i)^(?:<!--|<\?|<!\[CDATA\[|<![a-z]|</?(?:details|pre|script|style|textarea)(?:[\s/>]|$))`)
 
 // verifyBody parses the rendered body the way GitHub does (CommonMark with
 // the GFM extensions) and reports anything that changes the document's

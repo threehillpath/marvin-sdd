@@ -456,9 +456,12 @@ type htmlHit struct {
 var (
 	setextRe = regexp.MustCompile(`^ {0,3}(?:=+|-+)[ \t]*$`)
 	// rawHTMLRe matches the constructs that can hide or swallow later
-	// sections: comments and the details, pre, script, style and textarea
-	// tags, opening or closing, in any case.
-	rawHTMLRe = regexp.MustCompile(`(?i)<!--|</?(?:details|pre|script|style|textarea)(?:>|[\s/]|$)`)
+	// sections: comments, processing instructions (<?), CDATA sections,
+	// declarations (<! and a letter) and the details, pre, script, style and
+	// textarea tags, opening or closing, in any case. An opener is banned
+	// whether or not it is closed: inline, one can swallow later lines of its
+	// paragraph, metadata included.
+	rawHTMLRe = regexp.MustCompile(`(?i)<!--|<\?|<!\[CDATA\[|<![a-z]|</?(?:details|pre|script|style|textarea)(?:>|[\s/]|$)`)
 )
 
 // maskCodeSpans returns text with every code span, delimiters included,
@@ -519,7 +522,11 @@ func rawHTMLAt(text string) (tag string, off int, ok bool) {
 	if loc == nil {
 		return "", 0, false
 	}
-	return strings.TrimRight(masked[loc[0]:loc[1]], " \t/"), loc[0], true
+	tag = strings.TrimRight(masked[loc[0]:loc[1]], " \t/")
+	if len(tag) == 3 && tag[:2] == "<!" { // a declaration: name the opener, not its first letter
+		tag = "<!"
+	}
+	return tag, loc[0], true
 }
 
 // rawHTML is rawHTMLAt for a single-line field.

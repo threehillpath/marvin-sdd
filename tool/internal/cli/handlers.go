@@ -328,8 +328,9 @@ func runParsePhaseList(stdin io.Reader, stdout, stderr io.Writer, jsonOut bool) 
 
 // runTemplateRender prints a schema's empty YAML draft (--skeleton), its
 // plain-text guidance (--guidance), or a draft rendered to markdown (--draft).
-// Rendered markdown goes to stdout and warnings to stderr; an error finding
-// exits 3 with the findings on stderr and nothing on stdout.
+// Rendered markdown goes to stdout; the schema line and any warnings go to
+// stderr; an error finding exits 3 with the findings on stderr and nothing on
+// stdout.
 func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, guidance bool, draftPath string, draftSet bool) error {
 	sc, origin, err := loadSchema(schemaName)
 	if err != nil {
@@ -371,9 +372,9 @@ func runTemplateRender(stdout, stderr io.Writer, schemaName string, skeleton, gu
 		fmt.Fprint(stderr, res.Format())
 		return clierr.NonConforming(fmt.Sprintf("the draft does not conform to the %s schema; nothing was rendered. Fix the findings above and run again", schemaName))
 	}
-	if len(res.Findings) > 0 {
-		fmt.Fprint(stderr, res.Format())
-	}
+	// Always print the schema line (and any warnings): whoever approves the
+	// body should see which schema shaped it.
+	fmt.Fprint(stderr, res.Format())
 	fmt.Fprint(stdout, body)
 	return nil
 }

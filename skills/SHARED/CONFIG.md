@@ -63,6 +63,10 @@ Precedence rules (highest to lowest):
 2. `.claude/plan-workflow-config.yml` found by CWD-walk
 3. `.claude/plan-workflow-config.md` found by CWD-walk (legacy fallback)
 
+## Project root
+
+`<project-root>` in skill commands means the main checkout's git root, where marvin keeps `.claude/cache/`; it normally also holds `.claude/plan-workflow-config.yml` or the legacy `.md`. In a linked worktree it is the main checkout, not the worktree. Quote every path built from it in a command, since the path may contain spaces.
+
 ## Plan Template Resolution
 
 Skills never read schema YAML directly. Four commands resolve a plan type's schema, all in the same order:
@@ -72,7 +76,7 @@ Skills never read schema YAML directly. Four commands resolve a plan type's sche
 - `marvin issue create --template <type> --draft <file.yml> --label ...`. The title comes from the draft; `--title` is accepted only if it equals the draft's title, and inline `--body` is rejected. A second mode checks an existing markdown body: `--template <type> --body-file <file.md> --title <t>` (`--title` is required there, and `--draft` and `--body-file` are mutually exclusive). The skills use the draft mode.
 - `marvin issue edit <n> --template <type> (--draft <file.yml> | --body-file <file.md>)`. `--draft` replaces the body and the title; `--body-file` replaces the body only.
 
-`{type}` is one of four built-in types: `arch-plan`, `impl-plan`, `impl-phase`, `quick-task`. Any other value is a usage error (exit 1). The commands that check a draft or body report the schema they used as `schema: <type> (built-in)` or `schema: <type> (project override: <path>)`: on stdout for `validate`, on stderr for `issue create` and `issue edit`, and on stderr for `render --draft` only when it has warnings or findings to print. `render --skeleton` prints no schema line. `render --guidance` prints `schema: <type>` as its first line and never shows an override's origin.
+`{type}` is one of four built-in types: `arch-plan`, `impl-plan`, `impl-phase`, `quick-task`. Any other value is a usage error (exit 1). The commands that check a draft or body report the schema they used as `schema: <type> (built-in)` or `schema: <type> (project override: <path>)`: on stdout for `validate`, on stderr for `issue create` and `issue edit`, and on stderr for `render --draft` (always, so whoever approves the rendered body sees which schema shaped it, followed by any warnings). `render --skeleton` prints no schema line. `render --guidance` prints `schema: <type>` as its first line and never shows an override's origin.
 
 Resolution order for the schema:
 
@@ -86,8 +90,10 @@ Render, validate, create and edit all follow this order, so a draft is checked a
 A schema (built-in or override) must declare:
 
 - `type:` — the type name, equal to the file name for an override.
-- `title_prefix:` — the title pattern, e.g. `"[PLAN-XXXXX-N] <Phase Title>"`. It must begin with one of the four leading identifiers `[PLAN-XXXXX-ARCH]`, `[PLAN-XXXXX]`, `[PLAN-XXXXX-N]` or `[TASK-XXXXX]`, (`arch-plan`: `[PLAN-XXXXX-ARCH]`, `impl-plan`: `[PLAN-XXXXX]`, `impl-phase`: `[PLAN-XXXXX-N]`, `quick-task`: `[TASK-XXXXX]`). Any other prefix is a schema error (exit 1). A prefix of the wrong type still loads, but then every real title for that type exits 3 as the wrong kind of title, so keep the one that matches the type. A draft's title must start with the real identifier this pattern names.
+- `title_prefix:` — the title pattern, e.g. `"[PLAN-XXXXX-N] <Phase Title>"`. It must begin with a leading identifier of the right kind. The built-in forms are `arch-plan`: `[PLAN-XXXXX-ARCH]`, `impl-plan`: `[PLAN-XXXXX]`, `impl-phase`: `[PLAN-XXXXX-N]` and `quick-task`: `[TASK-XXXXX]`; a multi-impl track uses `[PLAN-XXXXX-<suffix>]` for the plan and `[PLAN-XXXXX-<suffix>-N]` for its phases, and the loader accepts those too. Any other prefix is a schema error (exit 1). A prefix of the wrong type still loads, but then every real title for that type exits 3 as the wrong kind of title, so keep the one that matches the type. A draft's title must start with the real identifier this pattern names.
 - `named: true|false` on every `numbered: true` section. `true`: each instance's heading text comes from the draft (`impl-plan`'s Component sections); `false`: the heading is the schema heading (Verification Steps).
+
+A schema is also checked for structure, and each of these is a schema error (exit 1) that names the file and the fix: a field marvin does not know (a misspelt key), an empty or repeated section `id` or `heading`, a metadata key listed twice, and more than one `numbered: true` section with `named: true`.
 
 **Migrating an override.** An override written before these fields were required fails with exit 1 and a message naming the missing field. Add `title_prefix:` copied from the built-in schema for that type, and add `named:` to each numbered section. The exit-1 message names the value to copy. To see a whole built-in schema, open the plugin repository's `tool/internal/template/schemas/` (it is not in a consuming project), or run `marvin template render <type> --guidance` from a directory outside the project, where no override is found. Inside the project the command exits 1 while the broken override is present.
 
@@ -164,7 +170,7 @@ The draft rules follow. `--guidance` prints the quoting, `|` block, heading, com
 | Code | Meaning |
 |---|---|
 | 0 | Success. Warnings alone do not change this: they are printed on stderr by `render --draft`, `issue create` and `issue edit`, and on stdout by `validate`. |
-| 1 | Usage or operational error: unknown type, unreadable file, malformed schema or override, or any usage problem. Several usage problems are reported together in one error with a header like `issue create: 3 problems:` and a bulleted list. If a non-conforming input is present too, the findings are still printed. |
+| 1 | Usage or operational error: unknown type, unreadable file, malformed schema or override, or any usage problem. Several usage problems are reported together in one error with a header like `issue create: 3 problems:` and a bulleted list. `issue create`, `issue edit` and `validate` report all the usage problems they find together, and the findings of an input that loads (a config error is the exception: it is reported alone, exit 2, and the markdown verification step runs only when the check found no errors). `render` differs: it reports a schema that fails to load (an unknown type or a broken override) on its own, and it reports its flag problems together without reading the draft, so it prints no draft findings alongside either; with a schema that does not load or a bad flag combination there is nothing meaningful to check the draft against. |
 | 2 | Config missing or malformed. Only `issue create` and `issue edit` return it (`render` and `validate` read no config). Reported alone; nothing else is collected. |
 | 3 | The draft or body does not conform. Findings are on stderr for `render --draft`, `issue create` and `issue edit`, and on stdout for `validate`. A failed check makes no mutating GitHub call. |
 

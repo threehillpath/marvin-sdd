@@ -74,7 +74,7 @@ marvin template render impl-phase --guidance
 
 If either command exits 1 (for example a malformed project override, or an unknown type), show stderr to the user and stop. Neither command reads the config, so neither returns exit 2.
 
-Fill every key of the skeleton with phase-specific content, except that `tdd_entry_point` is optional: for a phase with no TDD entry point, keep the key and write `None.` followed by the reason. Do not omit the key, even though `--guidance` says it may be omitted for UI-only phases: an omitted key passes `validate` silently, and an empty block leaves a bare `## TDD Entry Point` heading; neither triggers review-phase's structural pre-check. In `title:`, replace `XXXXX`, `N` and `<Phase Title>` with the real plan number, phase number and title (for a multi-impl track the identifier is `[PLAN-XXXXX-<suffix>-N]`). Follow every rule `--guidance` prints (its code-fence, heading-underline and HTML rules are not repeated here), plus the loader's key, tab, tag, anchor and alias rules, which `--guidance` does not print and which are in the list below. `../SHARED/CONFIG.md` describes the format. The rules most often broken:
+Fill every key of the skeleton with phase-specific content, except that `tdd_entry_point` is optional: for a phase with no TDD entry point, keep the key and write `None.` followed by the reason. Do not omit the key: an omitted key passes `validate` silently, and an empty block leaves a bare `## TDD Entry Point` heading; neither triggers review-phase's structural pre-check. In `title:`, replace `XXXXX`, `N` and `<Phase Title>` with the real plan number, phase number and title (for a multi-impl track the identifier is `[PLAN-XXXXX-<suffix>-N]`). Follow every rule `--guidance` prints (its code-fence, heading-underline and HTML rules are not repeated here), plus the loader's key, tab, tag, anchor and alias rules, which `--guidance` does not print and which are in the list below. `../SHARED/CONFIG.md` describes the format. The rules most often broken:
 
 - Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
 - The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
@@ -83,12 +83,12 @@ Fill every key of the skeleton with phase-specific content, except that `tdd_ent
 - No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`, except inside a code fence, where a `#` line is code and must stay unescaped (`\#` would print as is).
 - No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
 
-Once a phase's sections are filled in, `Write` it to that phase's own draft file, `<project-root>/.claude/cache/<plan>/phase-N-draft.yml`, where `<project-root>` is the root of the main checkout (the directory holding `.claude/plan-workflow-config.yml`, not a linked worktree), `<plan>` is the lowercase PLAN-XXXXX number (for example `plan-00112`) and `N` is the phase number (for a multi-impl track use `phase-<suffix>-N-draft.yml`, e.g. `phase-A-1-draft.yml`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use each phase's own path in every command below.
+Once a phase's sections are filled in, `Write` it to that phase's own draft file, `<project-root>/.claude/cache/<plan>/phase-N-draft.yml`, where `<project-root>` is the main checkout's git root, as defined in `../SHARED/CONFIG.md` (not a linked worktree), `<plan>` is the lowercase PLAN-XXXXX number (for example `plan-00112`) and `N` is the phase number (for a multi-impl track use `phase-<suffix>-N-draft.yml`, e.g. `phase-A-1-draft.yml`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use each phase's own path in every command below, in double quotes, because the path may contain spaces.
 
 Write each phase's title and body together in its one draft file, never as two separate lists. Write every phase's draft first, then validate every one of them **before the first `issue create`**:
 
 ```bash
-marvin template validate impl-phase --draft <project-root>/.claude/cache/<plan>/phase-N-draft.yml
+marvin template validate impl-phase --draft "<project-root>/.claude/cache/<plan>/phase-N-draft.yml"
 ```
 
 `validate` makes no config or GitHub call and creates nothing. Exit codes:
@@ -102,10 +102,10 @@ Create issues only once every draft has exited 0.
 Once every draft has validated, tell the user the drafts are ready, show them any warnings `validate` printed, and say they can ask to see any phase's rendered body. Do not paste bodies by default; the user approved the phase list in step 2. If a draft produced warnings, or the user asks, show that phase's rendered markdown and wait for approval before the first create:
 
 ```bash
-marvin template render impl-phase --draft <project-root>/.claude/cache/<plan>/phase-N-draft.yml
+marvin template render impl-phase --draft "<project-root>/.claude/cache/<plan>/phase-N-draft.yml"
 ```
 
-Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`). If the user asks for changes, rewrite that draft file with `Write` and validate it again.
+Also show the `schema:` line from stderr (and any warnings) above the pasted body, so the user sees which schema shaped it. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`). If the user asks for changes, rewrite that draft file with `Write` and validate it again.
 
 Read `../SHARED/LABELS.md` for label conventions. Infer domain labels from the impl plan content — confirm with the user once before creating all issues ("I'll apply `plan:phase`, `status:upcoming`, `domain:backend` to all phases — correct?").
 
@@ -126,7 +126,7 @@ marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 Then create the phase issues in phase order, each from its draft file, capturing the returned number and URL:
 
 ```bash
-marvin issue create --template impl-phase --draft <project-root>/.claude/cache/<plan>/phase-N-draft.yml --label "<labels>"
+marvin issue create --template impl-phase --draft "<project-root>/.claude/cache/<plan>/phase-N-draft.yml" --label "<labels>"
 ```
 
 `<labels>` is one comma-joined string of only the labels that exist: `plan:phase`, `status:upcoming`, and each domain label. Leave out any part that is absent; never leave an empty entry or a leading or trailing comma (marvin would pass an empty `--label` to `gh`). Put no spaces around the commas. Example: `--label "plan:phase,status:upcoming,domain:backend"`.
@@ -158,7 +158,7 @@ Before moving to step 4, re-fetch every created issue and confirm each one's bod
 gh issue view <issue-number> --repo <repo> --json title,body
 ```
 
-For each issue, check that the `## Objective` and `## Components` sections reference the same phase number and component(s) named in the title. If any issue's body describes a different phase, fix it immediately: rewrite that phase's draft file (`<project-root>/.claude/cache/<plan>/phase-N-draft.yml`, with N taken from that issue's title) with `Write` and run `marvin issue edit <issue-number> --template impl-phase --draft <project-root>/.claude/cache/<plan>/phase-N-draft.yml` (it replaces the body and the title, and prints nothing on stdout when it succeeds) before proceeding — do not defer this to a later skill. You handle the exit code of the fix-up:
+For each issue, check that the `## Objective` and `## Components` sections reference the same phase number and component(s) named in the title. If any issue's body describes a different phase, fix it immediately: rewrite that phase's draft file (`<project-root>/.claude/cache/<plan>/phase-N-draft.yml`, with N taken from that issue's title) with `Write` and run `marvin issue edit <issue-number> --template impl-phase --draft "<project-root>/.claude/cache/<plan>/phase-N-draft.yml"` (it replaces the body and the title, and prints nothing on stdout when it succeeds) before proceeding — do not defer this to a later skill. You handle the exit code of the fix-up:
 
 - **0** — fixed.
 - **3** — the corrected draft does not conform; nothing was changed. The findings are on stderr. Rewrite the draft file with `Write` to fix them and run the same command again. Make at most 3 fix attempts; if it still exits 3, show the user the findings and stop.

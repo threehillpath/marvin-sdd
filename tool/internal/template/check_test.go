@@ -130,6 +130,58 @@ sections:
 	}
 }
 
+// TestLoadSchemaRejectsMalformedStructure has one case per structural rule
+// LoadSchema enforces beyond the required fields. Each error must name the
+// origin, the offending field and the fix.
+func TestLoadSchemaRejectsMalformedStructure(t *testing.T) {
+	const head = "type: impl-plan\ntitle_prefix: \"[PLAN-XXXXX] <T>\"\n"
+	const sec = "  - id: %s\n    heading: %s\n    required: true\n"
+	section := func(id, heading string) string { return fmt.Sprintf(sec, id, heading) }
+	cases := []struct {
+		name string
+		yaml string
+		want []string
+	}{
+		{"unknown top-level field", head + "requried: true\n",
+			[]string{overrideOrigin, "requried", "field"}},
+		{"unknown section field", head + "sections:\n" + section("a", "A") + "    requried: true\n",
+			[]string{overrideOrigin, "requried"}},
+		{"empty section id", head + "sections:\n" + section(`""`, "A"),
+			[]string{overrideOrigin, "section 1", `"id"`, "empty", "Set"}},
+		{"empty section heading", head + "sections:\n" + section("a", `""`),
+			[]string{overrideOrigin, `"a"`, `"heading"`, "empty", "Set"}},
+		{"duplicate section id", head + "sections:\n" + section("a", "A") + section("a", "B"),
+			[]string{overrideOrigin, `"id"`, `"a"`, "twice", "Rename"}},
+		{"duplicate section heading", head + "sections:\n" + section("a", "Same") + section("b", "Same"),
+			[]string{overrideOrigin, `"heading"`, `"Same"`, "twice", "Rename"}},
+		{"duplicate metadata key", head + "metadata: [Author, Status, Author]\n",
+			[]string{overrideOrigin, "metadata", `"Author"`, "twice", "Remove"}},
+		{"two named numbered sections", head + "sections:\n" + section("a", "A") + "    repeatable: true\n    numbered: true\n    named: true\n" + section("b", "B") + "    repeatable: true\n    numbered: true\n    named: true\n",
+			[]string{overrideOrigin, "named: true", `"a"`, `"b"`, "at most one", "named: false"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := tmpl.LoadSchema(overrideOrigin, []byte(c.yaml))
+			if err == nil {
+				t.Fatal("want a schema error, got nil")
+			}
+			for _, w := range c.want {
+				if !strings.Contains(err.Error(), w) {
+					t.Errorf("error %q missing %q", err, w)
+				}
+			}
+		})
+	}
+}
+
+// TestLoadSchemaAcceptsBuiltIns verifies the stricter loader still accepts
+// every embedded schema.
+func TestLoadSchemaAcceptsBuiltIns(t *testing.T) {
+	for _, name := range tmpl.DefaultSchemaNames() {
+		loadBuiltIn(t, name)
+	}
+}
+
 func TestBuiltInImplPlanNamedFlags(t *testing.T) {
 	sc := loadBuiltIn(t, "impl-plan")
 	got := map[string]bool{}
@@ -704,17 +756,27 @@ func TestCheckSectionContentH2ReportsLineWithinSection(t *testing.T) {
 	wantOne(t, check(t, "impl-phase", m), tmpl.SeverityError, "section:scope", `"##   Foo"`, "line 3 of the section", "###")
 }
 
-func TestFindH2LinesOneBasedAndStripsMarker(t *testing.T) {
+// TestHeadingLinesAreOneBasedAndStripMarker guards what FindH2Lines used to:
+// headings outside fences are found with one-based lines and the "##" marker
+// and surrounding spaces stripped, and a fenced "## " line is not a heading.
+// It asserts it through the markdown path production uses (UnknownHeadings
+// from the parser, and the findings CheckMarkdown reports).
+func TestHeadingLinesAreOneBasedAndStripMarker(t *testing.T) {
+	sc := loadBuiltIn(t, "impl-phase")
 	body := "## First\ntext\n```\n## fenced\n```\n  ##   Spaced  \n##\n"
-	got := tmpl.FindH2Lines(body)
+	got := tmpl.ParseMarkdown(sc, "[PLAN-00112-1] X", body).UnknownHeadings
 	want := []tmpl.Heading{{Text: "First", Line: 1}, {Text: "Spaced", Line: 6}, {Text: "", Line: 7}}
 	if len(got) != len(want) {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
 	for i := range want {
-		if got[i] != want[i] {
+		if got[i].Text != want[i].Text || got[i].Line != want[i].Line {
 			t.Errorf("heading %d = %+v, want %+v", i, got[i], want[i])
 		}
+	}
+	res := tmpl.CheckMarkdown(sc, builtIn, "[PLAN-00112-1] X", body)
+	if strings.Contains(res.Format(), "fenced") {
+		t.Errorf("the fenced line must not be reported as a heading:\n%s", res.Format())
 	}
 }
 
@@ -896,6 +958,11 @@ func TestCheckRawHTMLIsBanned(t *testing.T) {
 		{"escaped backticks do not make a code span", "ok\nUse \\`<details>\\` literally", 2, "<details>"},
 		{"a run of the wrong length does not match", "Use `` here <details> and ``` there", 1, "<details>"},
 		{"unmatched run does not carry over a blank line", "A ` tick\n\nthen <details> and ` tock", 3, "<details>"},
+		{"processing instruction", "see <?php echo 1; ?> here", 1, "<?"},
+		{"unclosed processing instruction", "a\nb <? start\nc", 2, "<?"},
+		{"cdata", "x <![CDATA[ hidden", 1, "<![CDATA["},
+		{"declaration", "see <!DOCTYPE html> here", 1, "<!"},
+		{"lowercase declaration", "see <!doctype x", 1, "<!"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -917,6 +984,7 @@ func TestCheckRawHTMLInCodeOrHarmlessTagsIsFine(t *testing.T) {
 		"similar tag name":                   "<prefix>x</prefix> and <stylesheet>",
 		"br":                                 "line<br>break",
 		"a comment-like text":                "<! not a comment",
+		"a lone question mark":               "Is it fine? <3 and < ? too",
 	} {
 		m := phaseMap()
 		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
@@ -998,5 +1066,155 @@ func TestCheckRawHTMLInUnknownMarkdownMetadata(t *testing.T) {
 	}
 	if !sawErr || !sawWarn {
 		t.Fatalf("want the raw-HTML error and the not-in-schema warning:\n%s", res.Format())
+	}
+}
+
+// TestCheckInlineHTMLOpenersInMetadata covers the cross-line case: a
+// processing instruction or declaration opened in one metadata value would
+// swallow the following metadata lines, and GitHub then shows
+// "raw HTML omitted" where the parser saw values.
+func TestCheckInlineHTMLOpenersInMetadata(t *testing.T) {
+	for _, c := range []struct{ value, tag string }{
+		{"<?php start", "<?"},
+		{"<![CDATA[ start", "<![CDATA["},
+		{"<!DOCTYPE start", "<!"},
+	} {
+		m := implPlanMap()
+		m.Metadata["Objective"] = tmpl.Field{Value: c.value, Line: 3}
+		m.Metadata["Author"] = tmpl.Field{Value: "end ?>", Line: 4}
+		wantOne(t, check(t, "impl-plan", m), tmpl.SeverityError, "metadata:Objective", "raw HTML", `"`+c.tag, banFix)
+	}
+}
+
+// TestCheckMarkdownInlineHTMLOpenerAcrossMetadataLines verifies the markdown
+// path refuses a body whose metadata lines are joined into one raw HTML
+// construct.
+func TestCheckMarkdownInlineHTMLOpenerAcrossMetadataLines(t *testing.T) {
+	sc := loadBuiltIn(t, "impl-phase")
+	body := "**Implementation Plan:** <?x\n**Plan Number:** ?>\n**Status:** upcoming\n\n## Objective\n\nc\n\n## Scope\n\nc\n\n## Components\n\nc\n\n## Verification\n\nc\n\n## Success Criteria\n\n- [ ] c\n"
+	res := tmpl.CheckMarkdown(sc, builtIn, "[PLAN-00112-1] T", body)
+	if !res.HasErrors() || !strings.Contains(res.Format(), "raw HTML") || !strings.Contains(res.Format(), "Implementation Plan") {
+		t.Errorf("want a raw HTML error naming the Implementation Plan metadata value:\n%s", res.Format())
+	}
+}
+
+// TestLoadSchemaOnlyUnknownFieldErrorsGetTheUnknownFieldHint verifies a YAML
+// syntax error or a wrong value type is reported as the YAML error alone: the
+// "misspelt key" advice is for unknown fields, and would send the reader
+// hunting for a key that does not exist.
+func TestLoadSchemaOnlyUnknownFieldErrorsGetTheUnknownFieldHint(t *testing.T) {
+	const head = "type: impl-plan\ntitle_prefix: \"[PLAN-XXXXX] <T>\"\n"
+	for name, yml := range map[string]string{
+		"syntax error":  head + "sections:\n  - id: a\n   heading: A\n",
+		"type error":    head + "sections:\n  - id: a\n    heading: A\n    required: maybe\n",
+		"unclosed flow": "type: [not, a, schema\n",
+	} {
+		_, err := tmpl.LoadSchema(overrideOrigin, []byte(yml))
+		if err == nil {
+			t.Fatalf("%s: want an error", name)
+		}
+		if strings.Contains(err.Error(), "does not know") || !strings.Contains(err.Error(), "parsing schema") || !strings.Contains(err.Error(), overrideOrigin) {
+			t.Errorf("%s: want the YAML error alone, got %q", name, err)
+		}
+	}
+	_, err := tmpl.LoadSchema(overrideOrigin, []byte(head+"requried: true\nmetdata: [A]\n"))
+	if err == nil || strings.Count(err.Error(), "does not know") != 1 || !strings.Contains(err.Error(), "requried") || !strings.Contains(err.Error(), "metdata") {
+		t.Errorf("several unknown fields: want both named and the hint once, got %v", err)
+	}
+}
+
+// TestLoadSchemaRejectsWhatItsOwnRenderWouldFail covers overrides that load
+// but then render something the markdown check refuses: headings equal once
+// trimmed, an empty metadata key, and a second YAML document that would be
+// ignored silently.
+func TestLoadSchemaRejectsWhatItsOwnRenderWouldFail(t *testing.T) {
+	const head = "type: impl-plan\ntitle_prefix: \"[PLAN-XXXXX] <T>\"\n"
+	sec := func(id, heading string) string {
+		return fmt.Sprintf("  - id: %s\n    heading: %s\n    required: true\n", id, heading)
+	}
+	cases := []struct {
+		name string
+		yaml string
+		want []string
+	}{
+		{"headings equal once trimmed", head + "sections:\n" + sec("a", `" A"`) + sec("b", "A"),
+			[]string{overrideOrigin, `"heading"`, "twice", "Rename"}},
+		{"empty metadata key", head + "metadata: [Author, \"\"]\n",
+			[]string{overrideOrigin, "metadata", "empty", "Remove"}},
+		{"second document", head + "sections:\n" + sec("a", "A") + "---\ntype: other\n",
+			[]string{overrideOrigin, "second YAML document", "---"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := tmpl.LoadSchema(overrideOrigin, []byte(c.yaml))
+			if err == nil {
+				t.Fatal("want a schema error, got nil")
+			}
+			for _, w := range c.want {
+				if !strings.Contains(err.Error(), w) {
+					t.Errorf("error %q missing %q", err, w)
+				}
+			}
+		})
+	}
+}
+
+// TestLoadSchemaUnknownFieldErrorsSayWhereNotWhichGoType verifies an
+// unknown-field error says where the field is, not which Go type failed to
+// decode it.
+func TestLoadSchemaUnknownFieldErrorsSayWhereNotWhichGoType(t *testing.T) {
+	const head = "type: impl-plan\ntitle_prefix: \"[PLAN-XXXXX] <T>\"\n"
+	for name, c := range map[string]struct{ yaml, want string }{
+		"top level":  {head + "requried: true\n", "requried not found at the top level"},
+		"in section": {head + "sections:\n  - id: a\n    heading: A\n    requried: true\n", "requried not found in a section"},
+		"validation": {head + "validation:\n  rulez: []\n", "rulez not found under validation"},
+	} {
+		_, err := tmpl.LoadSchema(overrideOrigin, []byte(c.yaml))
+		if err == nil || !strings.Contains(err.Error(), c.want) || strings.Contains(err.Error(), "template.") {
+			t.Errorf("%s: want %q and no Go type name, got %v", name, c.want, err)
+		}
+	}
+}
+
+// TestCheckInlineHTMLOpenersInCodeAndNearMissesStayLegal pins what the new
+// openers do not touch: code spans, fences, and text that merely looks close.
+func TestCheckInlineHTMLOpenersInCodeAndNearMissesStayLegal(t *testing.T) {
+	for name, ok := range map[string]string{
+		"pi in a code span":           "Write `<?php echo 1; ?>` in the template.",
+		"cdata in a code span":        "Use ``<![CDATA[x]]>`` here.",
+		"declaration in a code span":  "Start with `<!DOCTYPE html>`.",
+		"pi in a fence":               "```xml\n<?xml version=\"1.0\"?>\n```",
+		"cdata and declaration fence": "~~~\n<![CDATA[x]]>\n<!DOCTYPE html>\n~~~",
+		"generic type":                "A Vec<T> and Map<K, V> are fine.",
+		"less-than word":              "when a <b then c",
+		"bang then space":             "<! not a declaration",
+		"bang dash":                   "see <!- here",
+		"bang digit":                  "see <!1 here",
+		"question without a bracket":  "a ? b and ?> alone",
+	} {
+		m := phaseMap()
+		m.Sections["scope"] = []tmpl.Entry{{Content: ok}}
+		if res := check(t, "impl-phase", m); len(res.Findings) != 0 {
+			t.Errorf("%s: content %q: want no findings:\n%s", name, ok, res.Format())
+		}
+	}
+}
+
+// TestCheckInlineHTMLOpenersAreConservative pins the decided trade-off: a
+// Java wildcard generic and a backslash-escaped opener are refused too,
+// because the check does not try to tell them from real raw HTML. The fix is
+// backticks, which the message and --guidance say.
+func TestCheckInlineHTMLOpenersAreConservative(t *testing.T) {
+	for name, content := range map[string]string{
+		"wildcard generic": "Takes a List<?> argument.",
+		"escaped opener":   "Write \\<?php to show it.",
+		"declaration-like": "see <!Foo bar",
+	} {
+		m := phaseMap()
+		m.Sections["scope"] = []tmpl.Entry{{Content: content}}
+		res := check(t, "impl-phase", m)
+		if !res.HasErrors() || !strings.Contains(res.Format(), "raw HTML") || !strings.Contains(res.Format(), "backticks") {
+			t.Errorf("%s: content %q: want a raw HTML error naming backticks:\n%s", name, content, res.Format())
+		}
 	}
 }

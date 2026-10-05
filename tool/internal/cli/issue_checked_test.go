@@ -580,6 +580,7 @@ func TestTemplateNameMustBeOneOfTheFixedTypes(t *testing.T) {
 // problems and the input's findings or read error together on stderr with
 // empty stdout and exit 1.
 func TestValidateReportsInputFindingsWithUsageProblems(t *testing.T) {
+	chdir(t, t.TempDir())
 	bad := writeTemp(t, "d.yml", phaseDraftNoVerification)
 	missing := filepath.Join(t.TempDir(), "nope.yml")
 	for name, tc := range map[string]struct {
@@ -781,6 +782,7 @@ func TestEditBodyFileIsCheckedDespiteOtherProblems(t *testing.T) {
 // TestValidateReadsInputsEvenWithoutASchema verifies validate reports an
 // unreadable input together with an unknown schema or both inputs given.
 func TestValidateReadsInputsEvenWithoutASchema(t *testing.T) {
+	chdir(t, t.TempDir())
 	missing := filepath.Join(t.TempDir(), "nope.yml")
 	missingBody := filepath.Join(t.TempDir(), "nope.md")
 	for name, tc := range map[string]struct {
@@ -809,6 +811,7 @@ func TestValidateReadsInputsEvenWithoutASchema(t *testing.T) {
 // --body-file is correct even when an empty --draft is also (wrongly) given:
 // only the empty draft is reported.
 func TestValidateNoFalseTitleProblemWithBodyFile(t *testing.T) {
+	chdir(t, t.TempDir())
 	body := writeTemp(t, "b.md", conformingPhaseBody)
 	code, _, stderr := runIssueExit(&exectest.FakeRunner{}, "template", "validate", "impl-phase", "--draft", "", "--body-file", body, "--title", "T")
 	if code != 1 {
@@ -826,6 +829,7 @@ func TestValidateNoFalseTitleProblemWithBodyFile(t *testing.T) {
 // --draft combined with --skeleton reports both problems, with the
 // "template render:" prefix.
 func TestRenderReportsEmptyDraftAndModeConflictTogether(t *testing.T) {
+	chdir(t, t.TempDir())
 	code, stdout, stderr := runIssueExit(&exectest.FakeRunner{}, "template", "render", "impl-phase", "--skeleton", "--draft", "")
 	if code != 1 || stdout != "" {
 		t.Errorf("code=%d stdout=%q", code, stdout)
@@ -984,5 +988,94 @@ func TestCreateStrayPositionalIsReportedWithOtherProblems(t *testing.T) {
 		if !strings.Contains(stderr, w) {
 			t.Errorf("stderr should contain %q:\n%s", w, stderr)
 		}
+	}
+}
+
+// TestIssueCreateUncheckedExplicitEmptyFlagsAreReported verifies the
+// unchecked path tests --body and --label by whether they were passed, not by
+// value: an explicitly empty --body or --label is a reported problem, and
+// --body with --body-file is mutually exclusive even when --body is empty.
+// Each exits 1 with zero gh calls.
+func TestIssueCreateUncheckedExplicitEmptyFlagsAreReported(t *testing.T) {
+	withConfigFixture(t)
+	bodyFile := writeTemp(t, "b.md", "a body\n")
+	for name, tc := range map[string]struct {
+		args []string
+		want []string
+	}{
+		"empty body alone":            {[]string{"--title", "T", "--body", ""}, []string{"--body was given an empty value: pass the body, or leave the flag out"}},
+		"empty body with a body file": {[]string{"--title", "T", "--body", "", "--body-file", bodyFile}, []string{"--body was given an empty value", "--body and --body-file are mutually exclusive"}},
+		"body with a body file":       {[]string{"--title", "T", "--body", "x", "--body-file", bodyFile}, []string{"--body and --body-file are mutually exclusive"}},
+		"empty label":                 {[]string{"--title", "T", "--body", "x", "--label", ""}, []string{"--label was given an empty value: pass a label name, or leave the flag out"}},
+		"empty label with empty body": {[]string{"--title", "T", "--body", "", "--label", ""}, []string{"--body was given an empty value", "--label was given an empty value"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake := &exectest.FakeRunner{}
+			code, stdout, stderr := runIssueExit(fake, append([]string{"issue", "create"}, tc.args...)...)
+			if code != 1 || stdout != "" || len(fake.Calls) != 0 {
+				t.Fatalf("code=%d stdout=%q calls=%v\nstderr: %s", code, stdout, fake.Calls, stderr)
+			}
+			for _, w := range tc.want {
+				if !strings.Contains(stderr, w) {
+					t.Errorf("stderr should contain %q:\n%s", w, stderr)
+				}
+			}
+			if strings.Contains(stderr, "requires --body or --body-file") {
+				t.Errorf("an explicitly empty --body is not an absent one:\n%s", stderr)
+			}
+		})
+	}
+}
+
+// TestIssueCreateTemplatePathEmptyLabelIsReported verifies an explicitly empty
+// --label is a reported problem on the checked path too: exit 1, no gh call.
+func TestIssueCreateTemplatePathEmptyLabelIsReported(t *testing.T) {
+	withConfigFixture(t)
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	fake := &exectest.FakeRunner{}
+	code, stdout, stderr := runIssueExit(fake, "issue", "create", "--template", "impl-phase", "--draft", draft, "--label", "")
+	if code != 1 || stdout != "" || len(fake.Calls) != 0 {
+		t.Fatalf("code=%d stdout=%q calls=%v\nstderr: %s", code, stdout, fake.Calls, stderr)
+	}
+	if !strings.Contains(stderr, "--label was given an empty value: pass a label name, or leave the flag out") {
+		t.Errorf("stderr:\n%s", stderr)
+	}
+}
+
+// TestIssueCreateEditMalformedOverrideStructureExits1 verifies an override with
+// a duplicate section id exits 1 on issue create and issue edit, naming the
+// file, with zero gh calls.
+func TestIssueCreateEditMalformedOverrideStructureExits1(t *testing.T) {
+	withConfigFixture(t) // chdirs into a fresh directory holding the config
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	od := filepath.Join(dir, ".claude", "plan-workflow-templates")
+	if err := os.MkdirAll(od, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(od, "impl-phase.yml")
+	override := "type: impl-phase\ntitle_prefix: \"[PLAN-XXXXX-N] <T>\"\nsections:\n  - id: a\n    heading: A\n  - id: a\n    heading: B\n"
+	if err := os.WriteFile(path, []byte(override), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	for name, args := range map[string][]string{
+		"create": {"issue", "create", "--template", "impl-phase", "--draft", draft},
+		"edit":   {"issue", "edit", "7", "--template", "impl-phase", "--draft", draft},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake := &exectest.FakeRunner{}
+			code, stdout, stderr := runIssueExit(fake, args...)
+			if code != 1 || stdout != "" || len(fake.Calls) != 0 {
+				t.Fatalf("code=%d stdout=%q calls=%v\nstderr: %s", code, stdout, fake.Calls, stderr)
+			}
+			for _, w := range []string{path, `"id"`, "twice"} {
+				if !strings.Contains(stderr, w) {
+					t.Errorf("stderr should contain %q:\n%s", w, stderr)
+				}
+			}
+		})
 	}
 }

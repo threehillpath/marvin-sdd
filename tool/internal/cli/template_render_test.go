@@ -200,6 +200,7 @@ func TestTemplateRenderSkeletonRejectsMalformedOverride(t *testing.T) {
 func TestTemplateRenderRemovedFlagsAreUnknown(t *testing.T) {
 	for _, flag := range []string{"--sections", "--meta"} {
 		t.Run(flag, func(t *testing.T) {
+			chdir(t, t.TempDir())
 			var stdout, stderr bytes.Buffer
 			root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
 			root.SetArgs([]string{"template", "render", "impl-plan", flag, "x.json"})
@@ -218,6 +219,7 @@ func TestTemplateRenderRemovedFlagsAreUnknown(t *testing.T) {
 // a plain render fails with a
 // message naming the supported call rather than printing nothing.
 func TestTemplateRenderWithoutSkeletonSaysWhatToDo(t *testing.T) {
+	chdir(t, t.TempDir())
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
 	root.SetArgs([]string{"template", "render", "impl-plan"})
@@ -239,6 +241,7 @@ func TestTemplateRenderWithoutSkeletonSaysWhatToDo(t *testing.T) {
 // TestTemplateRenderGuidancePrintsPlainText verifies --guidance prints the
 // per-section guidance and the draft-writing rules.
 func TestTemplateRenderGuidancePrintsPlainText(t *testing.T) {
+	chdir(t, t.TempDir())
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
 	root.SetArgs([]string{"template", "render", "quick-task", "--guidance"})
@@ -255,6 +258,7 @@ func TestTemplateRenderGuidancePrintsPlainText(t *testing.T) {
 // TestTemplateRenderSkeletonAndGuidanceAreExclusive verifies that passing
 // both flags exits 1 and says to pick one.
 func TestTemplateRenderSkeletonAndGuidanceAreExclusive(t *testing.T) {
+	chdir(t, t.TempDir())
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
 	root.SetArgs([]string{"template", "render", "quick-task", "--skeleton", "--guidance"})
@@ -275,12 +279,15 @@ func TestTemplateRenderSkeletonAndGuidanceAreExclusive(t *testing.T) {
 
 // TestTemplateRenderUnknownSchemaIsReportedBeforeFlagAdvice verifies that the
 // schema is resolved first, so no message suggests a command that then fails.
+// Stopping at the unknown schema is deliberate: report-every-problem is a
+// default, and with an unknown schema the remaining flag advice is meaningless.
 func TestTemplateRenderUnknownSchemaIsReportedBeforeFlagAdvice(t *testing.T) {
 	for _, args := range [][]string{
 		{"template", "render", "nosuch"},
 		{"template", "render", "nosuch", "--skeleton", "--guidance"},
 		{"template", "render", "nosuch", "--draft", ""},
 	} {
+		chdir(t, t.TempDir())
 		var stdout, stderr bytes.Buffer
 		root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
 		root.SetArgs(args)

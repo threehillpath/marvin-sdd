@@ -2,6 +2,7 @@
 # XXXXX derivation and -A/-B multi-impl edge case: see skills/SHARED/GLOSSARY.md
 # Label rules: see skills/SHARED/LABELS.md
 
+# type and title_prefix are required; see skills/SHARED/CONFIG.md
 type: impl-phase
 
 # Title prefix pattern. XXXXX = zero-padded GitHub source issue number, N = phase ordinal.
@@ -53,9 +54,10 @@ sections:
     repeatable: false
     numbered: false
     guidance: >
-      First test to write before any implementation. Omit this section for
-      UI-only (rendered-controls) phases — see impl-plan/SUPPLEMENTS/TDD.md
-      for the exemption litmus test.
+      First test to write before any implementation. For a UI-only
+      (rendered-controls) phase with no TDD entry point, keep the section and
+      write None. followed by the reason: an omitted section passes validate
+      silently — see impl-plan/SUPPLEMENTS/TDD.md for the exemption litmus test.
       Format:
         What: <one sentence on the observable behavior being asserted>
         Where: <test file path pattern>
@@ -100,4 +102,4 @@ validation:
     - success_criteria
   rules:
     - "Success Criteria items must match `- [ ] ` checkbox format"
-    - "tdd_entry_point is optional; omit only for UI-only phases (see impl-plan/SUPPLEMENTS/TDD.md)"
+    - "tdd_entry_point is optional for validation; for UI-only phases write None. plus the reason rather than omitting it (see impl-plan/SUPPLEMENTS/TDD.md)"

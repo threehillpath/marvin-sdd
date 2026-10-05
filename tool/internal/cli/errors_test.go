@@ -78,6 +78,7 @@ func TestNilErrorExitCode0(t *testing.T) {
 // TestNonConformingExitCode3ReachesCaller verifies a non-conforming input
 // exits 3 through RunWithStreams, not just as a CLIError from Execute.
 func TestNonConformingExitCode3ReachesCaller(t *testing.T) {
+	chdir(t, t.TempDir())
 	draft := writeTemp(t, "d.yml", phaseDraftNoVerification)
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})

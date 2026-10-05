@@ -34,9 +34,17 @@ sections:
 // phaseDraftNoVerification drops the required verification section.
 var phaseDraftNoVerification = strings.Replace(phaseDraftOK, "  verification: |\n    go test ./...\n", "", 1)
 
-// runCLI runs marvin with args and returns stdout, stderr and the error.
+// runCLI runs marvin with args and returns stdout, stderr and the error. It
+// first changes into an empty temp directory unless the working directory is
+// no longer the one the test binary started in (the test, or its parent test,
+// already chose one with chdir; the working directory is process-wide, so a
+// subtest inherits it), so no plan-workflow-templates/ override in the repo or
+// in ~/.claude can change which schema the test runs against.
 func runCLI(t *testing.T, args ...string) (string, string, error) {
 	t.Helper()
+	if wd, err := os.Getwd(); err != nil || wd == startDir {
+		chdir(t, t.TempDir())
+	}
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
 	root.SetArgs(args)
@@ -153,6 +161,10 @@ func TestTemplateValidateWarningsAloneExit0(t *testing.T) {
 	}
 }
 
+// startDir is the working directory the test binary started in (the package
+// directory), whose parents may hold real plan-workflow-templates/ or config.
+var startDir, _ = os.Getwd()
+
 func chdir(t *testing.T, dir string) {
 	t.Helper()
 	orig, err := os.Getwd()
@@ -205,6 +217,11 @@ func TestTemplateRenderDraft(t *testing.T) {
 	if strings.Contains(stdout, "schema:") {
 		t.Errorf("stdout must be the body only:\n%s", stdout)
 	}
+	// The schema line always goes to stderr, so whoever approves the body
+	// sees which schema shaped it.
+	if stderr != "schema: impl-phase (built-in)\n" {
+		t.Errorf("stderr on a clean success = %q, want the schema line alone", stderr)
+	}
 
 	stdout, stderr, err = runCLI(t, "template", "render", "impl-phase", "--draft", writeTemp(t, "bad.yml", phaseDraftNoVerification))
 	wantCode(t, err, 3)
@@ -224,7 +241,7 @@ func TestTemplateRenderDraftWarningsGoToStderr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(stdout, "warning") || !strings.Contains(stderr, "warning section:tdd_entry_point") {
+	if strings.Contains(stdout, "warning") || !strings.HasPrefix(stderr, "schema: impl-phase (built-in)\n") || !strings.Contains(stderr, "warning section:tdd_entry_point") {
 		t.Errorf("stdout:\n%s\nstderr:\n%s", stdout, stderr)
 	}
 }
@@ -437,4 +454,88 @@ func TestTemplateRenderDraftIsExclusiveWithOtherModes(t *testing.T) {
 			t.Errorf("%s: stdout %q msg %q", other, stdout, ce.Msg)
 		}
 	}
+}
+
+// TestTemplateMalformedOverrideStructureExits1 verifies an override with a
+// duplicate section id (which would render its content twice) exits 1 on
+// validate and render, naming the override file. issue create and issue edit
+// are covered by TestIssueCreateEditMalformedOverrideStructureExits1.
+func TestTemplateMalformedOverrideStructureExits1(t *testing.T) {
+	dir := t.TempDir()
+	od := filepath.Join(dir, ".claude", "plan-workflow-templates")
+	if err := os.MkdirAll(od, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	override := "type: impl-phase\ntitle_prefix: \"[PLAN-XXXXX-N] <T>\"\nmetadata: [Status]\nsections:\n  - id: objective\n    heading: Objective\n    required: true\n  - id: objective\n    heading: Goal\n    required: true\n"
+	path := filepath.Join(od, "impl-phase.yml")
+	if err := os.WriteFile(path, []byte(override), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, dir)
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	for _, args := range [][]string{
+		{"template", "validate", "impl-phase", "--draft", draft},
+		{"template", "render", "impl-phase", "--skeleton"},
+		{"template", "render", "impl-phase", "--draft", draft},
+	} {
+		stdout, _, err := runCLI(t, args...)
+		cliErr := wantCode(t, err, 1)
+		if !strings.Contains(cliErr.Msg, path) || !strings.Contains(cliErr.Msg, `"id"`) || !strings.Contains(cliErr.Msg, "twice") {
+			t.Errorf("%v: want the override path, field and fix in %q", args, cliErr.Msg)
+		}
+		if stdout != "" {
+			t.Errorf("%v: want no stdout, got %q", args, stdout)
+		}
+	}
+}
+
+// TestTemplateRenderDraftNamesTheOverrideOnStderr verifies a clean render
+// under a project override still reports which schema file was used.
+func TestTemplateRenderDraftNamesTheOverrideOnStderr(t *testing.T) {
+	dir := t.TempDir()
+	od := filepath.Join(dir, ".claude", "plan-workflow-templates")
+	if err := os.MkdirAll(od, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(od, "quick-task.yml"), []byte(overrideSchemaFixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, dir)
+	draft := writeTemp(t, "d.yml", "title: \"[TASK-00001] x\"\nmetadata:\n  Source Issue: \"#1\"\nsections:\n  override_marker: |\n    hi\n")
+	stdout, stderr, err := runCLI(t, "template", "render", "quick-task", "--draft", draft)
+	if err != nil {
+		t.Fatalf("want success, got %v\n%s", err, stderr)
+	}
+	if !strings.HasPrefix(stderr, "schema: quick-task (project override: ") || stdout == "" {
+		t.Errorf("stderr = %q, stdout = %q", stderr, stdout)
+	}
+}
+
+// TestRunCLIKeepsTheDirectoryAParentTestChose verifies a subtest that calls
+// runCLI keeps the directory its parent changed into (so a project override
+// the parent planted is still used), and that a test that chose nothing runs
+// away from the starting directory.
+func TestRunCLIKeepsTheDirectoryAParentTestChose(t *testing.T) {
+	dir := t.TempDir()
+	od := filepath.Join(dir, ".claude", "plan-workflow-templates")
+	if err := os.MkdirAll(od, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(od, "quick-task.yml"), []byte(overrideSchemaFixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, dir)
+	t.Run("sub", func(t *testing.T) {
+		stdout, _, err := runCLI(t, "template", "render", "quick-task", "--skeleton")
+		if err != nil || !strings.Contains(stdout, "override_marker") {
+			t.Errorf("the subtest lost its parent's directory: err=%v\n%s", err, stdout)
+		}
+	})
+	t.Run("unchosen directory", func(t *testing.T) {
+		chdir(t, startDir) // as if no test had chosen one
+		runCLI(t, "template", "render", "quick-task", "--skeleton")
+		if wd, _ := os.Getwd(); wd == startDir {
+			t.Errorf("runCLI left the working directory at the package directory")
+		}
+	})
 }

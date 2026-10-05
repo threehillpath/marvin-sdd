@@ -9,28 +9,21 @@ import (
 
 var metadataLineRe = regexp.MustCompile(`^\*\*(.+?):\*\*[ \t]*(.*)$`)
 
-// ParseMarkdown turns a markdown issue body and a caller-supplied title into
-// a SectionMap for sc. The title has no source line, because a body does not
-// carry one.
+// parseMarkdown turns a markdown issue body and a caller-supplied title into
+// a SectionMap for sc, plus what verifyBody needs: the normalized body, where
+// each of its lines came from, and the "## " headings found. The title has no
+// source line, because a body does not carry one.
 //
 // Metadata is read only from "**Key:** value" lines above the first "## "
 // heading that GitHub shows as metadata (outside a fence, and the first
 // non-blank line, after a blank line, or directly below another metadata
 // line); other text there (a revision blockquote, say) is kept as the
-// preamble. Sections are split with FindH2Lines' scanner, the one Check uses,
-// so the parser and the checker agree on where a section starts and ends.
-// Each section runs from its heading to the next "## " heading.
+// preamble. Sections are split with scanContent, the scanner Check uses, so
+// the parser and the checker agree on where a section starts and ends. Each
+// section runs from its heading to the next "## " heading.
 //
-// Pairing ParseMarkdown with Check skips the goldmark verification that
-// CheckMarkdown adds, so callers that validate a body should use
-// CheckMarkdown.
-func ParseMarkdown(sc *Schema, title, body string) *SectionMap {
-	m, _, _, _ := parseMarkdown(sc, title, body)
-	return m
-}
-
-// parseMarkdown is ParseMarkdown plus what verifyBody needs: the normalized
-// body, where each of its lines came from, and the "## " headings found.
+// Callers that validate a body must use CheckMarkdown: parsing and Check
+// alone skip the goldmark verification it adds.
 func parseMarkdown(sc *Schema, title, body string) (*SectionMap, string, []lineOrigin, []emittedHeading) {
 	m := &SectionMap{
 		Source:   SourceMarkdown,

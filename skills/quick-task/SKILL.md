@@ -89,17 +89,17 @@ Content of the six sections:
   Use the digest to draft Technical Analysis; you do not need to read the underlying files yourself unless the digest flags something needing deeper inspection.
 - **TDD Entry Point** and **Implementation Notes** — drafted from the digest and `$0`'s content.
 
-Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<task>/task-draft.yml`, where `<project-root>` is the root of the main checkout (the directory holding `.claude/plan-workflow-config.yml`, not a linked worktree) and `<task>` is `task_number` from A2 in lowercase (for example `task-00151`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below.
+Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<task>/task-draft.yml`, where `<project-root>` is the main checkout's git root, as defined in `../SHARED/CONFIG.md` (not a linked worktree) and `<task>` is `task_number` from A2 in lowercase (for example `task-00151`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below, in double quotes, because the path may contain spaces.
 
 ### A4. Present for review
 
 Show the user the rendered issue, not the YAML:
 
 ```bash
-marvin template render quick-task --draft <project-root>/.claude/cache/<task>/task-draft.yml
+marvin template render quick-task --draft "<project-root>/.claude/cache/<task>/task-draft.yml"
 ```
 
-Stdout is the issue body as markdown. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`). If it exits 1 (for example a malformed project override), show stderr to the user and stop. If it exits 3 the draft does not conform: rewrite the draft file with `Write` to fix the findings on stderr and render again. Make at most 3 fix-and-render attempts per round of user changes; if it still exits 3, show the user the findings and ask how to proceed. When the user asks for changes, rewrite the draft file with `Write` and render again.
+Stdout is the issue body as markdown. Also show the `schema:` line from stderr (and any warnings) above the pasted body, so the user sees which schema shaped it. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`). If it exits 1 (for example a malformed project override), show stderr to the user and stop. If it exits 3 the draft does not conform: rewrite the draft file with `Write` to fix the findings on stderr and render again. Make at most 3 fix-and-render attempts per round of user changes; if it still exits 3, show the user the findings and ask how to proceed. When the user asks for changes, rewrite the draft file with `Write` and render again.
 
 Read `../SHARED/LABELS.md`. Present the rendered draft to the user: title `"<title_prefix.task> <Title>"`, proposed labels `plan:task, status:upcoming, <domain-labels>, <type-label from $0>` (the `bug`/`enhancement` label carried forward from `$0`, per `LABELS.md`'s "Source issue labels" rule). Iterate on content and labels until the user approves — same pattern `arch-plan`/`impl-plan` use for their own "present for review" steps.
 
@@ -118,7 +118,7 @@ marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 Then create the issue from the approved draft file, capturing the returned number and URL:
 
 ```bash
-marvin issue create --template quick-task --draft <project-root>/.claude/cache/<task>/task-draft.yml --label "<labels>"
+marvin issue create --template quick-task --draft "<project-root>/.claude/cache/<task>/task-draft.yml" --label "<labels>"
 ```
 
 `<labels>` is one comma-joined string of only the labels that exist: `plan:task`, `status:upcoming`, each domain label, and the type label carried forward from `$0` (`bug` or `enhancement`) if it has one. Leave out any part that is absent; never leave an empty entry or a leading or trailing comma (marvin would pass an empty `--label` to `gh`). Put no spaces around the commas. Example: `--label "plan:task,status:upcoming,domain:backend,bug"`.

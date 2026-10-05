@@ -6,6 +6,7 @@ package template
 import (
 	"embed"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -61,12 +62,22 @@ type SchemaSection struct {
 	Guidance string `yaml:"guidance"`
 }
 
+// SchemaValidation mirrors the YAML validation block.
+type SchemaValidation struct {
+	RequiredSections []string `yaml:"required_sections"`
+	Rules            []string `yaml:"rules"`
+}
+
 // Schema is the top-level YAML structure.
 type Schema struct {
-	Type        string          `yaml:"type"`
-	TitlePrefix string          `yaml:"title_prefix"`
-	Metadata    []string        `yaml:"metadata"`
-	Sections    []SchemaSection `yaml:"sections"`
+	Type        string `yaml:"type"`
+	TitlePrefix string `yaml:"title_prefix"`
+	// DefaultLabels and Validation are documentation of the schema file: no
+	// code reads them, but LoadSchema decodes strictly, so they must be known.
+	DefaultLabels []string         `yaml:"default_labels"`
+	Metadata      []string         `yaml:"metadata"`
+	Sections      []SchemaSection  `yaml:"sections"`
+	Validation    SchemaValidation `yaml:"validation"`
 
 	// ExpectedKind is the title kind derived from TitlePrefix by LoadSchema.
 	ExpectedKind names.Kind `yaml:"-"`
@@ -205,7 +216,7 @@ func Guidance(sc *Schema) string {
 	sb.WriteString("- Close every code fence in the section that opens it: an open fence swallows the sections after it.\n")
 	sb.WriteString("- Inside a list item, indent the opening fence, every code line and the closing fence at least as far as the opening fence: a less-indented line ends the item and leaves the fence open.\n")
 	sb.WriteString("- Don't start a line with an HTML tag, <? or <!, as in <div>, a tag alone on its line, <?php or <!DOCTYPE: markdown reads it as an HTML block that can swallow what follows.\n")
-	sb.WriteString("- Use no raw HTML (<!--, <details>, <pre>, <script>, <style>, <textarea>, opening or closing) in content, metadata values, names or the title. Put it in backticks as inline code.\n")
+	sb.WriteString("- Use no raw HTML (<!--, <details>, <pre>, <script>, <style>, <textarea>, opening or closing; also <?, <![CDATA[ or <! followed by a letter) in content, metadata values, names or the title. Put it in backticks as inline code. Generics such as List<?> and a backslash-escaped \\<? are refused too: put them in backticks.\n")
 	fmt.Fprintf(&sb, "\nMetadata keys (each required, one line): %s\n", strings.Join(sc.Metadata, ", "))
 	sb.WriteString("\nSections, in render order:\n")
 	for _, sec := range sc.Sections {
@@ -232,29 +243,79 @@ func Guidance(sc *Schema) string {
 		default:
 			fmt.Fprintf(&sb, "  %s: a single | block\n", sec.ID)
 		}
-		for _, line := range wrapComment(sec.Guidance, 76) {
+		for _, line := range wrapGuidance(sec.Guidance, 76) {
 			fmt.Fprintf(&sb, "  %s\n", line)
 		}
 	}
 	return sb.String()
 }
 
-// wrapComment folds text to lines of at most width characters.
-func wrapComment(text string, width int) []string {
-	var lines []string
-	line := ""
-	for _, w := range strings.Fields(text) {
-		if line != "" && len(line)+1+len(w) > width {
-			lines = append(lines, line)
-			line = ""
+var labelLineRe = regexp.MustCompile(`^[A-Za-z][A-Za-z ]{0,30}:(?:\s|$)`)
+
+// wrapGuidance wraps each newline-separated line of text on its own to at
+// most width characters, so a schema's guidance keeps its line structure (a
+// "Key:" label line, a "- " list item or a checkbox item starts its own
+// output line). A line's own leading indent is kept, and an indented "- "
+// item or "Key:" label line hangs its continuation lines two spaces in; prose
+// that merely contains a colon does not hang. A "- [ ]" checkbox marker is
+// never split and never left at the end of a line.
+func wrapGuidance(text string, width int) []string {
+	var out []string
+	for _, raw := range strings.Split(text, "\n") {
+		body := strings.TrimSpace(raw)
+		if body == "" {
+			continue
 		}
-		if line != "" {
-			line += " "
+		indent := raw[:len(raw)-len(strings.TrimLeft(raw, " \t"))]
+		hang := indent
+		if indent != "" && (strings.HasPrefix(body, "- ") || labelLineRe.MatchString(body)) {
+			hang += "  "
 		}
-		line += w
+		words := glueMarkers(strings.Fields(body))
+		line := indent
+		blank := true // nothing but the indent on the line yet
+		for _, w := range words {
+			if !blank && len(line)+1+len(w) > width {
+				out = append(out, line)
+				line, blank = hang, true
+			}
+			if !blank {
+				line += " "
+			}
+			line += w
+			blank = false
+		}
+		out = append(out, line)
 	}
-	if line != "" {
-		lines = append(lines, line)
+	return out
+}
+
+// glueMarkers joins the tokens of a checkbox marker ("-", "[", "]" or "-",
+// "[x]") into one word and glues it to the word after it, so a line never
+// ends on the marker; a list marker at the start of the line is glued to the
+// word after it too.
+func glueMarkers(words []string) []string {
+	var out []string
+	glueNext := false
+	for i := 0; i < len(words); i++ {
+		w := words[i]
+		marker := false
+		switch {
+		case w == "-" && i+2 < len(words) && words[i+1] == "[" && words[i+2] == "]":
+			w, marker = "- [ ]", true
+			i += 2
+		case w == "-" && i+1 < len(words) && (words[i+1] == "[x]" || words[i+1] == "[X]"):
+			w, marker = "- "+words[i+1], true
+			i++
+		case w == "-" && i == 0:
+			marker = true
+		}
+		if glueNext {
+			out[len(out)-1] += " " + w
+		} else {
+			out = append(out, w)
+		}
+		glueNext = marker
 	}
-	return lines
+	return out
 }

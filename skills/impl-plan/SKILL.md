@@ -78,17 +78,17 @@ Fill every key of the skeleton with substantive content from the arch plan analy
 
 **TDD**: Each component section must include a TDD Entry Point. The only exemption is for **rendered controls** — the JSX/template markup, styling, and rendering itself. All logic that lives inside a component (event handlers, derived state, validation, formatting, conditional-render predicates) must be extracted to a non-component module and given a TDD entry point. The litmus test: if it can be tested with the DOM removed, it is logic. See `SUPPLEMENTS/TDD.md` for full scope.
 
-Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<plan>/impl-draft.yml`, where `<project-root>` is the root of the main checkout (the directory holding `.claude/plan-workflow-config.yml`, not a linked worktree) and `<plan>` is the lowercase PLAN-XXXXX number from the arch plan (for example `plan-00112`); for a multi-impl track name the file `impl-<suffix>-draft.yml` (e.g. `impl-A-draft.yml`) so the tracks do not share a file. `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below.
+Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<plan>/impl-draft.yml`, where `<project-root>` is the main checkout's git root, as defined in `../SHARED/CONFIG.md` (not a linked worktree) and `<plan>` is the lowercase PLAN-XXXXX number from the arch plan (for example `plan-00112`); for a multi-impl track name the file `impl-<suffix>-draft.yml` (e.g. `impl-A-draft.yml`) so the tracks do not share a file. `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below, in double quotes, because the path may contain spaces.
 
 ### 4. Present for review
 
 Show the user the rendered issue, not the YAML:
 
 ```bash
-marvin template render impl-plan --draft <project-root>/.claude/cache/<plan>/impl-draft.yml
+marvin template render impl-plan --draft "<project-root>/.claude/cache/<plan>/impl-draft.yml"
 ```
 
-Stdout is the issue body as markdown. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`). If it exits 1 (for example a malformed project override), show stderr to the user and stop. If it exits 3 the draft does not conform: rewrite the draft file with `Write` to fix the findings on stderr and render again. Make at most 3 fix-and-render attempts per round of user changes; if it still exits 3, show the user the findings and ask how to proceed. When the user asks for changes, rewrite the draft file with `Write` and render again.
+Stdout is the issue body as markdown. Also show the `schema:` line from stderr (and any warnings) above the pasted body, so the user sees which schema shaped it. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`). If it exits 1 (for example a malformed project override), show stderr to the user and stop. If it exits 3 the draft does not conform: rewrite the draft file with `Write` to fix the findings on stderr and render again. Make at most 3 fix-and-render attempts per round of user changes; if it still exits 3, show the user the findings and ask how to proceed. When the user asks for changes, rewrite the draft file with `Write` and render again.
 
 Read `../SHARED/LABELS.md`. Infer domain labels from the plan content. Present the rendered draft with proposed labels: "I'll apply: `plan:impl`, `status:upcoming`, `domain:backend` — correct?"
 
@@ -113,7 +113,7 @@ marvin label ensure "<name>" --description "<desc>" --color "<hex>"
 Then create the issue from the approved draft file, capturing the returned number and URL:
 
 ```bash
-marvin issue create --template impl-plan --draft <project-root>/.claude/cache/<plan>/impl-draft.yml --label "<labels>"
+marvin issue create --template impl-plan --draft "<project-root>/.claude/cache/<plan>/impl-draft.yml" --label "<labels>"
 ```
 
 `<labels>` is one comma-joined string of only the labels that exist: `plan:impl`, `status:upcoming`, and each domain label. Leave out any part that is absent; never leave an empty entry or a leading or trailing comma (marvin would pass an empty `--label` to `gh`). Put no spaces around the commas. Example: `--label "plan:impl,status:upcoming,domain:backend"`.

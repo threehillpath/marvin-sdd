@@ -428,6 +428,10 @@ func TestGuidancePrintsSectionsAndRules(t *testing.T) {
 		"indent the opening fence, every code line and the closing fence",
 		"Don't start a line with an HTML tag, <? or <!",
 		"Use no raw HTML",
+		"<?, <![CDATA[ or <! followed by a letter",
+		"List<?>",
+		"backslash-escaped",
+		"put them in backticks",
 		"Put it in backticks as inline code",
 	} {
 		if !strings.Contains(out, rule) {
@@ -477,18 +481,17 @@ func scopeMap(content string) *tmpl.SectionMap {
 	return m
 }
 
-// TestRenderRefusesHTMLBlocksOfEveryType covers blocks the line scanner never
-// sees: processing instructions, CDATA, declarations and a lone tag, all of
-// which swallow what follows or render nothing.
+// TestRenderRefusesHTMLBlocksOfEveryType covers HTML blocks the line scanner
+// never sees: a lone tag, which swallows what follows or renders nothing.
+// Processing instructions, CDATA and declarations are reported by Check as
+// raw HTML before the goldmark backstop runs; the backstop's own handling of
+// them is guarded in verify_internal_test.go.
 func TestRenderRefusesHTMLBlocksOfEveryType(t *testing.T) {
 	cases := []struct {
 		name, content string
 		line          int
 		quote         string
 	}{
-		{"unclosed processing instruction", "Every file must start with\n<?php declare(strict_types=1);", 2, "<?php declare(strict_types=1);"},
-		{"cdata", "intro\n\n<![CDATA[ stuff", 3, "<![CDATA["},
-		{"doctype without >", "<!DOCTYPE html\nbody", 1, "<!DOCTYPE html"},
 		{"div", "text\n\n<div>\nx\n</div>", 3, "<div>"},
 		{"a lone inline tag becomes a block", "text\n\n<kbd>\n\nmore", 3, "<kbd>"},
 	}
@@ -496,6 +499,27 @@ func TestRenderRefusesHTMLBlocksOfEveryType(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			wantRefusedAt(t, "impl-phase", scopeMap(c.content), "section:scope", c.line,
 				"HTML block", c.quote, "swallow", "backticks", "remove")
+		})
+	}
+}
+
+// TestRenderRefusesProcessingInstructionCDATAAndDeclaration verifies the
+// openers that used to reach only the backstop are now refused by Check as
+// raw HTML, with the line and the opener named.
+func TestRenderRefusesProcessingInstructionCDATAAndDeclaration(t *testing.T) {
+	cases := []struct {
+		name, content string
+		line          int
+		quote         string
+	}{
+		{"unclosed processing instruction", "Every file must start with\n<?php declare(strict_types=1);", 2, "<?"},
+		{"cdata", "intro\n\n<![CDATA[ stuff", 3, "<![CDATA["},
+		{"doctype without >", "<!DOCTYPE html\nbody", 1, "<!"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			wantRefusedAt(t, "impl-phase", scopeMap(c.content), "section:scope", c.line,
+				"raw HTML", `"`+c.quote, "swallow", "backticks", "remove")
 		})
 	}
 }
@@ -566,4 +590,146 @@ func TestRenderRefusesEmptyHeadingsAtTheirLine(t *testing.T) {
 func TestRenderRefusesLoneCarriageReturnInContent(t *testing.T) {
 	m := scopeMap("a\r## X")
 	wantRefusedAt(t, "impl-phase", m, "section:scope", 1, `"Scope"`, "carriage return", "replace the carriage return with a line break")
+}
+
+// TestGuidanceTDDEntryPointSaysNoneWithReason verifies impl-phase guidance
+// tells the author to write None. plus a reason instead of omitting the
+// section: an omitted section passes validate silently and review-phase's
+// structural pre-check never runs.
+func TestGuidanceTDDEntryPointSaysNoneWithReason(t *testing.T) {
+	out := tmpl.Guidance(loadBuiltIn(t, "impl-phase"))
+	start := strings.Index(out, "TDD Entry Point (")
+	end := strings.Index(out, "\nComponents (")
+	if start < 0 || end < start {
+		t.Fatalf("no TDD Entry Point block in the guidance:\n%s", out)
+	}
+	out = out[start:end] // only this section's own guidance counts
+	if strings.Contains(out, "Omit this section") {
+		t.Errorf("guidance still says to omit tdd_entry_point:\n%s", out)
+	}
+	if !strings.Contains(out, "None.") {
+		t.Errorf("guidance should tell the author to write None. plus the reason:\n%s", out)
+	}
+}
+
+// guidanceLines returns the lines of the guidance output with their
+// surrounding spaces trimmed.
+func guidanceLines(out string) []string {
+	var lines []string
+	for _, l := range strings.Split(out, "\n") {
+		lines = append(lines, strings.TrimSpace(l))
+	}
+	return lines
+}
+
+func hasLinePrefix(lines []string, prefix string) bool {
+	for _, l := range lines {
+		if strings.HasPrefix(l, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestGuidanceKeepsGuidanceLinesSeparate verifies --guidance wraps each line
+// of a section's guidance on its own: the What / Where / Passes when format
+// of tdd_entry_point and the checkbox items of success_criteria each start
+// their own output line instead of being run into one paragraph.
+func TestGuidanceKeepsGuidanceLinesSeparate(t *testing.T) {
+	lines := guidanceLines(tmpl.Guidance(loadBuiltIn(t, "impl-phase")))
+	for _, prefix := range []string{
+		"What: <one sentence", "Where: <test file path", "Passes when: <observable outcome>",
+		"- [ ] TDD entry point test written", "- [ ] Implementation complete", "- [ ] PR reviewed and merged",
+	} {
+		if !hasLinePrefix(lines, prefix) {
+			t.Errorf("no output line starts with %q:\n%s", prefix, strings.Join(lines, "\n"))
+		}
+	}
+	for _, l := range lines {
+		if strings.HasSuffix(l, "- [") || strings.HasSuffix(l, "-") || strings.HasPrefix(l, "]") {
+			t.Errorf("a checkbox marker was split across lines at %q", l)
+		}
+	}
+}
+
+// TestGuidanceNeverSplitsCheckboxMarker verifies a long list item wraps
+// without breaking "- [ ]" apart, and its continuation stays indented.
+func TestGuidanceNeverSplitsCheckboxMarker(t *testing.T) {
+	long := strings.Repeat("measurable ", 12)
+	yml := "type: impl-phase\ntitle_prefix: \"[PLAN-XXXXX-N] <T>\"\nmetadata: [Status]\nsections:\n  - id: a\n    heading: A\n    required: true\n    guidance: |\n      Intro words " + strings.Repeat("filler ", 10) + "and then a - [ ] marker mid-line, and a list:\n      - [ ] " + long + "end\n"
+	sc, err := tmpl.LoadSchema(builtIn, []byte(yml))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := tmpl.Guidance(sc)
+	out = out[strings.Index(out, "\nA (required"):] // the section guidance, not the rules above it
+	for _, l := range guidanceLines(out) {
+		if strings.HasSuffix(l, "- [") || strings.HasSuffix(l, "-") || strings.HasPrefix(l, "]") {
+			t.Errorf("a checkbox marker was split at %q:\n%s", l, out)
+		}
+		if len(l) > 78 {
+			t.Errorf("line over the width: %q", l)
+		}
+	}
+	if !strings.Contains(out, "- [ ] measurable") {
+		t.Errorf("the list item should start with its marker intact:\n%s", out)
+	}
+}
+
+// guidanceFor loads a one-section schema whose guidance is yml's literal text
+// and returns that section's output lines (without the two-space indent).
+func guidanceFor(t *testing.T, guidance string) []string {
+	t.Helper()
+	body := ""
+	for _, l := range strings.Split(guidance, "\n") {
+		body += "      " + l + "\n"
+	}
+	yml := "type: impl-phase\ntitle_prefix: \"[PLAN-XXXXX-N] <T>\"\nmetadata: [Status]\nsections:\n  - id: a\n    heading: A\n    required: true\n    guidance: |\n" + body
+	sc, err := tmpl.LoadSchema(builtIn, []byte(yml))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := tmpl.Guidance(sc)
+	out = out[strings.Index(out, "\n  a: a single | block\n")+len("\n  a: a single | block\n"):]
+	var lines []string
+	for _, l := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
+		lines = append(lines, strings.TrimPrefix(l, "  "))
+	}
+	return lines
+}
+
+// TestGuidanceHangsOnlyIndentedListAndLabelLines verifies prose that merely
+// contains a colon wraps flush left, while an indented list item or label line
+// hangs its continuation, and a mid-line checkbox marker stays with the word
+// after it.
+func TestGuidanceHangsOnlyIndentedListAndLabelLines(t *testing.T) {
+	long := strings.Repeat("word ", 20)
+	t.Run("prose with a colon is flush left", func(t *testing.T) {
+		for _, l := range guidanceFor(t, "Note: "+long+"\nSecond: "+long) {
+			if strings.HasPrefix(l, " ") {
+				t.Errorf("a prose continuation must not hang: %q", l)
+			}
+		}
+	})
+	t.Run("an indented list item hangs", func(t *testing.T) {
+		lines := guidanceFor(t, "Items:\n  - [ ] "+long+"end")
+		if len(lines) < 3 || lines[0] != "Items:" || !strings.HasPrefix(lines[1], "  - [ ] word") || !strings.HasPrefix(lines[2], "    word") {
+			t.Errorf("want the item hung two spaces in, got %q", lines)
+		}
+	})
+	t.Run("an indented label line hangs", func(t *testing.T) {
+		lines := guidanceFor(t, "Format:\n  Where: "+long+"end")
+		if len(lines) < 3 || !strings.HasPrefix(lines[1], "  Where: word") || !strings.HasPrefix(lines[2], "    word") {
+			t.Errorf("want the label continuation hung, got %q", lines)
+		}
+	})
+	t.Run("a mid-line checkbox marker stays with the next word", func(t *testing.T) {
+		for n := 1; n <= 12; n++ { // vary where the marker falls against the width
+			for _, l := range guidanceFor(t, strings.Repeat("filler ", n)+"Format: - [ ] <measurable requirement>") {
+				if strings.HasSuffix(l, "- [ ]") {
+					t.Errorf("%d fillers: the marker was left at the end of a line: %q", n, l)
+				}
+			}
+		}
+	})
 }

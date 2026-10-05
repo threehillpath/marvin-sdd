@@ -26,7 +26,7 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(&sc); err != nil && !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("%sparsing schema: %w%s", pre, err, unknownFieldHint(err))
+		return nil, fmt.Errorf("%sparsing schema: %s%s", pre, decodeErrText(err), unknownFieldHint(err))
 	}
 	var second yaml.Node
 	if err := dec.Decode(&second); err == nil {
@@ -84,6 +84,26 @@ func LoadSchema(origin string, data []byte) (*Schema, error) {
 	sc.ExpectedKind = kind
 	sc.loaded = true
 	return &sc, nil
+}
+
+// decodeErrText is err's text with the Go type names of unknown-field errors
+// replaced by where the field is ("at the top level", "in a section", "under
+// validation").
+func decodeErrText(err error) string {
+	var te *yaml.TypeError
+	if !errors.As(err, &te) {
+		return err.Error()
+	}
+	where := strings.NewReplacer(
+		"in type template.SchemaSection", "in a section",
+		"in type template.SchemaValidation", "under validation",
+		"in type template.Schema", "at the top level",
+	)
+	lines := make([]string, len(te.Errors))
+	for i, e := range te.Errors {
+		lines[i] = where.Replace(e)
+	}
+	return "yaml: unmarshal errors:\n  " + strings.Join(lines, "\n  ")
 }
 
 // unknownFieldHint is the advice appended to a decode error that includes an

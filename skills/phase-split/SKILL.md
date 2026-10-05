@@ -105,7 +105,7 @@ Once every draft has validated, tell the user the drafts are ready, show them an
 marvin template render impl-phase --draft "<project-root>/.claude/cache/<plan>/phase-N-draft.yml"
 ```
 
-Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`). If the user asks for changes, rewrite that draft file with `Write` and validate it again.
+Also show the `schema:` line from stderr (and any warnings) above the pasted body, so the user sees which schema shaped it. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`). If the user asks for changes, rewrite that draft file with `Write` and validate it again.
 
 Read `../SHARED/LABELS.md` for label conventions. Infer domain labels from the impl plan content — confirm with the user once before creating all issues ("I'll apply `plan:phase`, `status:upcoming`, `domain:backend` to all phases — correct?").
 

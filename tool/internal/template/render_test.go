@@ -602,3 +602,66 @@ func TestGuidanceTDDEntryPointSaysNoneWithReason(t *testing.T) {
 		t.Errorf("guidance should tell the author to write None. plus the reason:\n%s", out)
 	}
 }
+
+// guidanceLines returns the lines of the guidance output with their
+// surrounding spaces trimmed.
+func guidanceLines(out string) []string {
+	var lines []string
+	for _, l := range strings.Split(out, "\n") {
+		lines = append(lines, strings.TrimSpace(l))
+	}
+	return lines
+}
+
+func hasLinePrefix(lines []string, prefix string) bool {
+	for _, l := range lines {
+		if strings.HasPrefix(l, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// TestGuidanceKeepsGuidanceLinesSeparate verifies --guidance wraps each line
+// of a section's guidance on its own: the What / Where / Passes when format
+// of tdd_entry_point and the checkbox items of success_criteria each start
+// their own output line instead of being run into one paragraph.
+func TestGuidanceKeepsGuidanceLinesSeparate(t *testing.T) {
+	lines := guidanceLines(tmpl.Guidance(loadBuiltIn(t, "impl-phase")))
+	for _, prefix := range []string{
+		"What: <one sentence", "Where: <test file path", "Passes when: <observable outcome>",
+		"- [ ] TDD entry point test written", "- [ ] Implementation complete", "- [ ] PR reviewed and merged",
+	} {
+		if !hasLinePrefix(lines, prefix) {
+			t.Errorf("no output line starts with %q:\n%s", prefix, strings.Join(lines, "\n"))
+		}
+	}
+	for _, l := range lines {
+		if strings.HasSuffix(l, "- [") || strings.HasSuffix(l, "-") || strings.HasPrefix(l, "]") {
+			t.Errorf("a checkbox marker was split across lines at %q", l)
+		}
+	}
+}
+
+// TestGuidanceNeverSplitsCheckboxMarker verifies a long list item wraps
+// without breaking "- [ ]" apart, and its continuation stays indented.
+func TestGuidanceNeverSplitsCheckboxMarker(t *testing.T) {
+	long := strings.Repeat("measurable ", 12)
+	yml := "type: impl-phase\ntitle_prefix: \"[PLAN-XXXXX-N] <T>\"\nmetadata: [Status]\nsections:\n  - id: a\n    heading: A\n    required: true\n    guidance: |\n      Intro words " + strings.Repeat("filler ", 10) + "and then a - [ ] marker mid-line, and a list:\n      - [ ] " + long + "end\n"
+	sc, err := tmpl.LoadSchema(builtIn, []byte(yml))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := tmpl.Guidance(sc)
+	for _, l := range guidanceLines(out) {
+		if strings.HasSuffix(l, "- [") || strings.HasSuffix(l, "-") || strings.HasPrefix(l, "]") {
+			t.Errorf("a checkbox marker was split at %q:\n%s", l, out)
+		}
+		if len(l) > 78 {
+			t.Errorf("line over the width: %q", l)
+		}
+	}
+	if !strings.Contains(out, "- [ ] measurable") {
+		t.Errorf("the list item should start with its marker intact:\n%s", out)
+	}
+}

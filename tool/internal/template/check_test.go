@@ -1097,3 +1097,28 @@ func TestCheckMarkdownInlineHTMLOpenerAcrossMetadataLines(t *testing.T) {
 		t.Errorf("want a raw HTML error naming the Implementation Plan metadata value:\n%s", res.Format())
 	}
 }
+
+// TestLoadSchemaOnlyUnknownFieldErrorsGetTheUnknownFieldHint verifies a YAML
+// syntax error or a wrong value type is reported as the YAML error alone: the
+// "misspelt key" advice is for unknown fields, and would send the reader
+// hunting for a key that does not exist.
+func TestLoadSchemaOnlyUnknownFieldErrorsGetTheUnknownFieldHint(t *testing.T) {
+	const head = "type: impl-plan\ntitle_prefix: \"[PLAN-XXXXX] <T>\"\n"
+	for name, yml := range map[string]string{
+		"syntax error":  head + "sections:\n  - id: a\n   heading: A\n",
+		"type error":    head + "sections:\n  - id: a\n    heading: A\n    required: maybe\n",
+		"unclosed flow": "type: [not, a, schema\n",
+	} {
+		_, err := tmpl.LoadSchema(overrideOrigin, []byte(yml))
+		if err == nil {
+			t.Fatalf("%s: want an error", name)
+		}
+		if strings.Contains(err.Error(), "does not know") || !strings.Contains(err.Error(), "parsing schema") || !strings.Contains(err.Error(), overrideOrigin) {
+			t.Errorf("%s: want the YAML error alone, got %q", name, err)
+		}
+	}
+	_, err := tmpl.LoadSchema(overrideOrigin, []byte(head+"requried: true\nmetdata: [A]\n"))
+	if err == nil || strings.Count(err.Error(), "does not know") != 1 || !strings.Contains(err.Error(), "requried") || !strings.Contains(err.Error(), "metdata") {
+		t.Errorf("several unknown fields: want both named and the hint once, got %v", err)
+	}
+}

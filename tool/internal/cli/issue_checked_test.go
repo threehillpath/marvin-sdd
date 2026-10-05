@@ -580,6 +580,7 @@ func TestTemplateNameMustBeOneOfTheFixedTypes(t *testing.T) {
 // problems and the input's findings or read error together on stderr with
 // empty stdout and exit 1.
 func TestValidateReportsInputFindingsWithUsageProblems(t *testing.T) {
+	chdir(t, t.TempDir())
 	bad := writeTemp(t, "d.yml", phaseDraftNoVerification)
 	missing := filepath.Join(t.TempDir(), "nope.yml")
 	for name, tc := range map[string]struct {

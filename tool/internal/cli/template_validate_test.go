@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"threehillpath.com/marvin-sdd/tool/internal/cli"
@@ -34,9 +35,15 @@ sections:
 // phaseDraftNoVerification drops the required verification section.
 var phaseDraftNoVerification = strings.Replace(phaseDraftOK, "  verification: |\n    go test ./...\n", "", 1)
 
-// runCLI runs marvin with args and returns stdout, stderr and the error.
+// runCLI runs marvin with args and returns stdout, stderr and the error. It
+// first changes into an empty temp directory unless the test already chose a
+// directory with chdir, so no plan-workflow-templates/ override in the repo or
+// in ~/.claude can change which schema the test runs against.
 func runCLI(t *testing.T, args ...string) (string, string, error) {
 	t.Helper()
+	if _, ok := chdirred.Load(t); !ok {
+		chdir(t, t.TempDir())
+	}
 	var stdout, stderr bytes.Buffer
 	root := cli.NewRootCmd(strings.NewReader(""), &stdout, &stderr, &exectest.FakeRunner{})
 	root.SetArgs(args)
@@ -153,6 +160,10 @@ func TestTemplateValidateWarningsAloneExit0(t *testing.T) {
 	}
 }
 
+// chdirred records the tests that already changed directory, so runCLI keeps
+// the directory they chose.
+var chdirred sync.Map
+
 func chdir(t *testing.T, dir string) {
 	t.Helper()
 	orig, err := os.Getwd()
@@ -162,7 +173,11 @@ func chdir(t *testing.T, dir string) {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chdir(orig) })
+	chdirred.Store(t, true)
+	t.Cleanup(func() {
+		chdirred.Delete(t)
+		os.Chdir(orig)
+	})
 }
 
 // TestTemplateValidateReportsOverridePath verifies the origin names the

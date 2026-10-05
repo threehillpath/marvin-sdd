@@ -1041,3 +1041,41 @@ func TestIssueCreateTemplatePathEmptyLabelIsReported(t *testing.T) {
 		t.Errorf("stderr:\n%s", stderr)
 	}
 }
+
+// TestIssueCreateEditMalformedOverrideStructureExits1 verifies an override with
+// a duplicate section id exits 1 on issue create and issue edit, naming the
+// file, with zero gh calls.
+func TestIssueCreateEditMalformedOverrideStructureExits1(t *testing.T) {
+	withConfigFixture(t) // chdirs into a fresh directory holding the config
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	od := filepath.Join(dir, ".claude", "plan-workflow-templates")
+	if err := os.MkdirAll(od, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(od, "impl-phase.yml")
+	override := "type: impl-phase\ntitle_prefix: \"[PLAN-XXXXX-N] <T>\"\nsections:\n  - id: a\n    heading: A\n  - id: a\n    heading: B\n"
+	if err := os.WriteFile(path, []byte(override), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	draft := writeTemp(t, "d.yml", phaseDraftOK)
+	for name, args := range map[string][]string{
+		"create": {"issue", "create", "--template", "impl-phase", "--draft", draft},
+		"edit":   {"issue", "edit", "7", "--template", "impl-phase", "--draft", draft},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fake := &exectest.FakeRunner{}
+			code, stdout, stderr := runIssueExit(fake, args...)
+			if code != 1 || stdout != "" || len(fake.Calls) != 0 {
+				t.Fatalf("code=%d stdout=%q calls=%v\nstderr: %s", code, stdout, fake.Calls, stderr)
+			}
+			for _, w := range []string{path, `"id"`, "twice"} {
+				if !strings.Contains(stderr, w) {
+					t.Errorf("stderr should contain %q:\n%s", w, stderr)
+				}
+			}
+		})
+	}
+}

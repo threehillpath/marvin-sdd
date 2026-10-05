@@ -461,7 +461,8 @@ func TestTemplateRenderDraftIsExclusiveWithOtherModes(t *testing.T) {
 
 // TestTemplateMalformedOverrideStructureExits1 verifies an override with a
 // duplicate section id (which would render its content twice) exits 1 on
-// every command that loads a schema, naming the override file.
+// validate and render, naming the override file. issue create and issue edit
+// are covered by TestIssueCreateEditMalformedOverrideStructureExits1.
 func TestTemplateMalformedOverrideStructureExits1(t *testing.T) {
 	dir := t.TempDir()
 	od := filepath.Join(dir, ".claude", "plan-workflow-templates")

@@ -598,6 +598,12 @@ func TestRenderRefusesLoneCarriageReturnInContent(t *testing.T) {
 // structural pre-check never runs.
 func TestGuidanceTDDEntryPointSaysNoneWithReason(t *testing.T) {
 	out := tmpl.Guidance(loadBuiltIn(t, "impl-phase"))
+	start := strings.Index(out, "TDD Entry Point (")
+	end := strings.Index(out, "\nComponents (")
+	if start < 0 || end < start {
+		t.Fatalf("no TDD Entry Point block in the guidance:\n%s", out)
+	}
+	out = out[start:end] // only this section's own guidance counts
 	if strings.Contains(out, "Omit this section") {
 		t.Errorf("guidance still says to omit tdd_entry_point:\n%s", out)
 	}

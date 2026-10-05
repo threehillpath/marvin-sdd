@@ -130,6 +130,58 @@ sections:
 	}
 }
 
+// TestLoadSchemaRejectsMalformedStructure has one case per structural rule
+// LoadSchema enforces beyond the required fields. Each error must name the
+// origin, the offending field and the fix.
+func TestLoadSchemaRejectsMalformedStructure(t *testing.T) {
+	const head = "type: impl-plan\ntitle_prefix: \"[PLAN-XXXXX] <T>\"\n"
+	const sec = "  - id: %s\n    heading: %s\n    required: true\n"
+	section := func(id, heading string) string { return fmt.Sprintf(sec, id, heading) }
+	cases := []struct {
+		name string
+		yaml string
+		want []string
+	}{
+		{"unknown top-level field", head + "requried: true\n",
+			[]string{overrideOrigin, "requried", "field"}},
+		{"unknown section field", head + "sections:\n" + section("a", "A") + "    requried: true\n",
+			[]string{overrideOrigin, "requried"}},
+		{"empty section id", head + "sections:\n" + section(`""`, "A"),
+			[]string{overrideOrigin, "section 1", `"id"`, "empty", "Set"}},
+		{"empty section heading", head + "sections:\n" + section("a", `""`),
+			[]string{overrideOrigin, `"a"`, `"heading"`, "empty", "Set"}},
+		{"duplicate section id", head + "sections:\n" + section("a", "A") + section("a", "B"),
+			[]string{overrideOrigin, `"id"`, `"a"`, "twice", "Rename"}},
+		{"duplicate section heading", head + "sections:\n" + section("a", "Same") + section("b", "Same"),
+			[]string{overrideOrigin, `"heading"`, `"Same"`, "twice", "Rename"}},
+		{"duplicate metadata key", head + "metadata: [Author, Status, Author]\n",
+			[]string{overrideOrigin, "metadata", `"Author"`, "twice", "Remove"}},
+		{"two named numbered sections", head + "sections:\n" + section("a", "A") + "    repeatable: true\n    numbered: true\n    named: true\n" + section("b", "B") + "    repeatable: true\n    numbered: true\n    named: true\n",
+			[]string{overrideOrigin, `"named"`, `"a"`, `"b"`, "at most one", "named: false"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := tmpl.LoadSchema(overrideOrigin, []byte(c.yaml))
+			if err == nil {
+				t.Fatal("want a schema error, got nil")
+			}
+			for _, w := range c.want {
+				if !strings.Contains(err.Error(), w) {
+					t.Errorf("error %q missing %q", err, w)
+				}
+			}
+		})
+	}
+}
+
+// TestLoadSchemaAcceptsBuiltIns verifies the stricter loader still accepts
+// every embedded schema.
+func TestLoadSchemaAcceptsBuiltIns(t *testing.T) {
+	for _, name := range tmpl.DefaultSchemaNames() {
+		loadBuiltIn(t, name)
+	}
+}
+
 func TestBuiltInImplPlanNamedFlags(t *testing.T) {
 	sc := loadBuiltIn(t, "impl-plan")
 	got := map[string]bool{}

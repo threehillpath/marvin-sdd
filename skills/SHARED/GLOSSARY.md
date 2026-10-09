@@ -68,6 +68,21 @@ Backlog → Ready → In Progress → In Review → Done
 
 A Task issue follows this same state machine, but `quick-task` is the sole driver of all of a Task issue's board transitions — unlike the phased pipeline above, no separate `start-impl`/`finish-phase`/`wrap-phase` skills participate.
 
+## Durable story docs
+
+`docs/stories/<plan>/` holds the durable record of a story, committed to the repo:
+
+```
+docs/stories/<plan>/
+  README.md                Index: plan status, contents, phase table — written by finish-impl
+  architecture.md          Arch plan issue body verbatim — written by finish-impl
+  implementation-plan.md   Impl plan issue body verbatim — written by finish-impl
+  retrospective.md         Cross-phase thematic synthesis + red-team critique — written by finish-impl
+  phase-NN-<slug>.md       One per phase — written by wrap-phase as each phase merges
+```
+
+A `phase-NN-<slug>.md` holds the phase spec, implementation summary, test results, and decisions / scope changes / deferred items / corrections. `NN` and `<slug>` come from `marvin parse title`.
+
 ## Concepts referenced by multiple skills
 
 These terms are defined in the skill that owns them; this list points to the source of truth.

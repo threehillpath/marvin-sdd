@@ -81,6 +81,7 @@ Each plan traces back to a source GitHub issue. The source issue number becomes 
 
 **Runtime** (needed when using skills):
 - [`gh`](https://cli.github.com/) authenticated with access to your repo and project
+- git ≥ 2.31 (needed for `git rev-parse --path-format=absolute`, used by worktree path resolution)
 - A GitHub Project (classic projects not supported — must be a Projects v2 board)
 - [`jq`](https://jqlang.github.io/jq/) (optional) for post-processing `marvin --json` output in custom skill prose (marvin's list/object commands default to plain text)
 - [`glow`](https://github.com/charmbracelet/glow) (optional) for rendered markdown previews

@@ -159,7 +159,7 @@ marvin worktree resolve <worktree_path>
 
 Read `SUPPLEMENTS/LOOP.md` for the TDD loop instructions.
 
-Spawn the `plan-workflow:tdd-implementer` agent (sonnet — set in `agents/tdd-implementer.md`) **without** `isolation: "worktree"` (the worktree was created in A7). Assemble the task prompt by **referencing** the inputs the sub-agent should fetch — do not paste full file contents into the prompt — mirroring `implement-phase/SKILL.md`'s equivalent spawn step in shape:
+Spawn the `plan-workflow:tdd-implementer` agent (sonnet at `high` effort — set in `agents/tdd-implementer.md`) **without** `isolation: "worktree"` (the worktree was created in A7). Assemble the task prompt by **referencing** the inputs the sub-agent should fetch — do not paste full file contents into the prompt — mirroring `implement-phase/SKILL.md`'s equivalent spawn step in shape:
 
 1. Task issue number (and `gh issue view` command for it) — the sub-agent fetches title, Problem Statement, Scope, Technical Analysis, TDD Entry Point, and Success Criteria itself.
 2. Source issue number `$0` (and `gh issue view` command for it).

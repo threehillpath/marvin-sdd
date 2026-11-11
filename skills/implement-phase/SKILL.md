@@ -102,7 +102,7 @@ If `marvin` exits with code 2, surface to the user: "Configuration missing — r
 
 Read `SUPPLEMENTS/LOOP.md` for the TDD loop instructions.
 
-Spawn the `plan-workflow:tdd-implementer` agent (sonnet — set in `agents/tdd-implementer.md`) **without** `isolation: "worktree"` (the worktree was created in step 2b). Assemble the task prompt by **referencing** the inputs the sub-agent should fetch — do not paste full file contents into the prompt:
+Spawn the `plan-workflow:tdd-implementer` agent (sonnet at `high` effort — set in `agents/tdd-implementer.md`) **without** `isolation: "worktree"` (the worktree was created in step 2b). Assemble the task prompt by **referencing** the inputs the sub-agent should fetch — do not paste full file contents into the prompt:
 
 1. Phase issue number `$0` (and `gh issue view` command for it). The sub-agent fetches the title, objective, scope, TDD entry point, and success criteria itself.
 2. Impl plan issue number (and `gh issue view` command for it). The sub-agent fetches the full component specs and design notes itself.

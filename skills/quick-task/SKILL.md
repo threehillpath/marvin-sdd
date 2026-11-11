@@ -127,8 +127,8 @@ The title comes from the draft, so do not pass `--title` or `--body`. On success
 
 - **0** — created.
 - **3** — the draft does not conform; nothing was created. The findings are on stderr, most naming a draft line, all saying how to fix it. Rewrite the draft file with `Write` to fix the findings. If the fix changes only how the draft is written (quoting, escaping, block style, heading depth) and not what it says, run the same command again. If it changes what the draft says (content added, removed or reworded, or the title), render the draft again, show the user, and get approval before running the command again. Make at most 3 fix attempts per round of user changes; if it still exits 3, show the user the findings and stop.
-- **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry.
-- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry.
+- **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry: the same input fails the same way.
+- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry: it stays missing until the user configures the project.
 
 Comment-link the source issue — informational only, not a GitHub-native sub-issue link, since Tasks are deliberately outside the arch/impl/phase hierarchy `marvin issue tree` walks:
 
@@ -159,17 +159,13 @@ marvin worktree resolve <worktree_path>
 
 Read `SUPPLEMENTS/LOOP.md` for the TDD loop instructions.
 
-Spawn the `plan-workflow:tdd-implementer` agent (sonnet at `high` effort — set in `agents/tdd-implementer.md`) **without** `isolation: "worktree"` (the worktree was created in A7). Assemble the task prompt by **referencing** the inputs the sub-agent should fetch — do not paste full file contents into the prompt — mirroring `implement-phase/SKILL.md`'s equivalent spawn step in shape:
+Spawn the `plan-workflow:tdd-implementer` agent (sonnet at `high` effort — set in `agents/tdd-implementer.md`) **without** `isolation: "worktree"` (the worktree was created in A7). Assemble the task prompt in the same shape as `implement-phase/SKILL.md`'s spawn step. Reference inputs for the sub-agent to fetch rather than pasting them: it reads files fresh inside the worktree, and a pasted copy goes stale and bloats the prompt. Include:
 
-1. Task issue number (and `gh issue view` command for it) — the sub-agent fetches title, Problem Statement, Scope, Technical Analysis, TDD Entry Point, and Success Criteria itself.
-2. Source issue number `$0` (and `gh issue view` command for it).
-3. **Paths only** for the relevant source files identified in A3 — the sub-agent reads them inside the worktree.
-4. Task branch: `<task_branch>`.
-5. **Absolute** worktree path (resolved above — never the repo-relative form from A2).
-6. Repo: `<repo>`.
-7. Task title.
-8. Test commands from `.claude/plan-workflow-config.yml`.
-9. Full instructions from `SUPPLEMENTS/LOOP.md` (paste verbatim — it is the sub-agent's primary procedural guide).
+- Task issue number and source issue `$0`, each with its `gh issue view` command (the sub-agent fetches Problem Statement, Scope, Technical Analysis, TDD Entry Point and Success Criteria itself), plus the repo and Task title.
+- Paths only for the relevant source files identified in A3.
+- The task branch and the **absolute** worktree path resolved above (the repo-relative form from A2 does not work from the sub-agent's working directory).
+- Test commands from `.claude/plan-workflow-config.yml`.
+- The full text of `SUPPLEMENTS/LOOP.md`, pasted verbatim: it is the sub-agent's procedure and it has no other way to read it.
 
 The sub-agent must not pause for user confirmation except on unresolvable failure or ambiguity. Capture its returned PR number, PR URL, and summary. If it stops instead and its report says progress has stalled on multiple criteria, offer to re-spawn it with `model: "opus"` (the Agent call's `model` overrides the agent definition) and the same prompt plus the stalled run's report; the worktree keeps every criterion already committed.
 
@@ -214,14 +210,7 @@ Message: "Task PR opened and reviewed — see findings above. Address any blocki
 
 ### B11. Re-derive naming
 
-Independently of Mode A's state — Mode B is a separate invocation with no memory of a prior run:
-
-```bash
-gh issue view $0 --repo <repo> --json labels
-marvin names derive $0 --task --type <type> --json
-```
-
-Resolve `<type>` from `$0`'s labels exactly as in A1. Capture `task_number`, `title_prefix.task`, `worktree_path`, `task_branch`.
+Mode B is a separate invocation with no memory of Mode A, so repeat A1's type resolution (labels only is enough: `gh issue view $0 --repo <repo> --json labels`) and A2's `marvin names derive`. Capture `task_number`, `title_prefix.task`, `worktree_path`, `task_branch`.
 
 ### B12. Check the Task PR's state
 

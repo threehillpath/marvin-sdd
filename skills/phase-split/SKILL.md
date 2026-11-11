@@ -95,7 +95,7 @@ marvin template validate impl-phase --draft "<project-root>/.claude/cache/<plan>
 
 - **0** — the draft conforms. Any warnings are printed on stdout after the `schema:` line; a warning alone does not fail the draft.
 - **3** — the draft does not conform. The findings are on stdout, most naming a draft line, all saying how to fix it. Rewrite that draft file with `Write` to fix the findings and validate it again. Make at most 3 fix-and-retry attempts per draft; if it still exits 3, show the user the findings and stop, with no issue created.
-- **1** — a usage or operational error (for example an unreadable draft). Show stderr to the user and stop. Do not retry.
+- **1** — a usage or operational error (for example an unreadable draft). Show stderr to the user and stop. Do not retry: the same input fails the same way.
 
 Create issues only once every draft has exited 0.
 
@@ -135,8 +135,8 @@ The title comes from the draft, so do not pass `--title` or `--body`. On success
 
 - **0** — created.
 - **3** — the draft does not conform; nothing was created. The findings are on stderr, most naming a draft line, all saying how to fix it. Rewrite the draft file with `Write` to fix the findings and run the same command again. Make at most 3 fix-and-retry attempts; if it still exits 3, show the user the findings and stop.
-- **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry.
-- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry.
+- **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry: the same input fails the same way.
+- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry: it stays missing until the user configures the project.
 
 If a create stops the run (exit 1, 2, or 3 after the retries), tell the user: which phase issues were already created (number and title for each) and whether `link-parent` ran for each; which phases were not created, with each one's draft file path; and that steps 3b (title/body check), 4 (phases-created comment) and 5 (board moves) did not run. That lets the split be finished by hand. Do not delete the created issues and do not start over: step 3's existing-phase check would refuse a second run.
 
@@ -162,8 +162,8 @@ For each issue, check that the `## Objective` and `## Components` sections refer
 
 - **0** — fixed.
 - **3** — the corrected draft does not conform; nothing was changed. The findings are on stderr. Rewrite the draft file with `Write` to fix them and run the same command again. Make at most 3 fix attempts; if it still exits 3, show the user the findings and stop.
-- **1** — a usage or operational error. Show stderr to the user and stop. Do not retry.
-- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry.
+- **1** — a usage or operational error. Show stderr to the user and stop. Do not retry: the same input fails the same way.
+- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry: it stays missing until the user configures the project.
 
 ### 4. Post the phases-created comment
 

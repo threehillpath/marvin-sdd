@@ -113,8 +113,8 @@ The title comes from the draft, so do not pass `--title` or `--body`. On success
 
 - **0** — created.
 - **3** — the draft does not conform; nothing was created. The findings are on stderr, most naming a draft line, all saying how to fix it. Rewrite the draft file with `Write` to fix the findings. If the fix changes only how the draft is written (quoting, escaping, block style, heading depth) and not what it says, run the same command again. If it changes what the draft says (content added, removed or reworded, or the title), render the draft again, show the user, and get approval before running the command again. Make at most 3 fix attempts per round of user changes; if it still exits 3, show the user the findings and stop.
-- **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry.
-- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry.
+- **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry: the same input fails the same way.
+- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry: it stays missing until the user configures the project.
 
 ### 8. Link to source issue
 

@@ -74,14 +74,9 @@ marvin template render impl-phase --guidance
 
 If either command exits 1 (for example a malformed project override, or an unknown type), show stderr to the user and stop. Neither command reads the config, so neither returns exit 2.
 
-Fill every key of the skeleton with phase-specific content, except that `tdd_entry_point` is optional: for a phase with no TDD entry point, keep the key and write `None.` followed by the reason. Do not omit the key: an omitted key passes `validate` silently, and an empty block leaves a bare `## TDD Entry Point` heading; neither triggers review-phase's structural pre-check. In `title:`, replace `XXXXX`, `N` and `<Phase Title>` with the real plan number, phase number and title (for a multi-impl track the identifier is `[PLAN-XXXXX-<suffix>-N]`). Follow every rule `--guidance` prints (its code-fence, heading-underline and HTML rules are not repeated here), plus the loader's key, tab, tag, anchor and alias rules, which `--guidance` does not print and which are in the list below. `../SHARED/CONFIG.md` describes the format. The rules most often broken:
+Fill every key of the skeleton with phase-specific content, except that `tdd_entry_point` is optional: for a phase with no TDD entry point, keep the key and write `None.` followed by the reason. Do not omit the key: an omitted key passes `validate` silently, and an empty block leaves a bare `## TDD Entry Point` heading; neither triggers review-phase's structural pre-check. In `title:`, replace `XXXXX`, `N` and `<Phase Title>` with the real plan number, phase number and title (for a multi-impl track the identifier is `[PLAN-XXXXX-<suffix>-N]`). Follow every rule `--guidance` prints and the rules in `../SHARED/DRAFT_AUTHORING.md`; the skill-specific metadata rule is:
 
-- Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
-- The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
-- Every metadata value must be non-empty. `Implementation Plan` starts with the issue reference, `#<n>` (for example `#132 ([PLAN-00112])`; if it names a plan, that plan must be the title's), and `Plan Number` is the title's plan number without brackets (`PLAN-00112` for the title `[PLAN-00112-3] ...`).
-- Each key appears once. Indent with spaces, never tabs.
-- No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`, except inside a code fence, where a `#` line is code and must stay unescaped (`\#` would print as is).
-- No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
+- `Implementation Plan` starts with the issue reference, `#<n>` (for example `#132 ([PLAN-00112])`; if it names a plan, that plan must be the title's), and `Plan Number` is the title's plan number without brackets (`PLAN-00112` for the title `[PLAN-00112-3] ...`).
 
 Once a phase's sections are filled in, `Write` it to that phase's own draft file, `<project-root>/.claude/cache/<plan>/phase-N-draft.yml`, where `<project-root>` is the main checkout's git root, as defined in `../SHARED/CONFIG.md` (not a linked worktree), `<plan>` is the lowercase PLAN-XXXXX number (for example `plan-00112`) and `N` is the phase number (for a multi-impl track use `phase-<suffix>-N-draft.yml`, e.g. `phase-A-1-draft.yml`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use each phase's own path in every command below, in double quotes, because the path may contain spaces.
 
@@ -129,14 +124,9 @@ Then create the phase issues in phase order, each from its draft file, capturing
 marvin issue create --template impl-phase --draft "<project-root>/.claude/cache/<plan>/phase-N-draft.yml" --label "<labels>"
 ```
 
-`<labels>` is one comma-joined string of only the labels that exist: `plan:phase`, `status:upcoming`, and each domain label. Leave out any part that is absent; never leave an empty entry or a leading or trailing comma (marvin would pass an empty `--label` to `gh`). Put no spaces around the commas. Example: `--label "plan:phase,status:upcoming,domain:backend"`.
+`<labels>` follows the comma-joined-string rule in `../SHARED/DRAFT_AUTHORING.md` and contains only the labels that exist: `plan:phase`, `status:upcoming`, and each domain label. Example: `--label "plan:phase,status:upcoming,domain:backend"`.
 
-The title comes from the draft, so do not pass `--title` or `--body`. On success stdout is the new issue number, then its URL; capture both. Warnings on stderr are fine. Handle the exit code:
-
-- **0** — created.
-- **3** — the draft does not conform; nothing was created. The findings are on stderr, most naming a draft line, all saying how to fix it. Rewrite the draft file with `Write` to fix the findings and run the same command again. Make at most 3 fix-and-retry attempts; if it still exits 3, show the user the findings and stop.
-- **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry: the same input fails the same way.
-- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry: it stays missing until the user configures the project.
+Handle the exit code as `../SHARED/DRAFT_AUTHORING.md` describes, with one difference for exit 3: the user already approved the phase list in step 2, so rewrite the draft file with `Write` to fix the findings and run the same command again without re-approval. Make at most 3 fix-and-retry attempts; if it still exits 3, show the user the findings and stop.
 
 If a create stops the run (exit 1, 2, or 3 after the retries), tell the user: which phase issues were already created (number and title for each) and whether `link-parent` ran for each; which phases were not created, with each one's draft file path; and that steps 3b (title/body check), 4 (phases-created comment) and 5 (board moves) did not run. That lets the split be finished by hand. Do not delete the created issues and do not start over: step 3's existing-phase check would refuse a second run.
 

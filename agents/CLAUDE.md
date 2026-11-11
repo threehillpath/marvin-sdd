@@ -6,8 +6,8 @@ Plugin sub-agents with fixed `model` and `effort` in frontmatter. Claude Code ta
 |---|---|---|---|
 | `code-reviewer` | opus / xhigh | `review-phase`, `review-impl`, `quick-task` | `SHARED/REVIEW_RUBRIC.md` → `SHARED/REVIEW_FINDING_FORMAT.md` |
 | `plan-red-teamer` | opus / xhigh | `red-team-plan` | `SHARED/PLAN_RED_TEAM_RUBRIC.md` → `SHARED/PLAN_RED_TEAM_FORMAT.md` |
-| `drift-auditor` | sonnet | `plan-drift` | `SHARED/PLAN_DRIFT_RUBRIC.md` → `SHARED/PLAN_DRIFT_FORMAT.md` |
-| `tdd-implementer` | sonnet | `implement-phase`, `quick-task` | LOOP.md pasted into its prompt |
+| `drift-auditor` | sonnet / high | `plan-drift` | `SHARED/PLAN_DRIFT_RUBRIC.md` → `SHARED/PLAN_DRIFT_FORMAT.md` |
+| `tdd-implementer` | sonnet / high | `implement-phase`, `quick-task` | LOOP.md pasted into its prompt |
 
 All paths under `skills/`. The first three are fresh-context, read-only spec checkers:
 

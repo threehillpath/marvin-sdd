@@ -60,16 +60,11 @@ marvin template render arch-plan --guidance
 
 If either command exits 1 (for example a malformed project override, or an unknown type), show stderr to the user and stop. Neither command reads the config, so neither returns exit 2.
 
-Fill every key of the skeleton with substantive content from the arch analysis. In `title:`, replace `XXXXX` and `<Title>` with the real plan number and title. Follow every rule `--guidance` prints (its code-fence, heading-underline and HTML rules are not repeated here), plus the loader's key, tab, tag, anchor and alias rules, which `--guidance` does not print and which are in the list below. `../SHARED/CONFIG.md` describes the format. The rules most often broken:
+Fill every key of the skeleton with substantive content from the arch analysis. In `title:`, replace `XXXXX` and `<Title>` with the real plan number and title. Follow every rule `--guidance` prints and the rules in `../SHARED/DRAFT_AUTHORING.md`; the skill-specific metadata rule is:
 
-- Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
-- The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
-- Every metadata value must be non-empty. `Source Issue` starts with the issue reference, `#<n>` (if it also names a plan, that plan must be the title's), and `Plan Number` is the title's plan number without the `-ARCH` suffix or brackets (`PLAN-00112` for the title `[PLAN-00112-ARCH] ...`).
-- Each key appears once. Indent with spaces, never tabs.
-- No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`, except inside a code fence, where a `#` line is code and must stay unescaped (`\#` would print as is).
-- No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
+- `Source Issue` starts with the issue reference, `#<n>` (if it also names a plan, that plan must be the title's), and `Plan Number` is the title's plan number without the `-ARCH` suffix or brackets (`PLAN-00112` for the title `[PLAN-00112-ARCH] ...`).
 
-Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<plan>/arch-draft.yml`, where `<project-root>` is the main checkout's git root, as defined in `../SHARED/CONFIG.md` (not a linked worktree) and `<plan>` is `plan-` plus the 5-digit plan number from step 3 (for example `plan-00112`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below, in double quotes, because the path may contain spaces.
+Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<plan>/arch-draft.yml`, where `<project-root>` is the main checkout's git root, as defined in `../SHARED/CONFIG.md` (not a linked worktree) and `<plan>` is `plan-` plus the 5-digit plan number from step 3 (for example `plan-00112`) (write rules: `../SHARED/DRAFT_AUTHORING.md`).
 
 ### 6. Present for review
 
@@ -79,7 +74,7 @@ Show the user the rendered issue, not the YAML:
 marvin template render arch-plan --draft "<project-root>/.claude/cache/<plan>/arch-draft.yml"
 ```
 
-Stdout is the issue body as markdown. Also show the `schema:` line from stderr (and any warnings) above the pasted body, so the user sees which schema shaped it. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`). If it exits 1 (for example a malformed project override), show stderr to the user and stop. If it exits 3 the draft does not conform: rewrite the draft file with `Write` to fix the findings on stderr and render again. Make at most 3 fix-and-render attempts per round of user changes; if it still exits 3, show the user the findings and ask how to proceed. When the user asks for changes, rewrite the draft file with `Write` and render again.
+Render and present the draft as `../SHARED/DRAFT_AUTHORING.md` describes (title, rendered markdown, `schema:` line), then take the user's changes the same way.
 
 Read `../SHARED/LABELS.md`. Infer domain labels from the plan content. Present the rendered draft with proposed labels: "I'll apply: `plan:arch`, `status:upcoming`, `domain:backend` — correct?"
 
@@ -107,14 +102,9 @@ Then create the issue from the approved draft file, capturing the returned numbe
 marvin issue create --template arch-plan --draft "<project-root>/.claude/cache/<plan>/arch-draft.yml" --label "<labels>"
 ```
 
-`<labels>` is one comma-joined string of only the labels that exist: `plan:arch`, `status:upcoming`, each domain label, and the source issue's type label (`bug` or `enhancement`) if it has one. Leave out any part that is absent; never leave an empty entry or a leading or trailing comma (marvin would pass an empty `--label` to `gh`). Put no spaces around the commas. Example: `--label "plan:arch,status:upcoming,domain:backend,enhancement"`.
+`<labels>` follows the comma-joined-string rule in `../SHARED/DRAFT_AUTHORING.md` and contains only the labels that exist: `plan:arch`, `status:upcoming`, each domain label, and the source issue's type label (`bug` or `enhancement`) if it has one. Example: `--label "plan:arch,status:upcoming,domain:backend,enhancement"`.
 
-The title comes from the draft, so do not pass `--title` or `--body`. On success stdout is the new issue number, then its URL; capture both. Warnings on stderr are fine. Handle the exit code:
-
-- **0** — created.
-- **3** — the draft does not conform; nothing was created. The findings are on stderr, most naming a draft line, all saying how to fix it. Rewrite the draft file with `Write` to fix the findings. If the fix changes only how the draft is written (quoting, escaping, block style, heading depth) and not what it says, run the same command again. If it changes what the draft says (content added, removed or reworded, or the title), render the draft again, show the user, and get approval before running the command again. Make at most 3 fix attempts per round of user changes; if it still exits 3, show the user the findings and stop.
-- **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry.
-- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry.
+The title comes from the draft, so do not pass `--title` or `--body`. Handle the exit code as `../SHARED/DRAFT_AUTHORING.md` describes.
 
 ### 8. Link to source issue
 

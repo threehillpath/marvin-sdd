@@ -5,6 +5,7 @@
 ```
 SHARED/        Files referenced by multiple skills
   CONFIG.md                Template for per-project config; template-override precedence
+  DRAFT_AUTHORING.md       Filling, presenting and creating from a plan-issue YAML draft (arch-plan, impl-plan, phase-split, quick-task)
   GLOSSARY.md              Names, paths, status state machine, docs/stories layout
   LABELS.md                Label rules
   PR_TEMPLATE.md           PR body templates

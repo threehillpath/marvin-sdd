@@ -78,7 +78,7 @@ If multiple PRs match, ask the user which to audit.
 
 Spawn an **Agent** with:
 
-- `subagent_type: "plan-workflow:drift-auditor"` (sonnet, read-only tools — set in `agents/drift-auditor.md`)
+- `subagent_type: "plan-workflow:drift-auditor"` (sonnet at `high` effort, read-only tools — set in `agents/drift-auditor.md`)
 - No worktree isolation (drift check is read-only)
 
 Assemble the prompt by **referencing** the inputs the sub-agent should fetch — do not paste the spec or diff into the prompt. The sub-agent has its own context window.

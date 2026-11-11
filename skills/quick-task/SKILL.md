@@ -55,14 +55,9 @@ marvin template render quick-task --guidance
 
 If either command exits 1 (for example a malformed project override, or an unknown type), show stderr to the user and stop. Neither command reads the config, so neither returns exit 2.
 
-Fill every key of the skeleton (six required sections). In `title:`, replace `[TASK-XXXXX]` with `<title_prefix.task>` as returned by A2 (it already includes the brackets) and `<Title>` with the real title. Follow every rule `--guidance` prints (its code-fence, heading-underline and HTML rules are not repeated here), plus the loader's key, tab, tag, anchor and alias rules, which `--guidance` does not print and which are in the list below. `../SHARED/CONFIG.md` describes the format. The rules most often broken:
+Fill every key of the skeleton (six required sections). In `title:`, replace `[TASK-XXXXX]` with `<title_prefix.task>` as returned by A2 (it already includes the brackets) and `<Title>` with the real title. Follow every rule `--guidance` prints and the rules in `../SHARED/DRAFT_AUTHORING.md`; the skill-specific metadata rule is:
 
-- Section content is always a `|` block, never `>` or an inline value. A repeatable section is one list under one key, not the key repeated.
-- The title and every metadata value are always double-quoted. Write `\"` for a quote and `\\` for a backslash inside them.
-- Every metadata value must be non-empty. `Source Issue` starts with the issue reference, `#<n>` (no plan cross-check for a Task), and `Task Number` is the title's identifier without brackets (`TASK-00151` for the title `[TASK-00151] ...`).
-- Each key appears once. Indent with spaces, never tabs.
-- No `#` or `##` heading lines in content; use `###` or deeper. Escape a literal `#` at the start of a line as `\#`, except inside a code fence, where a `#` line is code and must stay unescaped (`\#` would print as is).
-- No YAML comments, no `---` or `...` at column 0, no tags, anchors or aliases.
+- `Source Issue` starts with the issue reference, `#<n>` (no plan cross-check for a Task), and `Task Number` is the title's identifier without brackets (`TASK-00151` for the title `[TASK-00151] ...`).
 
 Content of the six sections:
 
@@ -89,7 +84,7 @@ Content of the six sections:
   Use the digest to draft Technical Analysis; you do not need to read the underlying files yourself unless the digest flags something needing deeper inspection.
 - **TDD Entry Point** and **Implementation Notes** — drafted from the digest and `$0`'s content.
 
-Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<task>/task-draft.yml`, where `<project-root>` is the main checkout's git root, as defined in `../SHARED/CONFIG.md` (not a linked worktree) and `<task>` is `task_number` from A2 in lowercase (for example `task-00151`); `Write` creates the directory. If the file already exists, `Read` it first (`Write` refuses to overwrite a file it has not read), then overwrite it. Use this same path in every command below, in double quotes, because the path may contain spaces.
+Once every section is filled in, `Write` the filled draft to `<project-root>/.claude/cache/<task>/task-draft.yml`, where `<project-root>` is the main checkout's git root, as defined in `../SHARED/CONFIG.md` (not a linked worktree) and `<task>` is `task_number` from A2 in lowercase (for example `task-00151`) (write rules: `../SHARED/DRAFT_AUTHORING.md`).
 
 ### A4. Present for review
 
@@ -99,7 +94,7 @@ Show the user the rendered issue, not the YAML:
 marvin template render quick-task --draft "<project-root>/.claude/cache/<task>/task-draft.yml"
 ```
 
-Stdout is the issue body as markdown. Also show the `schema:` line from stderr (and any warnings) above the pasted body, so the user sees which schema shaped it. Paste the draft's `title:` and that markdown into your reply, because a Bash result is not shown to the user (see `../SHARED/RENDERING.md`). If it exits 1 (for example a malformed project override), show stderr to the user and stop. If it exits 3 the draft does not conform: rewrite the draft file with `Write` to fix the findings on stderr and render again. Make at most 3 fix-and-render attempts per round of user changes; if it still exits 3, show the user the findings and ask how to proceed. When the user asks for changes, rewrite the draft file with `Write` and render again.
+Render and present the draft as `../SHARED/DRAFT_AUTHORING.md` describes (title, rendered markdown, `schema:` line), then take the user's changes the same way.
 
 Read `../SHARED/LABELS.md`. Present the rendered draft to the user: title `"<title_prefix.task> <Title>"`, proposed labels `plan:task, status:upcoming, <domain-labels>, <type-label from $0>` (the `bug`/`enhancement` label carried forward from `$0`, per `LABELS.md`'s "Source issue labels" rule). Iterate on content and labels until the user approves — same pattern `arch-plan`/`impl-plan` use for their own "present for review" steps.
 
@@ -121,14 +116,9 @@ Then create the issue from the approved draft file, capturing the returned numbe
 marvin issue create --template quick-task --draft "<project-root>/.claude/cache/<task>/task-draft.yml" --label "<labels>"
 ```
 
-`<labels>` is one comma-joined string of only the labels that exist: `plan:task`, `status:upcoming`, each domain label, and the type label carried forward from `$0` (`bug` or `enhancement`) if it has one. Leave out any part that is absent; never leave an empty entry or a leading or trailing comma (marvin would pass an empty `--label` to `gh`). Put no spaces around the commas. Example: `--label "plan:task,status:upcoming,domain:backend,bug"`.
+`<labels>` follows the comma-joined-string rule in `../SHARED/DRAFT_AUTHORING.md` and contains only the labels that exist: `plan:task`, `status:upcoming`, each domain label, and the type label carried forward from `$0` (`bug` or `enhancement`) if it has one. Example: `--label "plan:task,status:upcoming,domain:backend,bug"`.
 
-The title comes from the draft, so do not pass `--title` or `--body`. On success stdout is the new issue number, then its URL; capture both. Warnings on stderr are fine. Handle the exit code:
-
-- **0** — created.
-- **3** — the draft does not conform; nothing was created. The findings are on stderr, most naming a draft line, all saying how to fix it. Rewrite the draft file with `Write` to fix the findings. If the fix changes only how the draft is written (quoting, escaping, block style, heading depth) and not what it says, run the same command again. If it changes what the draft says (content added, removed or reworded, or the title), render the draft again, show the user, and get approval before running the command again. Make at most 3 fix attempts per round of user changes; if it still exits 3, show the user the findings and stop.
-- **1** — a usage or operational error (for example an unreadable draft, or several usage problems listed together under a header like `issue create: 3 problems:`). Findings may be printed with it. Show stderr to the user and stop. Do not retry.
-- **2** — configuration missing. Surface: "Configuration missing — run `/configure-plan-plugin` first." Do not retry.
+The title comes from the draft, so do not pass `--title` or `--body`. Handle the exit code as `../SHARED/DRAFT_AUTHORING.md` describes.
 
 Comment-link the source issue — informational only, not a GitHub-native sub-issue link, since Tasks are deliberately outside the arch/impl/phase hierarchy `marvin issue tree` walks:
 
@@ -159,17 +149,13 @@ marvin worktree resolve <worktree_path>
 
 Read `SUPPLEMENTS/LOOP.md` for the TDD loop instructions.
 
-Spawn the `plan-workflow:tdd-implementer` agent (sonnet — set in `agents/tdd-implementer.md`) **without** `isolation: "worktree"` (the worktree was created in A7). Assemble the task prompt by **referencing** the inputs the sub-agent should fetch — do not paste full file contents into the prompt — mirroring `implement-phase/SKILL.md`'s equivalent spawn step in shape:
+Spawn the `plan-workflow:tdd-implementer` agent (sonnet at `high` effort — set in `agents/tdd-implementer.md`) **without** `isolation: "worktree"` (the worktree was created in A7). Assemble the task prompt in the same shape as `implement-phase/SKILL.md`'s spawn step. Reference inputs for the sub-agent to fetch rather than pasting them: it reads files fresh inside the worktree, and a pasted copy goes stale and bloats the prompt. Include:
 
-1. Task issue number (and `gh issue view` command for it) — the sub-agent fetches title, Problem Statement, Scope, Technical Analysis, TDD Entry Point, and Success Criteria itself.
-2. Source issue number `$0` (and `gh issue view` command for it).
-3. **Paths only** for the relevant source files identified in A3 — the sub-agent reads them inside the worktree.
-4. Task branch: `<task_branch>`.
-5. **Absolute** worktree path (resolved above — never the repo-relative form from A2).
-6. Repo: `<repo>`.
-7. Task title.
-8. Test commands from `.claude/plan-workflow-config.yml`.
-9. Full instructions from `SUPPLEMENTS/LOOP.md` (paste verbatim — it is the sub-agent's primary procedural guide).
+- Task issue number and source issue `$0`, each with its `gh issue view` command (the sub-agent fetches Problem Statement, Scope, Technical Analysis, TDD Entry Point and Success Criteria itself), plus the repo and Task title.
+- Paths only for the relevant source files identified in A3.
+- The task branch and the **absolute** worktree path resolved above (the repo-relative form from A2 does not work from the sub-agent's working directory).
+- Test commands from `.claude/plan-workflow-config.yml`.
+- The full text of `SUPPLEMENTS/LOOP.md`, pasted verbatim: it is the sub-agent's procedure and it has no other way to read it.
 
 The sub-agent must not pause for user confirmation except on unresolvable failure or ambiguity. Capture its returned PR number, PR URL, and summary. If it stops instead and its report says progress has stalled on multiple criteria, offer to re-spawn it with `model: "opus"` (the Agent call's `model` overrides the agent definition) and the same prompt plus the stalled run's report; the worktree keeps every criterion already committed.
 
@@ -214,14 +200,7 @@ Message: "Task PR opened and reviewed — see findings above. Address any blocki
 
 ### B11. Re-derive naming
 
-Independently of Mode A's state — Mode B is a separate invocation with no memory of a prior run:
-
-```bash
-gh issue view $0 --repo <repo> --json labels
-marvin names derive $0 --task --type <type> --json
-```
-
-Resolve `<type>` from `$0`'s labels exactly as in A1. Capture `task_number`, `title_prefix.task`, `worktree_path`, `task_branch`.
+Mode B is a separate invocation with no memory of Mode A, so repeat A1's type resolution (labels only is enough: `gh issue view $0 --repo <repo> --json labels`) and A2's `marvin names derive`. Capture `task_number`, `title_prefix.task`, `worktree_path`, `task_branch`.
 
 ### B12. Check the Task PR's state
 
